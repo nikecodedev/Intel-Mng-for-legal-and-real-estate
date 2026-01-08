@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: intelligence
+  namespace: platform
+  labels:
+    app: intelligence
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: intelligence
+  template:
+    metadata:
+      labels:
+        app: intelligence
+    spec:
+      containers:
+      - name: intelligence
+        image: platform/intelligence:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: ENV
+          value: "production"
+        - name: PORT
+          value: "8000"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+

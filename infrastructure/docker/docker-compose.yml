@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.api
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+    volumes:
+      - ../../apps/api:/app/apps/api
+      - ../../packages:/app/packages
+    networks:
+      - platform-network
+
+  web:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.web
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://api:3000
+    depends_on:
+      - api
+    networks:
+      - platform-network
+
+  intelligence:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.intelligence
+    ports:
+      - "8000:8000"
+    environment:
+      - ENV=development
+      - PORT=8000
+    volumes:
+      - ../../services/intelligence/src:/app/src
+    networks:
+      - platform-network
+
+networks:
+  platform-network:
+    driver: bridge
+

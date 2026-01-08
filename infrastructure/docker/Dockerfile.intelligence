@@ -1,0 +1,25 @@
+# Intelligence Services Dockerfile
+FROM python:3.10-slim AS base
+
+WORKDIR /app
+
+# Install Poetry
+RUN pip install poetry==1.7.0 && \
+    poetry config virtualenvs.create false
+
+# Copy dependency files
+COPY services/intelligence/pyproject.toml services/intelligence/poetry.lock* ./
+
+# Install dependencies
+RUN poetry install --no-dev --no-interaction --no-ansi
+
+# Copy application code
+COPY services/intelligence/src ./src
+
+# Set Python path
+ENV PYTHONPATH=/app
+
+EXPOSE 8000
+
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
