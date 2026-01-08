@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError, formatErrorResponse } from '../utils/errors';
 import { logger, logHelpers } from '../utils/logger';
+import { ErrorTrackingService } from '../services/error-tracking';
 import { config } from '../config';
 
 /**
@@ -13,6 +14,21 @@ export function errorHandler(
   res: Response,
   next: NextFunction
 ): void {
+  // Track error with error tracking service
+  ErrorTrackingService.trackError(error, {
+    request: req,
+    userId: req.user?.id,
+    tags: {
+      errorType: error instanceof AppError ? 'operational' : 'system',
+      statusCode: error instanceof AppError ? String(error.statusCode) : '500',
+    },
+    extra: {
+      body: req.body,
+      query: req.query,
+      params: req.params,
+    },
+  });
+
   // Log error with context
   if (error instanceof AppError && error.isOperational) {
     logger.warn('Operational error', {

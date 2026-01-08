@@ -1,0 +1,103 @@
+# Kubernetes Probe Configurations
+# Reference examples for liveness, readiness, and startup probes
+
+---
+# API Service Probes
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-probe-config
+  namespace: platform
+data:
+  # Liveness Probe Configuration
+  # Checks if the container is still running
+  # If fails, Kubernetes restarts the container
+  liveness-probe.yaml: |
+    livenessProbe:
+      httpGet:
+        path: /health/live
+        port: 3000
+        scheme: HTTP
+      initialDelaySeconds: 30    # Wait 30s before first check
+      periodSeconds: 10          # Check every 10s
+      timeoutSeconds: 3          # 3s timeout
+      successThreshold: 1        # 1 success = healthy
+      failureThreshold: 3       # 3 failures = restart
+
+  # Readiness Probe Configuration
+  # Checks if the container is ready to accept traffic
+  # If fails, Kubernetes stops sending traffic
+  readiness-probe.yaml: |
+    readinessProbe:
+      httpGet:
+        path: /health/ready
+        port: 3000
+        scheme: HTTP
+      initialDelaySeconds: 5     # Wait 5s before first check
+      periodSeconds: 5           # Check every 5s
+      timeoutSeconds: 3          # 3s timeout
+      successThreshold: 1       # 1 success = ready
+      failureThreshold: 3       # 3 failures = not ready
+
+  # Startup Probe Configuration
+  # Allows slow-starting containers more time
+  # Only used during initial startup
+  startup-probe.yaml: |
+    startupProbe:
+      httpGet:
+        path: /health/startup
+        port: 3000
+        scheme: HTTP
+      initialDelaySeconds: 0    # Start immediately
+      periodSeconds: 5          # Check every 5s
+      timeoutSeconds: 3         # 3s timeout
+      successThreshold: 1       # 1 success = started
+      failureThreshold: 30      # Allow up to 150s (30 * 5s) for startup
+
+---
+# Intelligence Service Probes
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: intelligence-probe-config
+  namespace: platform
+data:
+  # Liveness Probe
+  liveness-probe.yaml: |
+    livenessProbe:
+      httpGet:
+        path: /health/live
+        port: 8000
+        scheme: HTTP
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 3
+      successThreshold: 1
+      failureThreshold: 3
+
+  # Readiness Probe
+  readiness-probe.yaml: |
+    readinessProbe:
+      httpGet:
+        path: /health/ready
+        port: 8000
+        scheme: HTTP
+      initialDelaySeconds: 10   # Python services may need more time
+      periodSeconds: 5
+      timeoutSeconds: 3
+      successThreshold: 1
+      failureThreshold: 3
+
+  # Startup Probe
+  startup-probe.yaml: |
+    startupProbe:
+      httpGet:
+        path: /health
+        port: 8000
+        scheme: HTTP
+      initialDelaySeconds: 0
+      periodSeconds: 5
+      timeoutSeconds: 3
+      successThreshold: 1
+      failureThreshold: 30      # Allow up to 150s for startup
+

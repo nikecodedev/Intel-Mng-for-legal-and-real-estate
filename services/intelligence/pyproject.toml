@@ -10,6 +10,9 @@ fastapi = "^0.104.1"
 uvicorn = {extras = ["standard"], version = "^0.24.0"}
 pydantic = "^2.5.0"
 python-dotenv = "^1.0.0"
+redis = "^5.0.1"
+psycopg2-binary = "^2.9.9"
+psutil = "^5.9.6"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"

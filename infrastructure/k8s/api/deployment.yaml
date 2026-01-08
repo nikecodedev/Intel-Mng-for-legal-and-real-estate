@@ -152,18 +152,32 @@ spec:
           httpGet:
             path: /health/live
             port: http
+            scheme: HTTP
           initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 3
+          successThreshold: 1
           failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /health/ready
             port: http
+            scheme: HTTP
           initialDelaySeconds: 5
           periodSeconds: 5
           timeoutSeconds: 3
+          successThreshold: 1
           failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /health/startup
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 0
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 30
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
