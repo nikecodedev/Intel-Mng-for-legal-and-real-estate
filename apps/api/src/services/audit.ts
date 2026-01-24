@@ -67,6 +67,7 @@ export enum AuditAction {
  * Audit log entry interface
  */
 export interface AuditLogEntry {
+  tenant_id?: string;
   event_type: string;
   event_category: AuditEventCategory;
   action: AuditAction;
@@ -75,8 +76,10 @@ export interface AuditLogEntry {
   user_role?: string;
   resource_type?: string;
   resource_id?: string;
+  target_resource_id?: string;
   resource_identifier?: string;
   description?: string;
+  payload_evento?: Record<string, unknown>;
   details?: Record<string, unknown>;
   ip_address?: string;
   user_agent?: string;
@@ -95,6 +98,15 @@ export interface AuditLogEntry {
  * Server-side only - no client trust
  */
 export class AuditService {
+  private static readonly DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000000';
+
+  private static getTenantIdFromRequest(request?: Request): string | undefined {
+    if (!request) return undefined;
+    const headerValue = request.headers['x-tenant-id'];
+    if (Array.isArray(headerValue)) return headerValue[0];
+    return headerValue as string | undefined;
+  }
+
   /**
    * Log an audit event
    * This is the only way to create audit logs - ensures immutability
@@ -107,20 +119,26 @@ export class AuditService {
         return;
       }
 
+      const tenantId = entry.tenant_id || AuditService.DEFAULT_TENANT_ID;
+      const detailsPayload = entry.details || {};
+      const payloadEvento = entry.payload_evento || detailsPayload;
+
       // Insert audit log (append-only)
       await db.query(
         `INSERT INTO audit_logs (
+          tenant_id,
           event_type, event_category, action,
           user_id, user_email, user_role,
-          resource_type, resource_id, resource_identifier,
-          description, details,
+          resource_type, resource_id, target_resource_id, resource_identifier,
+          description, payload_evento, details,
           ip_address, user_agent, request_id, session_id,
           success, error_code, error_message,
           compliance_flags, retention_category
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
         )`,
         [
+          tenantId,
           entry.event_type,
           entry.event_category,
           entry.action,
@@ -129,9 +147,11 @@ export class AuditService {
           entry.user_role || null,
           entry.resource_type || null,
           entry.resource_id || null,
+          entry.target_resource_id || entry.resource_id || null,
           entry.resource_identifier || null,
           entry.description || null,
-          entry.details ? JSON.stringify(entry.details) : '{}',
+          JSON.stringify(payloadEvento),
+          JSON.stringify(detailsPayload),
           entry.ip_address || null,
           entry.user_agent || null,
           entry.request_id || null,
@@ -177,6 +197,7 @@ export class AuditService {
     details?: Record<string, unknown>,
     resourceIdentifier?: string
   ): Promise<void> {
+    const tenantId = this.getTenantIdFromRequest(request);
     const eventType = `data.${action}`;
     const eventCategory =
       action === AuditAction.DELETE
@@ -184,6 +205,7 @@ export class AuditService {
         : AuditEventCategory.DATA_MODIFICATION;
 
     await this.log({
+      tenant_id: tenantId,
       event_type: eventType,
       event_category: eventCategory,
       action,
@@ -222,7 +244,9 @@ export class AuditService {
     request: Request,
     details?: Record<string, unknown>
   ): Promise<void> {
+    const tenantId = this.getTenantIdFromRequest(request);
     await this.log({
+      tenant_id: tenantId,
       event_type: AuditEventType.READ,
       event_category: AuditEventCategory.DATA_ACCESS,
       action: AuditAction.READ,
@@ -259,7 +283,9 @@ export class AuditService {
     success: boolean,
     errorMessage?: string
   ): Promise<void> {
+    const tenantId = this.getTenantIdFromRequest(request);
     await this.log({
+      tenant_id: tenantId,
       event_type: eventType,
       event_category: AuditEventCategory.AUTHENTICATION,
       action:
@@ -300,7 +326,9 @@ export class AuditService {
     request: Request,
     details?: Record<string, unknown>
   ): Promise<void> {
+    const tenantId = this.getTenantIdFromRequest(request);
     await this.log({
+      tenant_id: tenantId,
       event_type: action === AuditAction.GRANT ? AuditEventType.PERMISSION_GRANT : AuditEventType.PERMISSION_REVOKE,
       event_category: AuditEventCategory.AUTHORIZATION,
       action,

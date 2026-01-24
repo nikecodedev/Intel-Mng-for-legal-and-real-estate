@@ -76,6 +76,7 @@ await audit.logRead(req, 'user', userId, { accessed_fields: [...] });
 The `audit_logs` table is **immutable** - triggers prevent UPDATE and DELETE operations.
 
 **Key Fields:**
+- `tenant_id` - Tenant isolation key for audit chain
 - `event_type` - Type of event (e.g., "data.create", "user.login")
 - `event_category` - Category (authentication, authorization, data_access, data_modification, system)
 - `action` - Action performed (create, read, update, delete, etc.)
@@ -90,7 +91,10 @@ The `audit_logs` table is **immutable** - triggers prevent UPDATE and DELETE ope
 - `request_id` - Request ID for tracing
 - `session_id` - Session ID
 - `success` - Whether operation succeeded
+- `payload_evento` - Payload used for hash chaining
 - `details` - JSONB field for flexible event data
+- `previous_hash` - SHA-256 hash of previous audit record
+- `current_hash` - SHA-256 hash of current audit record
 - `compliance_flags` - Compliance flags (GDPR, HIPAA, SOX)
 - `retention_category` - Retention category for policy application
 

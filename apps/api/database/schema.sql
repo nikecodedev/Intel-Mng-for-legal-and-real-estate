@@ -3,6 +3,21 @@
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- ============================================
+-- TENANTS TABLE
+-- ============================================
+CREATE TABLE tenants (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL,
+    status VARCHAR(50) DEFAULT 'ACTIVE', -- RN-SAA-02
+    config_hard_gates JSONB DEFAULT '{}'::jsonb NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_tenants_status ON tenants(status);
+CREATE INDEX idx_tenants_created_at ON tenants(created_at);
 
 -- ============================================
 -- USERS TABLE
@@ -23,6 +38,24 @@ CREATE TABLE users (
 
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_active ON users(is_active) WHERE deleted_at IS NULL;
+
+-- ============================================
+-- DOCUMENTS TABLE (CPO OCR/DPI)
+-- ============================================
+CREATE TABLE documents (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    file_hash_sha256 VARCHAR(64) NOT NULL,
+    storage_path VARCHAR(512) NOT NULL,
+    ocr_confidence FLOAT NOT NULL,
+    dpi_resolution INT NOT NULL,
+    status_cpo VARCHAR(20) CHECK (status_cpo IN ('VERDE', 'AMARELO', 'VERMELHO')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_documents_tenant_id ON documents(tenant_id);
+CREATE INDEX idx_documents_status_cpo ON documents(status_cpo) WHERE status_cpo IS NOT NULL;
+CREATE INDEX idx_documents_created_at ON documents(created_at);
 
 -- ============================================
 -- ROLES TABLE
@@ -133,20 +166,30 @@ CREATE INDEX idx_refresh_tokens_active ON refresh_tokens(token, expires_at)
 -- ============================================
 CREATE TABLE audit_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    previous_hash VARCHAR(64) NOT NULL,
+    current_hash VARCHAR(64) NOT NULL,
     user_id UUID REFERENCES users(id),
     action VARCHAR(100) NOT NULL, -- e.g., "user.login", "document.create", "role.assign"
     resource_type VARCHAR(100), -- e.g., "user", "document", "role"
     resource_id UUID,
+    target_resource_id UUID,
+    payload_evento JSONB DEFAULT '{}'::jsonb NOT NULL,
     details JSONB,
     ip_address VARCHAR(45),
     user_agent TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT current_hash_format CHECK (current_hash ~ '^[a-f0-9]{64}$'),
+    CONSTRAINT previous_hash_format CHECK (previous_hash ~ '^[a-f0-9]{64}$')
 );
 
 CREATE INDEX idx_audit_logs_user_id ON audit_logs(user_id);
 CREATE INDEX idx_audit_logs_action ON audit_logs(action);
 CREATE INDEX idx_audit_logs_resource ON audit_logs(resource_type, resource_id);
 CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at);
+CREATE INDEX idx_audit_logs_tenant_id ON audit_logs(tenant_id);
+CREATE INDEX idx_audit_logs_current_hash ON audit_logs(current_hash);
+CREATE INDEX idx_audit_logs_previous_hash ON audit_logs(previous_hash);
 
 -- ============================================
 -- FUNCTIONS
@@ -161,6 +204,61 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+-- Function to calculate audit hash (SHA-256)
+CREATE OR REPLACE FUNCTION calculate_audit_log_hash(
+    p_previous_hash VARCHAR(64),
+    p_payload_evento JSONB,
+    p_created_at TIMESTAMP WITH TIME ZONE
+) RETURNS VARCHAR(64) AS $$
+DECLARE
+    hash_input TEXT;
+BEGIN
+    hash_input := COALESCE(p_previous_hash, '') || '|' ||
+                  COALESCE(p_payload_evento::TEXT, '') || '|' ||
+                  COALESCE(p_created_at::TEXT, '');
+    RETURN encode(digest(hash_input, 'sha256'), 'hex');
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- Trigger function to set previous_hash/current_hash
+CREATE OR REPLACE FUNCTION set_audit_log_hash()
+RETURNS TRIGGER AS $$
+DECLARE
+    prev_hash_value VARCHAR(64);
+BEGIN
+    IF NEW.payload_evento IS NULL THEN
+        NEW.payload_evento := COALESCE(NEW.details, '{}'::jsonb);
+    END IF;
+
+    IF NEW.created_at IS NULL THEN
+        NEW.created_at := CURRENT_TIMESTAMP;
+    END IF;
+
+    SELECT current_hash INTO prev_hash_value
+    FROM audit_logs
+    WHERE tenant_id = NEW.tenant_id
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1;
+
+    NEW.previous_hash := COALESCE(prev_hash_value, encode(digest('GENESIS', 'sha256'), 'hex'));
+    NEW.current_hash := calculate_audit_log_hash(
+        NEW.previous_hash,
+        NEW.payload_evento,
+        NEW.created_at
+    );
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to prevent updates/deletes on audit_logs (immutability)
+CREATE OR REPLACE FUNCTION prevent_audit_log_modification()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'Audit logs are immutable. Updates and deletes are not allowed.';
+END;
+$$ LANGUAGE plpgsql;
+
 -- Triggers for updated_at
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -170,6 +268,17 @@ CREATE TRIGGER update_roles_updated_at BEFORE UPDATE ON roles
 
 CREATE TRIGGER update_permissions_updated_at BEFORE UPDATE ON permissions
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Audit log hash chain trigger
+CREATE TRIGGER set_audit_log_hash_trigger BEFORE INSERT ON audit_logs
+    FOR EACH ROW EXECUTE FUNCTION set_audit_log_hash();
+
+-- Prevent audit log modifications
+CREATE TRIGGER prevent_audit_log_update BEFORE UPDATE ON audit_logs
+    FOR EACH ROW EXECUTE FUNCTION prevent_audit_log_modification();
+
+CREATE TRIGGER prevent_audit_log_delete BEFORE DELETE ON audit_logs
+    FOR EACH ROW EXECUTE FUNCTION prevent_audit_log_modification();
 
 -- ============================================
 -- VIEWS (for easier querying)

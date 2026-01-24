@@ -1,27 +1,22 @@
--- ============================================
--- SAAS MULTI-TENANT AND AUDIT TRAIL TABLES
--- Schema for Milestone 1 Compliance
--- ============================================
 
 -- enable required extensions
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "pgcrypto"; -- for cryptographic functions (SHA-256)
+CREATE EXTENSION IF NOT EXISTS "pgcrypto"; -- for cryptographic functions (SHA-256) and gen_random_uuid()
 
 -- ============================================
 -- SAAS_TENANTS TABLE
 -- Multi-tenant isolation table
 -- ============================================
-CREATE TABLE saas_tenants (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+CREATE TABLE tenants (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     
     -- tenant identification
-    tenant_id VARCHAR(100) UNIQUE NOT NULL, -- used for data isolation
+    tenant_id UUID UNIQUE NOT NULL, -- used for data isolation
     name VARCHAR(255) NOT NULL,
     domain VARCHAR(255) UNIQUE, -- custom domain (optional)
     subdomain VARCHAR(100) UNIQUE, -- tenant subdomain
     
     -- status and configuration
-    status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE', -- uppercase status values
+    status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE', -- uppercase status values (Fonte 203)
     tier VARCHAR(50) DEFAULT 'STANDARD',
     max_users INTEGER DEFAULT 10,
     max_storage_gb INTEGER DEFAULT 10,
@@ -34,8 +29,8 @@ CREATE TABLE saas_tenants (
     metadata JSONB DEFAULT '{}'::jsonb, -- tenant-specific configurations
     settings JSONB DEFAULT '{}'::jsonb, -- preferences and settings
     
-    -- dynamic rules (JSONB for flexible rule configuration)
-    dynamic_rules JSONB DEFAULT '{}'::jsonb, -- dynamic business rules and policies
+    -- config_hard_gates (JSONB for flexible rule configuration - Fonte 96)
+    config_hard_gates JSONB DEFAULT '{}'::jsonb NOT NULL, -- hard gates configuration (Score MPGA, Teto Financeiro, etc.)
     
     -- Compliance e Auditoria
     data_residency VARCHAR(100), -- Região de residência dos dados (GDPR)
@@ -52,44 +47,43 @@ CREATE TABLE saas_tenants (
     -- Constraints
     CONSTRAINT valid_status CHECK (status IN ('ACTIVE', 'SUSPENDED', 'INACTIVE', 'TRIAL', 'EXPIRED')),
     CONSTRAINT valid_tier CHECK (tier IN ('TRIAL', 'STANDARD', 'PREMIUM', 'ENTERPRISE')),
-    CONSTRAINT valid_isolation_level CHECK (isolation_level IN ('logical', 'physical')),
-    CONSTRAINT tenant_id_format CHECK (tenant_id ~ '^[a-z0-9_-]+$')
+    CONSTRAINT valid_isolation_level CHECK (isolation_level IN ('logical', 'physical'))
 );
 
 -- Indexes for performance and isolation
-CREATE INDEX idx_saas_tenants_tenant_id ON saas_tenants(tenant_id) WHERE deleted_at IS NULL;
-CREATE INDEX idx_saas_tenants_status ON saas_tenants(status) WHERE deleted_at IS NULL;
-CREATE INDEX idx_saas_tenants_domain ON saas_tenants(domain) WHERE deleted_at IS NULL;
-CREATE INDEX idx_saas_tenants_subdomain ON saas_tenants(subdomain) WHERE deleted_at IS NULL;
-CREATE INDEX idx_saas_tenants_created_at ON saas_tenants(created_at);
+CREATE INDEX idx_tenants_tenant_id ON tenants(tenant_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_tenants_status ON tenants(status) WHERE deleted_at IS NULL;
+CREATE INDEX idx_tenants_domain ON tenants(domain) WHERE deleted_at IS NULL;
+CREATE INDEX idx_tenants_subdomain ON tenants(subdomain) WHERE deleted_at IS NULL;
+CREATE INDEX idx_tenants_created_at ON tenants(created_at);
 
--- GIN index for dynamic_rules JSONB
-CREATE INDEX idx_saas_tenants_dynamic_rules ON saas_tenants USING GIN(dynamic_rules) WHERE deleted_at IS NULL;
+-- GIN index for config_hard_gates JSONB
+CREATE INDEX idx_tenants_config_hard_gates ON tenants USING GIN(config_hard_gates) WHERE deleted_at IS NULL;
 
 -- Documentation comments
-COMMENT ON TABLE saas_tenants IS 'Multi-tenant isolation table (SaaS)';
-COMMENT ON COLUMN saas_tenants.tenant_id IS 'Unique tenant identifier - used for data isolation in all tables';
-COMMENT ON COLUMN saas_tenants.isolation_level IS 'Isolation level: logical (shared DB with tenant_id) or physical (dedicated DB)';
-COMMENT ON COLUMN saas_tenants.database_schema IS 'Dedicated PostgreSQL schema for physical isolation (when isolation_level = physical)';
-COMMENT ON COLUMN saas_tenants.dynamic_rules IS 'JSONB field for dynamic business rules and policies configuration';
-COMMENT ON COLUMN saas_tenants.status IS 'Tenant status in uppercase (ACTIVE, SUSPENDED, INACTIVE, TRIAL, EXPIRED)';
+COMMENT ON TABLE tenants IS 'Multi-tenant isolation table (SaaS)';
+COMMENT ON COLUMN tenants.tenant_id IS 'Unique tenant identifier (UUID) - used for data isolation in all tables';
+COMMENT ON COLUMN tenants.isolation_level IS 'Isolation level: logical (shared DB with tenant_id) or physical (dedicated DB)';
+COMMENT ON COLUMN tenants.database_schema IS 'Dedicated PostgreSQL schema for physical isolation (when isolation_level = physical)';
+COMMENT ON COLUMN tenants.config_hard_gates IS 'JSONB field for hard gates configuration (Score MPGA, Teto Financeiro, etc.) - Fonte 96';
+COMMENT ON COLUMN tenants.status IS 'Tenant status in uppercase (ACTIVE, SUSPENDED, INACTIVE, TRIAL, EXPIRED)';
 
 -- ============================================
 -- SYSTEM_AUDIT_TRAIL TABLE
 -- Audit trail with hash chain
 -- ============================================
 CREATE TABLE system_audit_trail (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     
-    -- hash chain (immutable audit chain)
-    prev_hash VARCHAR(64), -- hash of previous record (NULL for first)
-    curr_hash VARCHAR(64) NOT NULL, -- hash of current record (SHA-256)
+    -- hash chain (immutable audit chain - Fonte 111, 156)
+    previous_hash VARCHAR(64) NOT NULL, -- SHA-256 hash of previous record (Fonte 111)
+    current_hash VARCHAR(64) NOT NULL, -- SHA-256 hash of current record (Fonte 111)
     hash_chain_index BIGSERIAL, -- sequential index in chain
     chain_id UUID, -- chain identifier for grouping related audit records
     chain_sequence BIGINT, -- sequence number within the chain
     
     -- multi-tenant isolation
-    tenant_id VARCHAR(100) REFERENCES saas_tenants(tenant_id) ON DELETE CASCADE,
+    tenant_id UUID REFERENCES tenants(tenant_id) ON DELETE CASCADE,
     
     -- event identification
     event_type VARCHAR(100) NOT NULL,
@@ -145,8 +139,8 @@ CREATE TABLE system_audit_trail (
     CONSTRAINT valid_severity CHECK (
         severity IN ('debug', 'info', 'warning', 'error', 'critical')
     ),
-    CONSTRAINT curr_hash_format CHECK (curr_hash ~ '^[a-f0-9]{64}$'), -- SHA-256 hex
-    CONSTRAINT prev_hash_format CHECK (prev_hash IS NULL OR prev_hash ~ '^[a-f0-9]{64}$')
+    CONSTRAINT current_hash_format CHECK (current_hash ~ '^[a-f0-9]{64}$'), -- SHA-256 hex
+    CONSTRAINT previous_hash_format CHECK (previous_hash ~ '^[a-f0-9]{64}$') -- SHA-256 hex (NOT NULL for first record will be handled by trigger)
 );
 
 -- Indexes for performance
@@ -154,8 +148,8 @@ CREATE INDEX idx_audit_trail_tenant_id ON system_audit_trail(tenant_id);
 CREATE INDEX idx_audit_trail_hash_chain_index ON system_audit_trail(hash_chain_index DESC);
 CREATE INDEX idx_audit_trail_chain_id ON system_audit_trail(chain_id) WHERE chain_id IS NOT NULL;
 CREATE INDEX idx_audit_trail_chain_sequence ON system_audit_trail(chain_id, chain_sequence) WHERE chain_id IS NOT NULL;
-CREATE INDEX idx_audit_trail_curr_hash ON system_audit_trail(curr_hash);
-CREATE INDEX idx_audit_trail_prev_hash ON system_audit_trail(prev_hash) WHERE prev_hash IS NOT NULL;
+CREATE INDEX idx_audit_trail_current_hash ON system_audit_trail(current_hash);
+CREATE INDEX idx_audit_trail_previous_hash ON system_audit_trail(previous_hash);
 CREATE INDEX idx_audit_trail_user_id ON system_audit_trail(user_id);
 CREATE INDEX idx_audit_trail_event_type ON system_audit_trail(event_type);
 CREATE INDEX idx_audit_trail_event_category ON system_audit_trail(event_category);
@@ -180,11 +174,11 @@ CREATE INDEX idx_audit_trail_after_state ON system_audit_trail USING GIN(after_s
 -- FUNCTIONS FOR HASH CHAIN
 -- ============================================
 
--- function that calculates SHA-256 hash of the record
+-- function that calculates SHA-256 hash of the record (Fonte 111)
 CREATE OR REPLACE FUNCTION calculate_audit_hash(
     p_id UUID,
-    p_prev_hash VARCHAR(64),
-    p_tenant_id VARCHAR(100),
+    p_previous_hash VARCHAR(64),
+    p_tenant_id UUID,
     p_chain_id UUID,
     p_chain_sequence BIGINT,
     p_event_type VARCHAR(100),
@@ -202,8 +196,8 @@ DECLARE
 BEGIN
     -- concatenate relevant fields to form the hash (including chain fields)
     hash_input := COALESCE(p_id::TEXT, '') || '|' ||
-                  COALESCE(p_prev_hash, '') || '|' ||
-                  COALESCE(p_tenant_id, '') || '|' ||
+                  COALESCE(p_previous_hash, '') || '|' ||
+                  COALESCE(p_tenant_id::TEXT, '') || '|' ||
                   COALESCE(p_chain_id::TEXT, '') || '|' ||
                   COALESCE(p_chain_sequence::TEXT, '') || '|' ||
                   COALESCE(p_event_type, '') || '|' ||
@@ -229,20 +223,21 @@ DECLARE
     prev_hash_value VARCHAR(64);
     hash_index BIGINT;
 BEGIN
-    -- get hash from last record of same tenant
-    SELECT curr_hash, hash_chain_index INTO prev_hash_value, hash_index
+    -- get hash from last record of same tenant (Fonte 111)
+    SELECT current_hash, hash_chain_index INTO prev_hash_value, hash_index
     FROM system_audit_trail
-    WHERE tenant_id = COALESCE(NEW.tenant_id, 'system')
+    WHERE tenant_id = COALESCE(NEW.tenant_id, '00000000-0000-0000-0000-000000000000'::uuid)
     ORDER BY hash_chain_index DESC
     LIMIT 1;
     
-    -- set prev_hash and increment index
-    NEW.prev_hash := prev_hash_value;
+    -- set previous_hash (use genesis hash for first record to ensure NOT NULL and valid format)
+    -- Genesis hash: SHA-256 of 'GENESIS' for the first record in chain
+    NEW.previous_hash := COALESCE(prev_hash_value, encode(digest('GENESIS', 'sha256'), 'hex'));
     NEW.hash_chain_index := COALESCE(hash_index, 0) + 1;
     
     -- generate chain_id if not provided (for grouping related records)
     IF NEW.chain_id IS NULL THEN
-        NEW.chain_id := uuid_generate_v4();
+        NEW.chain_id := gen_random_uuid();
     END IF;
     
     -- set chain_sequence if not provided
@@ -253,9 +248,9 @@ BEGIN
     END IF;
     
     -- calculate hash of current record
-    NEW.curr_hash := calculate_audit_hash(
+    NEW.current_hash := calculate_audit_hash(
         NEW.id,
-        NEW.prev_hash,
+        NEW.previous_hash,
         NEW.tenant_id,
         NEW.chain_id,
         NEW.chain_sequence,
@@ -299,11 +294,11 @@ CREATE TRIGGER prevent_audit_trail_delete
     EXECUTE FUNCTION prevent_audit_trail_modification();
 
 -- function to validate hash chain integrity
-CREATE OR REPLACE FUNCTION validate_audit_hash_chain(p_tenant_id VARCHAR(100) DEFAULT NULL)
+CREATE OR REPLACE FUNCTION validate_audit_hash_chain(p_tenant_id UUID DEFAULT NULL)
 RETURNS TABLE(
     hash_chain_index BIGINT,
-    curr_hash VARCHAR(64),
-    prev_hash VARCHAR(64),
+    current_hash VARCHAR(64),
+    previous_hash VARCHAR(64),
     calculated_hash VARCHAR(64),
     is_valid BOOLEAN,
     created_at TIMESTAMP WITH TIME ZONE
@@ -314,8 +309,8 @@ BEGIN
         SELECT 
             hash_chain_index,
             id,
-            prev_hash,
-            curr_hash,
+            previous_hash,
+            current_hash,
             tenant_id,
             chain_id,
             chain_sequence,
@@ -334,11 +329,11 @@ BEGIN
     validation AS (
         SELECT 
             ot.hash_chain_index,
-            ot.curr_hash,
-            ot.prev_hash,
+            ot.current_hash,
+            ot.previous_hash,
             calculate_audit_hash(
                 ot.id,
-                ot.prev_hash,
+                ot.previous_hash,
                 ot.tenant_id,
                 ot.chain_id,
                 ot.chain_sequence,
@@ -356,24 +351,24 @@ BEGIN
     )
     SELECT 
         v.hash_chain_index,
-        v.curr_hash,
-        v.prev_hash,
+        v.current_hash,
+        v.previous_hash,
         v.calculated_hash,
-        (v.curr_hash = v.calculated_hash) AS is_valid,
+        (v.current_hash = v.calculated_hash) AS is_valid,
         v.created_at
     FROM validation v;
 END;
 $$ LANGUAGE plpgsql;
 
 -- Documentation comments
-COMMENT ON TABLE system_audit_trail IS 'Immutable audit trail with hash chain';
-COMMENT ON COLUMN system_audit_trail.prev_hash IS 'SHA-256 hash of previous record (NULL for first)';
-COMMENT ON COLUMN system_audit_trail.curr_hash IS 'SHA-256 hash of current record, calculated automatically';
+COMMENT ON TABLE system_audit_trail IS 'Immutable audit trail with hash chain (Fonte 111, 156)';
+COMMENT ON COLUMN system_audit_trail.previous_hash IS 'SHA-256 hash of previous record - NOT NULL for hash chaining (Fonte 111)';
+COMMENT ON COLUMN system_audit_trail.current_hash IS 'SHA-256 hash of current record, calculated automatically - NOT NULL (Fonte 111)';
 COMMENT ON COLUMN system_audit_trail.hash_chain_index IS 'Sequential index in chain (per tenant)';
 COMMENT ON COLUMN system_audit_trail.chain_id IS 'Chain identifier for grouping related audit records';
 COMMENT ON COLUMN system_audit_trail.chain_sequence IS 'Sequence number within the chain';
 COMMENT ON COLUMN system_audit_trail.tenant_id IS 'Each tenant has its own hash chain';
-COMMENT ON FUNCTION calculate_audit_hash IS 'Calculates SHA-256 hash including prev_hash to form chain';
+COMMENT ON FUNCTION calculate_audit_hash IS 'Calculates SHA-256 hash including previous_hash to form chain (Fonte 111)';
 COMMENT ON FUNCTION validate_audit_hash_chain IS 'Validates hash chain integrity';
 
 -- ============================================
@@ -381,10 +376,10 @@ COMMENT ON FUNCTION validate_audit_hash_chain IS 'Validates hash chain integrity
 -- Document management with CPO (Quality Control) support
 -- ============================================
 CREATE TABLE documents (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     
     -- multi-tenant isolation
-    tenant_id VARCHAR(100) NOT NULL REFERENCES saas_tenants(tenant_id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
     
     -- document identification
     document_number VARCHAR(100) NOT NULL, -- human-readable document identifier
@@ -395,10 +390,22 @@ CREATE TABLE documents (
     
     -- file information
     file_name VARCHAR(500) NOT NULL,
-    file_path VARCHAR(1000), -- storage path
+    storage_path VARCHAR(1000), -- storage path
     file_size BIGINT, -- file size in bytes
     mime_type VARCHAR(100), -- MIME type
-    file_hash VARCHAR(64), -- SHA-256 hash of file content for integrity
+    file_hash_sha256 VARCHAR(64), -- SHA-256 hash of file content for integrity
+    
+    -- OCR/DPI support (Fonte 109, 123)
+    ocr_processed BOOLEAN DEFAULT false, -- OCR processing flag
+    ocr_text TEXT, -- extracted text from OCR
+    ocr_confidence FLOAT, -- OCR confidence score (0-100)
+    ocr_processed_at TIMESTAMP WITH TIME ZONE, -- when OCR was processed
+    ocr_engine VARCHAR(100), -- OCR engine used
+    
+    dpi_processed BOOLEAN DEFAULT false, -- DPI processing flag
+    dpi_resolution INTEGER, -- DPI value detected
+    dpi_processed_at TIMESTAMP WITH TIME ZONE, -- when DPI was processed
+    image_quality_score DECIMAL(5,2), -- image quality score
     
     -- document status
     status VARCHAR(50) NOT NULL DEFAULT 'DRAFT', -- 'DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'ARCHIVED'
@@ -406,7 +413,7 @@ CREATE TABLE documents (
     is_current_version BOOLEAN DEFAULT true, -- flag for current version
     
     -- CPO (Quality Control) fields
-    cpo_status VARCHAR(50), -- 'PENDING', 'IN_REVIEW', 'APPROVED', 'REJECTED', 'REQUIRES_REVISION'
+    status_cpo VARCHAR(20), -- 'VERDE', 'AMARELO', 'VERMELHO'
     cpo_reviewer_id UUID REFERENCES users(id) ON DELETE SET NULL, -- who reviewed
     cpo_reviewed_at TIMESTAMP WITH TIME ZONE, -- when reviewed
     cpo_notes TEXT, -- CPO review notes
@@ -448,7 +455,7 @@ CREATE TABLE documents (
     
     -- constraints
     CONSTRAINT valid_status CHECK (status IN ('DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'ARCHIVED')),
-    CONSTRAINT valid_cpo_status CHECK (cpo_status IS NULL OR cpo_status IN ('PENDING', 'IN_REVIEW', 'APPROVED', 'REJECTED', 'REQUIRES_REVISION')),
+    CONSTRAINT valid_status_cpo CHECK (status_cpo IS NULL OR status_cpo IN ('VERDE', 'AMARELO', 'VERMELHO')),
     CONSTRAINT valid_confidentiality CHECK (confidentiality_level IN ('PUBLIC', 'INTERNAL', 'CONFIDENTIAL', 'RESTRICTED')),
     CONSTRAINT unique_document_number_tenant UNIQUE (tenant_id, document_number)
 );
@@ -457,7 +464,7 @@ CREATE TABLE documents (
 CREATE INDEX idx_documents_tenant_id ON documents(tenant_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_documents_document_number ON documents(document_number) WHERE deleted_at IS NULL;
 CREATE INDEX idx_documents_status ON documents(status) WHERE deleted_at IS NULL;
-CREATE INDEX idx_documents_cpo_status ON documents(cpo_status) WHERE deleted_at IS NULL AND cpo_status IS NOT NULL;
+CREATE INDEX idx_documents_status_cpo ON documents(status_cpo) WHERE deleted_at IS NULL AND status_cpo IS NOT NULL;
 CREATE INDEX idx_documents_document_type ON documents(document_type) WHERE deleted_at IS NULL;
 CREATE INDEX idx_documents_owner ON documents(owner_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_documents_created_by ON documents(created_by) WHERE deleted_at IS NULL;
@@ -466,10 +473,12 @@ CREATE INDEX idx_documents_process ON documents(process_id) WHERE deleted_at IS 
 CREATE INDEX idx_documents_document_date ON documents(document_date) WHERE deleted_at IS NULL;
 CREATE INDEX idx_documents_expiration_date ON documents(expiration_date) WHERE deleted_at IS NULL AND expiration_date IS NOT NULL;
 CREATE INDEX idx_documents_created_at ON documents(created_at);
+CREATE INDEX idx_documents_ocr_processed ON documents(ocr_processed) WHERE deleted_at IS NULL;
+CREATE INDEX idx_documents_dpi_processed ON documents(dpi_processed) WHERE deleted_at IS NULL;
 
 -- Composite indexes
 CREATE INDEX idx_documents_tenant_status ON documents(tenant_id, status) WHERE deleted_at IS NULL;
-CREATE INDEX idx_documents_tenant_cpo ON documents(tenant_id, cpo_status) WHERE deleted_at IS NULL AND cpo_status IS NOT NULL;
+CREATE INDEX idx_documents_tenant_status_cpo ON documents(tenant_id, status_cpo) WHERE deleted_at IS NULL AND status_cpo IS NOT NULL;
 CREATE INDEX idx_documents_version ON documents(parent_document_id, version) WHERE deleted_at IS NULL AND parent_document_id IS NOT NULL;
 
 -- GIN indexes for JSONB and arrays
@@ -479,10 +488,14 @@ CREATE INDEX idx_documents_tags ON documents USING GIN(tags) WHERE deleted_at IS
 CREATE INDEX idx_documents_keywords ON documents USING GIN(keywords) WHERE deleted_at IS NULL;
 
 -- Documentation comments
-COMMENT ON TABLE documents IS 'Document management table with CPO (Quality Control) support';
+COMMENT ON TABLE documents IS 'Document management table with CPO (Quality Control) and OCR/DPI support (Fonte 109, 123)';
 COMMENT ON COLUMN documents.tenant_id IS 'Multi-tenant isolation - each tenant has isolated documents';
-COMMENT ON COLUMN documents.cpo_status IS 'CPO (Quality Control) review status';
+COMMENT ON COLUMN documents.status_cpo IS 'CPO (Quality Control) review status (VERDE/AMARELO/VERMELHO)';
 COMMENT ON COLUMN documents.cpo_checklist IS 'JSONB field for CPO quality control checklist items';
 COMMENT ON COLUMN documents.cpo_approval_required IS 'Flag indicating if CPO approval is required before document can be finalized';
-COMMENT ON COLUMN documents.file_hash IS 'SHA-256 hash of file content for integrity verification';
+COMMENT ON COLUMN documents.file_hash_sha256 IS 'SHA-256 hash of file content for integrity verification';
+COMMENT ON COLUMN documents.ocr_processed IS 'Flag indicating if OCR processing has been completed';
+COMMENT ON COLUMN documents.ocr_text IS 'Extracted text from OCR processing';
+COMMENT ON COLUMN documents.dpi_processed IS 'Flag indicating if DPI processing has been completed';
+COMMENT ON COLUMN documents.dpi_resolution IS 'DPI value detected from document';
 

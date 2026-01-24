@@ -8,6 +8,22 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto"; -- For cryptographic functions
 
 -- ============================================
+-- TENANTS TABLE
+-- Core tenant isolation with flexible configuration
+-- ============================================
+CREATE TABLE tenants (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL,
+    status VARCHAR(50) DEFAULT 'ACTIVE', -- RN-SAA-02
+    config_hard_gates JSONB DEFAULT '{}'::jsonb NOT NULL, -- Configuração flexível
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE INDEX idx_tenants_status ON tenants(status);
+CREATE INDEX idx_tenants_created_at ON tenants(created_at);
+CREATE INDEX idx_tenants_config_hard_gates ON tenants USING GIN(config_hard_gates);
+
+-- ============================================
 -- USERS TABLE
 -- ============================================
 -- Stores user accounts with comprehensive profile and security information
@@ -324,6 +340,13 @@ CREATE INDEX idx_process_participants_role ON process_participants(role) WHERE r
 -- Immutable by design - no UPDATE or DELETE allowed
 CREATE TABLE audit_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+
+    -- Multi-tenant isolation
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+
+    -- Hash chain (Art. 6o)
+    previous_hash VARCHAR(64) NOT NULL,
+    current_hash VARCHAR(64) NOT NULL,
     
     -- Event identification
     event_type VARCHAR(100) NOT NULL, -- e.g., "user.login", "document.create", "permission.grant"
@@ -338,10 +361,12 @@ CREATE TABLE audit_logs (
     -- Resource information
     resource_type VARCHAR(100), -- e.g., "user", "document", "process", "role"
     resource_id UUID, -- ID of the affected resource
+    target_resource_id UUID, -- ID of the target resource (spec compliance)
     resource_identifier VARCHAR(500), -- Human-readable identifier
     
     -- Event details
     description TEXT,
+    payload_evento JSONB DEFAULT '{}'::jsonb NOT NULL, -- Payload for hash chaining
     details JSONB DEFAULT '{}'::jsonb, -- Flexible event-specific data
     
     -- Request context
@@ -368,15 +393,20 @@ CREATE TABLE audit_logs (
     ),
     CONSTRAINT valid_action CHECK (
         action IN ('create', 'read', 'update', 'delete', 'login', 'logout', 'grant', 'revoke', 'export', 'import', 'approve', 'reject')
-    )
+    ),
+    CONSTRAINT current_hash_format CHECK (current_hash ~ '^[a-f0-9]{64}$'),
+    CONSTRAINT previous_hash_format CHECK (previous_hash ~ '^[a-f0-9]{64}$')
 );
 
 -- Indexes for audit_logs (optimized for common queries)
+CREATE INDEX idx_audit_logs_tenant_id ON audit_logs(tenant_id);
 CREATE INDEX idx_audit_logs_user_id ON audit_logs(user_id);
 CREATE INDEX idx_audit_logs_event_type ON audit_logs(event_type);
 CREATE INDEX idx_audit_logs_event_category ON audit_logs(event_category);
 CREATE INDEX idx_audit_logs_resource ON audit_logs(resource_type, resource_id);
 CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at DESC);
+CREATE INDEX idx_audit_logs_current_hash ON audit_logs(current_hash);
+CREATE INDEX idx_audit_logs_previous_hash ON audit_logs(previous_hash);
 CREATE INDEX idx_audit_logs_compliance ON audit_logs(compliance_flags) WHERE compliance_flags IS NOT NULL;
 CREATE INDEX idx_audit_logs_request_id ON audit_logs(request_id) WHERE request_id IS NOT NULL;
 CREATE INDEX idx_audit_logs_session_id ON audit_logs(session_id) WHERE session_id IS NOT NULL;
@@ -388,6 +418,25 @@ CREATE INDEX idx_audit_logs_category_time ON audit_logs(event_category, created_
 
 -- JSONB index for details field
 CREATE INDEX idx_audit_logs_details ON audit_logs USING GIN(details);
+
+-- ============================================
+-- DOCUMENTS TABLE
+-- CPO (OCR/DPI) quality control
+-- ============================================
+CREATE TABLE documents (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    file_hash_sha256 VARCHAR(64) NOT NULL,
+    storage_path VARCHAR(512) NOT NULL,
+    ocr_confidence FLOAT NOT NULL,
+    dpi_resolution INT NOT NULL,
+    status_cpo VARCHAR(20) CHECK (status_cpo IN ('VERDE', 'AMARELO', 'VERMELHO')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE INDEX idx_documents_tenant_id ON documents(tenant_id);
+CREATE INDEX idx_documents_status_cpo ON documents(status_cpo) WHERE status_cpo IS NOT NULL;
+CREATE INDEX idx_documents_created_at ON documents(created_at);
 
 -- ============================================
 -- REFRESH_TOKENS TABLE
@@ -435,6 +484,53 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Function to calculate audit hash (SHA-256)
+CREATE OR REPLACE FUNCTION calculate_audit_log_hash(
+    p_previous_hash VARCHAR(64),
+    p_payload_evento JSONB,
+    p_created_at TIMESTAMP WITH TIME ZONE
+) RETURNS VARCHAR(64) AS $$
+DECLARE
+    hash_input TEXT;
+BEGIN
+    hash_input := COALESCE(p_previous_hash, '') || '|' ||
+                  COALESCE(p_payload_evento::TEXT, '') || '|' ||
+                  COALESCE(p_created_at::TEXT, '');
+    RETURN encode(digest(hash_input, 'sha256'), 'hex');
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- Trigger function to set previous_hash/current_hash and payload_evento
+CREATE OR REPLACE FUNCTION set_audit_log_hash()
+RETURNS TRIGGER AS $$
+DECLARE
+    prev_hash_value VARCHAR(64);
+BEGIN
+    IF NEW.payload_evento IS NULL THEN
+        NEW.payload_evento := COALESCE(NEW.details, '{}'::jsonb);
+    END IF;
+
+    IF NEW.created_at IS NULL THEN
+        NEW.created_at := CURRENT_TIMESTAMP;
+    END IF;
+
+    SELECT current_hash INTO prev_hash_value
+    FROM audit_logs
+    WHERE tenant_id = NEW.tenant_id
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1;
+
+    NEW.previous_hash := COALESCE(prev_hash_value, encode(digest('GENESIS', 'sha256'), 'hex'));
+    NEW.current_hash := calculate_audit_log_hash(
+        NEW.previous_hash,
+        NEW.payload_evento,
+        NEW.created_at
+    );
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Function to prevent updates/deletes on audit_logs (immutability)
 CREATE OR REPLACE FUNCTION prevent_audit_log_modification()
 RETURNS TRIGGER AS $$
@@ -459,6 +555,11 @@ CREATE TRIGGER update_permissions_updated_at
 CREATE TRIGGER update_processes_updated_at 
     BEFORE UPDATE ON processes
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Trigger to set audit log hash chain
+CREATE TRIGGER set_audit_log_hash_trigger
+    BEFORE INSERT ON audit_logs
+    FOR EACH ROW EXECUTE FUNCTION set_audit_log_hash();
 
 -- Trigger to prevent audit log modifications
 CREATE TRIGGER prevent_audit_log_update
@@ -547,6 +648,7 @@ GROUP BY p.id, p.process_type, p.process_number, p.title, p.status, p.priority,
 -- ============================================
 
 COMMENT ON TABLE users IS 'User accounts with security and compliance metadata';
+COMMENT ON TABLE tenants IS 'Tenant isolation with configurable hard gates';
 COMMENT ON TABLE roles IS 'Organizational roles with hierarchical support';
 COMMENT ON TABLE permissions IS 'Fine-grained permissions using resource:action format';
 COMMENT ON TABLE user_roles IS 'User-role assignments with expiration and revocation tracking';
@@ -555,9 +657,14 @@ COMMENT ON TABLE user_permissions IS 'Direct user permissions (bypassing roles) 
 COMMENT ON TABLE processes IS 'Generic workflow container for cases, transactions, documents, etc.';
 COMMENT ON TABLE process_participants IS 'Tracks participants and their roles in processes';
 COMMENT ON TABLE audit_logs IS 'Immutable append-only audit log for compliance and traceability';
+COMMENT ON TABLE documents IS 'Document ingestion with OCR/DPI quality gates (CPO)';
 COMMENT ON TABLE refresh_tokens IS 'JWT refresh token management with revocation support';
 
 COMMENT ON COLUMN audit_logs.id IS 'Immutable UUID - never changes';
+COMMENT ON COLUMN audit_logs.tenant_id IS 'Tenant isolation for audit chain';
+COMMENT ON COLUMN audit_logs.previous_hash IS 'SHA-256 hash of previous record (hash chain)';
+COMMENT ON COLUMN audit_logs.current_hash IS 'SHA-256 hash of current record (hash chain)';
+COMMENT ON COLUMN audit_logs.payload_evento IS 'Payload used for hash chaining';
 COMMENT ON COLUMN audit_logs.created_at IS 'Immutable timestamp - never changes';
 COMMENT ON COLUMN processes.metadata IS 'JSONB field for flexible process-specific data';
 COMMENT ON COLUMN audit_logs.details IS 'JSONB field for flexible event-specific data';
