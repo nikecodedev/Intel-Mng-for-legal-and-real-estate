@@ -13,6 +13,11 @@ python-dotenv = "^1.0.0"
 redis = "^5.0.1"
 psycopg2-binary = "^2.9.9"
 psutil = "^5.9.6"
+# Dependências para processamento de documentos (Ref. Fontes 78, 79, 3, 75)
+pytesseract = "^0.3.10"
+Pillow = "^10.0.0"
+pdf2image = "^1.16.3"
+pdfplumber = "^0.10.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"
