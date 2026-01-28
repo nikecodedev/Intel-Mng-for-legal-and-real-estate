@@ -40,6 +40,9 @@ const envSchema = z.object({
   REDIS_PASSWORD: z.string().optional(),
   REDIS_DB: z.string().regex(/^\d+$/).transform(Number).default('0'),
   REDIS_ENABLED: z.string().transform((val) => val === 'true').default('true'),
+
+  // Tenant (Fonte 5 - Motor Payton) – default tenant when user has no association
+  DEFAULT_TENANT_ID: z.string().uuid().optional(),
 });
 
 type EnvConfig = z.infer<typeof envSchema>;
@@ -107,6 +110,9 @@ export const config = {
     port: env.REDIS_PORT,
     password: env.REDIS_PASSWORD,
     db: env.REDIS_DB,
+  },
+  tenant: {
+    defaultTenantId: env.DEFAULT_TENANT_ID,
   },
 } as const;
 

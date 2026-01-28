@@ -14,3 +14,4 @@ export {
   requireResourcePermission,
   requireDynamicPermission,
 } from './rbac';
+export { tenantMiddleware } from './tenant';

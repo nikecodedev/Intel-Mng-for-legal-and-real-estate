@@ -7,11 +7,18 @@ import { logger } from '../utils/logger';
 import { db } from '../models/database';
 
 /**
- * JWT payload interface
+ * JWT payload interface (Fonte 5 - Motor Payton)
+ * tid/uid/role required for TenantMiddleware isolation.
  */
 export interface JWTPayload {
   userId: string;
   email: string;
+  /** Tenant ID (isolation key) - required for SaaS */
+  tid?: string;
+  /** User ID alias (same as userId) */
+  uid?: string;
+  /** Role: OWNER | REVISOR | OPERATIONAL */
+  role?: 'OWNER' | 'REVISOR' | 'OPERATIONAL';
   iat?: number;
   exp?: number;
 }
@@ -37,12 +44,18 @@ export class AuthService {
   }
 
   /**
-   * Generate access token (JWT)
+   * Generate access token (JWT) with tid, uid, role (Fonte 5 - TenantMiddleware)
    */
-  static generateAccessToken(user: User): string {
+  static generateAccessToken(
+    user: User,
+    opts?: { tenantId: string; role: 'OWNER' | 'REVISOR' | 'OPERATIONAL' }
+  ): string {
     const payload: JWTPayload = {
       userId: user.id,
       email: user.email,
+      tid: opts?.tenantId,
+      uid: user.id,
+      role: opts?.role ?? 'OPERATIONAL',
     };
 
     return jwt.sign(payload, config.jwt.secret, {

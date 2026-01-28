@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { tenantMiddleware } from '../middleware';
 import healthRouter from './health';
 import authRouter from './auth';
 import rbacExamplesRouter from './rbac-examples';
@@ -11,6 +12,9 @@ const router = Router();
  * API routes registration
  * All routes are prefixed with /api/{version}
  */
+
+// Tenant isolation (Fonte 73, Fonte 5) - level 0, before any controller. Skips /health, /auth/login, /auth/register, /auth/refresh.
+router.use(tenantMiddleware);
 
 // Health check routes
 router.use('/health', healthRouter);

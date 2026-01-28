@@ -39,6 +39,25 @@ export class AuthorizationError extends AppError {
   }
 }
 
+/** 402 Payment Required - Tenant suspended (Fonte 5, TenantMiddleware spec) */
+export class PaymentRequiredError extends AppError {
+  constructor(message = 'Payment required') {
+    super(402, message, true, 'PAYMENT_REQUIRED');
+    Object.setPrototypeOf(this, PaymentRequiredError.prototype);
+  }
+}
+
+/**
+ * Tenant blocked/suspended - 403 with ACCOUNT_SUSPENDED body (Fonte 5, TenantMiddleware spec).
+ * Security by obscurity: same response for blocked/suspended when returning 403.
+ */
+export class TenantAccountSuspendedError extends AppError {
+  constructor(message = 'Entre em contato com o financeiro.') {
+    super(403, message, true, 'ACCOUNT_SUSPENDED');
+    Object.setPrototypeOf(this, TenantAccountSuspendedError.prototype);
+  }
+}
+
 export class NotFoundError extends AppError {
   constructor(resource = 'Resource') {
     super(404, `${resource} not found`, true, 'NOT_FOUND');

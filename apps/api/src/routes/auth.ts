@@ -1,10 +1,20 @@
 import { Router, Request, Response } from 'express';
 import { asyncHandler, validateRequest, authenticate } from '../middleware';
 import { AuthService } from '../services/auth';
+import { config } from '../config';
 import { z } from 'zod';
 import { logger } from '../utils/logger';
 
 const router = Router();
+
+/** Tenant + role for JWT (Fonte 5). Uses DEFAULT_TENANT_ID when user has no tenant association. */
+function tenantOptsForToken():
+  | { tenantId: string; role: 'OWNER' | 'REVISOR' | 'OPERATIONAL' }
+  | undefined {
+  const tid = config.tenant.defaultTenantId;
+  if (!tid) return undefined;
+  return { tenantId: tid, role: 'OPERATIONAL' };
+}
 
 /**
  * Login schema
@@ -54,8 +64,8 @@ router.post(
     // Authenticate user
     const user = await AuthService.authenticate(email, password);
 
-    // Generate tokens
-    const accessToken = AuthService.generateAccessToken(user);
+    // Generate tokens (tid, role for TenantMiddleware - Fonte 5)
+    const accessToken = AuthService.generateAccessToken(user, tenantOptsForToken());
     const refreshToken = await AuthService.generateRefreshToken(
       user.id,
       req.get('user-agent'),
@@ -95,8 +105,8 @@ router.post(
     // Register user
     const user = await AuthService.register(email, password, first_name, last_name);
 
-    // Generate tokens
-    const accessToken = AuthService.generateAccessToken(user);
+    // Generate tokens (tid, role for TenantMiddleware - Fonte 5)
+    const accessToken = AuthService.generateAccessToken(user, tenantOptsForToken());
     const refreshToken = await AuthService.generateRefreshToken(
       user.id,
       req.get('user-agent'),
@@ -144,8 +154,8 @@ router.post(
       throw new Error('User not found or inactive');
     }
 
-    // Generate new access token
-    const accessToken = AuthService.generateAccessToken(user);
+    // Generate new access token (tid, role for TenantMiddleware - Fonte 5)
+    const accessToken = AuthService.generateAccessToken(user, tenantOptsForToken());
 
     logger.info('Token refreshed', { userId: user.id });
 
