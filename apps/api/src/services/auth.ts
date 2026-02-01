@@ -164,9 +164,12 @@ export class AuthService {
 
   /**
    * Authenticate user with email and password
+   * Uses findByEmailForAuth (cross-tenant lookup) because tenant is unknown at login
+   * Returns user with tenant_id populated for JWT generation
    */
   static async authenticate(email: string, password: string): Promise<User> {
-    const user = await UserModel.findByEmail(email);
+    // Use findByEmailForAuth - cross-tenant lookup for authentication only
+    const user = await UserModel.findByEmailForAuth(email);
 
     if (!user) {
       logger.warn('Authentication attempt with non-existent email', { email });
@@ -185,25 +188,35 @@ export class AuthService {
       throw new AuthenticationError('Invalid credentials');
     }
 
-    // Update last login
-    await UserModel.updateLastLogin(user.id);
+    // Update last login (use user's tenant_id from DB)
+    await UserModel.updateLastLogin(user.id, user.tenant_id);
 
-    logger.info('User authenticated successfully', { userId: user.id, email: user.email });
+    logger.info('User authenticated successfully', { 
+      userId: user.id, 
+      email: user.email,
+      tenantId: user.tenant_id 
+    });
 
     return user;
   }
 
   /**
-   * Register new user
+   * Register new user in a specific tenant
+   * @param tenantId - Tenant ID (required)
    */
   static async register(
+    tenantId: string,
     email: string,
     password: string,
     firstName?: string,
     lastName?: string
   ): Promise<User> {
-    // Check if user already exists
-    const existingUser = await UserModel.findByEmail(email);
+    if (!tenantId) {
+      throw new AuthenticationError('Tenant ID is required for registration');
+    }
+
+    // Check if user already exists in this tenant
+    const existingUser = await UserModel.findByEmail(email, tenantId);
     if (existingUser) {
       throw new AuthenticationError('User with this email already exists');
     }
@@ -211,15 +224,20 @@ export class AuthService {
     // Hash password
     const passwordHash = await this.hashPassword(password);
 
-    // Create user
+    // Create user in the specified tenant
     const user = await UserModel.create({
+      tenant_id: tenantId,
       email,
       password_hash: passwordHash,
       first_name: firstName,
       last_name: lastName,
     });
 
-    logger.info('User registered successfully', { userId: user.id, email: user.email });
+    logger.info('User registered successfully', { 
+      userId: user.id, 
+      email: user.email,
+      tenantId: user.tenant_id 
+    });
 
     return user;
   }

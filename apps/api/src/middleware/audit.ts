@@ -2,11 +2,14 @@ import { Request, Response, NextFunction } from 'express';
 import { AuditService, AuditAction } from '../services/audit';
 import { asyncHandler } from './validator';
 import { logger } from '../utils/logger';
+import { getTenantContext } from '../utils/tenant-context';
 
 /**
  * Audit middleware factory
  * Automatically logs HTTP requests based on method
- * Server-side enforcement - no client trust
+ * 
+ * IMPORTANT: tenant_id is extracted from req.context (set by TenantMiddleware)
+ * This middleware MUST run AFTER TenantMiddleware
  */
 export function auditMiddleware(options?: {
   logReads?: boolean; // Log GET requests (default: false for performance)
@@ -24,6 +27,12 @@ export function auditMiddleware(options?: {
 
       // Skip if no user (unauthenticated requests)
       if (!req.user) {
+        return next();
+      }
+
+      // Skip if no tenant context (should not happen after TenantMiddleware)
+      if (!req.context?.tenant_id) {
+        logger.warn('Audit middleware: missing tenant context', { path: req.path });
         return next();
       }
 
@@ -60,6 +69,7 @@ export function auditMiddleware(options?: {
 
 /**
  * Log audit event after response
+ * Uses tenant_id from req.context (NEVER from headers)
  */
 async function logAuditEvent(
   req: Request,
@@ -69,19 +79,23 @@ async function logAuditEvent(
   responseBody: unknown
 ): Promise<void> {
   try {
+    // Get tenant context - REQUIRED
+    const tenantId = req.context?.tenant_id;
+    if (!tenantId) {
+      logger.warn('Audit event skipped: no tenant context', { path: req.path });
+      return;
+    }
+
     const userId = req.user!.id;
     const userEmail = req.user!.email;
-    // User role would need to be fetched from database or stored in request
-    // For now, we'll leave it undefined and let the service handle it
-    const userRole = undefined;
+    const userRole = req.context?.role;
 
     // Extract resource ID from response or params
     const resourceId = extractResourceId(req, res, responseBody);
 
-    const success = res.statusCode >= 200 && res.statusCode < 400;
-
     if (action === AuditAction.READ) {
-      await AuditService.logDataAccess(
+      await AuditService.logAccess(
+        tenantId,
         resourceType,
         resourceId,
         userId,
@@ -93,7 +107,8 @@ async function logAuditEvent(
         }
       );
     } else {
-      await AuditService.logDataModification(
+      await AuditService.logDataChange(
+        tenantId,
         action as AuditAction.CREATE | AuditAction.UPDATE | AuditAction.DELETE,
         resourceType,
         resourceId || 'unknown',
@@ -194,6 +209,9 @@ function extractResourceIdentifier(req: Request, responseBody: unknown): string 
 /**
  * Manual audit logging helper
  * Use this in controllers for custom audit events
+ * 
+ * IMPORTANT: All methods extract tenant_id from req.context
+ * TenantMiddleware MUST run before using these helpers
  */
 export const audit = {
   /**
@@ -208,12 +226,16 @@ export const audit = {
   ): Promise<void> => {
     if (!req.user) return;
 
-    // Fetch user role from database if needed
+    // Get tenant context - REQUIRED
+    const { tenantId } = getTenantContext(req);
+
+    // Fetch user role from database
     const { RoleModel } = await import('../models/role');
-    const roles = await RoleModel.findByUserId(req.user.id);
+    const roles = await RoleModel.findByUserId(req.user.id, tenantId);
     const userRole = roles[0]?.name;
 
-    await AuditService.logDataModification(
+    await AuditService.logDataChange(
+      tenantId,
       AuditAction.CREATE,
       resourceType,
       resourceId,
@@ -238,11 +260,14 @@ export const audit = {
   ): Promise<void> => {
     if (!req.user) return;
 
+    const { tenantId } = getTenantContext(req);
+
     const { RoleModel } = await import('../models/role');
-    const roles = await RoleModel.findByUserId(req.user.id);
+    const roles = await RoleModel.findByUserId(req.user.id, tenantId);
     const userRole = roles[0]?.name;
 
-    await AuditService.logDataModification(
+    await AuditService.logDataChange(
+      tenantId,
       AuditAction.UPDATE,
       resourceType,
       resourceId,
@@ -267,11 +292,14 @@ export const audit = {
   ): Promise<void> => {
     if (!req.user) return;
 
+    const { tenantId } = getTenantContext(req);
+
     const { RoleModel } = await import('../models/role');
-    const roles = await RoleModel.findByUserId(req.user.id);
+    const roles = await RoleModel.findByUserId(req.user.id, tenantId);
     const userRole = roles[0]?.name;
 
-    await AuditService.logDataModification(
+    await AuditService.logDataChange(
+      tenantId,
       AuditAction.DELETE,
       resourceType,
       resourceId,
@@ -295,11 +323,14 @@ export const audit = {
   ): Promise<void> => {
     if (!req.user) return;
 
+    const { tenantId } = getTenantContext(req);
+
     const { RoleModel } = await import('../models/role');
-    const roles = await RoleModel.findByUserId(req.user.id);
+    const roles = await RoleModel.findByUserId(req.user.id, tenantId);
     const userRole = roles[0]?.name;
 
-    await AuditService.logDataAccess(
+    await AuditService.logAccess(
+      tenantId,
       resourceType,
       resourceId,
       req.user.id,
@@ -310,4 +341,3 @@ export const audit = {
     );
   },
 };
-

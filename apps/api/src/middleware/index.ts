@@ -13,5 +13,7 @@ export {
   requireAllPermissions,
   requireResourcePermission,
   requireDynamicPermission,
+  requireRole,
+  requireSuperAdmin,
 } from './rbac';
 export { tenantMiddleware } from './tenant';

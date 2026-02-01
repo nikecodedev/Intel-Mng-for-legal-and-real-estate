@@ -230,37 +230,52 @@ export async function auditDelete(
 /**
  * Enhanced User Model with automatic audit logging
  * Example of how to integrate audit hooks into models
+ * 
+ * IMPORTANT: All operations require tenant_id for SaaS isolation (Fonte 75)
  */
 export class AuditableUserModel {
   /**
    * Create user with audit logging
+   * @param data - User data including tenant_id (required)
+   * @param auditContext - Audit context with user info
    */
   static async createWithAudit(
-    data: { email: string; password_hash: string; first_name?: string; last_name?: string },
+    data: { 
+      tenant_id: string;
+      email: string; 
+      password_hash: string; 
+      first_name?: string; 
+      last_name?: string 
+    },
     auditContext: AuditContext
-  ): Promise<{ id: string; email: string }> {
+  ): Promise<{ id: string; email: string; tenant_id: string }> {
+    if (!data.tenant_id) {
+      throw new Error('tenant_id is required for user creation');
+    }
+
     // Set audit context
     setAuditContext(auditContext);
 
     try {
-      // Create user
+      // Create user with tenant_id
       const result = await db.query(
-        `INSERT INTO users (email, password_hash, first_name, last_name)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, email, first_name, last_name`,
-        [data.email, data.password_hash, data.first_name || null, data.last_name || null]
+        `INSERT INTO users (tenant_id, email, password_hash, first_name, last_name)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, tenant_id, email, first_name, last_name`,
+        [data.tenant_id, data.email, data.password_hash, data.first_name || null, data.last_name || null]
       );
 
       const user = result.rows[0];
 
       // Log audit
       await auditCreate('user', user.id, user.email, {
+        tenant_id: user.tenant_id,
         email: user.email,
         first_name: user.first_name,
         last_name: user.last_name,
       });
 
-      return { id: user.id, email: user.email };
+      return { id: user.id, email: user.email, tenant_id: user.tenant_id };
     } finally {
       clearAuditContext();
     }
@@ -268,17 +283,29 @@ export class AuditableUserModel {
 
   /**
    * Update user with audit logging
+   * @param userId - User ID
+   * @param tenantId - Tenant ID (required for scoping)
+   * @param updates - Fields to update
+   * @param auditContext - Audit context with user info
    */
   static async updateWithAudit(
     userId: string,
+    tenantId: string,
     updates: Record<string, unknown>,
     auditContext: AuditContext
   ): Promise<void> {
+    if (!tenantId) {
+      throw new Error('tenantId is required for user update');
+    }
+
     setAuditContext(auditContext);
 
     try {
-      // Get old values
-      const oldResult = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
+      // Get old values (tenant-scoped)
+      const oldResult = await db.query(
+        'SELECT * FROM users WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL', 
+        [userId, tenantId]
+      );
       const oldValues = oldResult.rows[0];
 
       if (!oldValues) {
@@ -291,20 +318,29 @@ export class AuditableUserModel {
       let paramIndex = 1;
 
       for (const [key, value] of Object.entries(updates)) {
+        // Prevent updating tenant_id
+        if (key === 'tenant_id') continue;
         fields.push(`${key} = $${paramIndex++}`);
         values.push(value);
       }
 
-      values.push(userId);
+      if (fields.length === 0) return;
 
-      // Update user
+      values.push(userId);
+      values.push(tenantId);
+
+      // Update user (tenant-scoped)
       await db.query(
-        `UPDATE users SET ${fields.join(', ')} WHERE id = $${paramIndex}`,
+        `UPDATE users SET ${fields.join(', ')} 
+         WHERE id = $${paramIndex} AND tenant_id = $${paramIndex + 1} AND deleted_at IS NULL`,
         values
       );
 
-      // Get new values
-      const newResult = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
+      // Get new values (tenant-scoped)
+      const newResult = await db.query(
+        'SELECT * FROM users WHERE id = $1 AND tenant_id = $2', 
+        [userId, tenantId]
+      );
       const newValues = newResult.rows[0];
 
       // Log audit
@@ -316,21 +352,38 @@ export class AuditableUserModel {
 
   /**
    * Delete user with audit logging
+   * @param userId - User ID
+   * @param tenantId - Tenant ID (required for scoping)
+   * @param auditContext - Audit context with user info
    */
-  static async deleteWithAudit(userId: string, auditContext: AuditContext): Promise<void> {
+  static async deleteWithAudit(
+    userId: string, 
+    tenantId: string,
+    auditContext: AuditContext
+  ): Promise<void> {
+    if (!tenantId) {
+      throw new Error('tenantId is required for user deletion');
+    }
+
     setAuditContext(auditContext);
 
     try {
-      // Get data before deletion
-      const result = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
+      // Get data before deletion (tenant-scoped)
+      const result = await db.query(
+        'SELECT * FROM users WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL', 
+        [userId, tenantId]
+      );
       const deletedData = result.rows[0];
 
       if (!deletedData) {
         throw new Error('User not found');
       }
 
-      // Soft delete
-      await db.query('UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1', [userId]);
+      // Soft delete (tenant-scoped)
+      await db.query(
+        'UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1 AND tenant_id = $2', 
+        [userId, tenantId]
+      );
 
       // Log audit
       await auditDelete('user', userId, deletedData, deletedData.email);

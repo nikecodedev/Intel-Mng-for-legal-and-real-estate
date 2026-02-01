@@ -9,6 +9,7 @@ import {
   asyncHandler,
 } from '../middleware';
 import { RBACService } from '../services/rbac';
+import { getTenantContext } from '../utils/tenant-context';
 
 const router = Router();
 
@@ -148,6 +149,7 @@ router.get(
   authenticate,
   asyncHandler(async (req: Request, res: Response) => {
     const { permission } = req.query;
+    const { tenantId, userId } = getTenantContext(req);
 
     if (!permission || typeof permission !== 'string') {
       return res.status(400).json({
@@ -159,12 +161,14 @@ router.get(
       });
     }
 
+    // Pass tenantId to RBACService for tenant-scoped permission check
     const hasPermission = await RBACService.hasPermission(
-      req.user!.id,
+      userId,
+      tenantId,
       permission
     );
 
-    const userPermissions = await RBACService.getUserPermissions(req.user!.id);
+    const userPermissions = await RBACService.getUserPermissions(userId, tenantId);
 
     res.json({
       success: true,
@@ -172,6 +176,7 @@ router.get(
         permission,
         hasPermission,
         userPermissions,
+        tenant_id: tenantId,
       },
     });
   })
@@ -211,22 +216,25 @@ router.delete(
   '/users/:id',
   authenticate,
   asyncHandler(async (req: Request, res: Response) => {
-    // Programmatic permission check
-    await RBACService.requirePermission(req.user!.id, 'users:delete');
+    const { tenantId, userId: currentUserId } = getTenantContext(req);
+
+    // Programmatic permission check (with tenantId)
+    await RBACService.requirePermission(currentUserId, tenantId, 'users:delete');
 
     // Additional business logic
-    const userId = req.params.id;
+    const targetUserId = req.params.id;
 
     // Check if user is trying to delete themselves
-    if (userId === req.user!.id) {
+    if (targetUserId === currentUserId) {
       // Might require additional permission
-      await RBACService.requirePermission(req.user!.id, 'users:delete-self');
+      await RBACService.requirePermission(currentUserId, tenantId, 'users:delete-self');
     }
 
     res.json({
       success: true,
-      message: `User ${userId} deleted`,
+      message: `User ${targetUserId} deleted`,
       user: req.user?.email,
+      tenant_id: tenantId,
     });
   })
 );

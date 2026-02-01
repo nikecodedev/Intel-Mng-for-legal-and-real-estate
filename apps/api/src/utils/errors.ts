@@ -80,6 +80,17 @@ export class InternalServerError extends AppError {
 }
 
 /**
+ * Tenant ID required but not provided.
+ * Thrown when a model method is called without required tenantId parameter.
+ */
+export class TenantRequiredError extends AppError {
+  constructor(operation = 'operation') {
+    super(400, `Tenant ID is required for ${operation}`, true, 'TENANT_REQUIRED');
+    Object.setPrototypeOf(this, TenantRequiredError.prototype);
+  }
+}
+
+/**
  * Error response formatter
  * Ensures consistent error response structure
  */

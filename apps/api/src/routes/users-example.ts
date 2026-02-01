@@ -5,6 +5,7 @@ import { audit } from '../middleware/audit';
 import { setAuditContext, clearAuditContext, AuditableUserModel } from '../models/audit-hooks';
 import { UserModel } from '../models/user';
 import { NotFoundError } from '../utils/errors';
+import { getTenantContext } from '../utils/tenant-context';
 
 const router = Router();
 
@@ -52,37 +53,39 @@ router.post(
   validateRequest(createUserSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { email, password, first_name, last_name } = req.body;
+    const { tenantId, userId } = getTenantContext(req);
 
-      // Fetch user role
-      const { RoleModel } = await import('../models/role');
-      const roles = await RoleModel.findByUserId(req.user!.id);
-      const userRole = roles[0]?.name;
+    // Fetch user role (using tenant context)
+    const { RoleModel } = await import('../models/role');
+    const roles = await RoleModel.findByUserId(userId, tenantId);
+    const userRole = roles[0]?.name;
 
-      // Set audit context for automatic logging
-      setAuditContext({
-        userId: req.user!.id,
-        userEmail: req.user!.email,
-        userRole,
-        request: req,
-      });
+    // Set audit context for automatic logging
+    setAuditContext({
+      userId: userId,
+      userEmail: req.user!.email,
+      userRole,
+      request: req,
+    });
 
     try {
       // Import auth service for password hashing
       const { AuthService } = await import('../services/auth');
       const passwordHash = await AuthService.hashPassword(password);
 
-      // Create user with automatic audit logging
+      // Create user with automatic audit logging (include tenant_id)
       const user = await AuditableUserModel.createWithAudit(
         {
+          tenant_id: tenantId,
           email,
           password_hash: passwordHash,
           first_name,
           last_name,
         },
         {
-          userId: req.user!.id,
+          userId: userId,
           userEmail: req.user!.email,
-          userRole: req.user!.user?.roles?.[0]?.name,
+          userRole,
           request: req,
         }
       );
@@ -92,6 +95,7 @@ router.post(
         data: {
           id: user.id,
           email: user.email,
+          tenant_id: user.tenant_id,
         },
       });
     } finally {
@@ -114,8 +118,10 @@ router.get(
   requirePermission('users:read'),
   asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
+    const { tenantId } = getTenantContext(req);
 
-    const user = await UserModel.findById(id);
+    // Find user within tenant scope
+    const user = await UserModel.findById(id, tenantId);
 
     if (!user) {
       throw new NotFoundError('User');
@@ -135,6 +141,7 @@ router.get(
         last_name: user.last_name,
         is_active: user.is_active,
         created_at: user.created_at,
+        tenant_id: user.tenant_id,
       },
     });
   })
@@ -156,31 +163,32 @@ router.put(
   asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
     const updates = req.body;
+    const { tenantId, userId } = getTenantContext(req);
 
-      // Fetch user role
-      const { RoleModel } = await import('../models/role');
-      const roles = await RoleModel.findByUserId(req.user!.id);
-      const userRole = roles[0]?.name;
+    // Fetch user role (using tenant context)
+    const { RoleModel } = await import('../models/role');
+    const roles = await RoleModel.findByUserId(userId, tenantId);
+    const userRole = roles[0]?.name;
 
-      // Set audit context
-      setAuditContext({
-        userId: req.user!.id,
-        userEmail: req.user!.email,
-        userRole,
-        request: req,
-      });
+    // Set audit context
+    setAuditContext({
+      userId: userId,
+      userEmail: req.user!.email,
+      userRole,
+      request: req,
+    });
 
     try {
-      // Update user with automatic audit logging
-      await AuditableUserModel.updateWithAudit(id, updates, {
-        userId: req.user!.id,
+      // Update user with automatic audit logging (tenant-scoped)
+      await AuditableUserModel.updateWithAudit(id, tenantId, updates, {
+        userId: userId,
         userEmail: req.user!.email,
         userRole,
         request: req,
       });
 
-      // Get updated user
-      const user = await UserModel.findById(id);
+      // Get updated user (tenant-scoped)
+      const user = await UserModel.findById(id, tenantId);
 
       if (!user) {
         throw new NotFoundError('User');
@@ -194,6 +202,7 @@ router.put(
           first_name: user.first_name,
           last_name: user.last_name,
           is_active: user.is_active,
+          tenant_id: user.tenant_id,
         },
       });
     } finally {
@@ -216,31 +225,27 @@ router.delete(
   requirePermission('users:delete'),
   asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
+    const { tenantId, userId } = getTenantContext(req);
 
-      // Fetch user role
-      const { RoleModel } = await import('../models/role');
-      const roles = await RoleModel.findByUserId(req.user!.id);
-      const userRole = roles[0]?.name;
+    // Fetch user role (using tenant context)
+    const { RoleModel } = await import('../models/role');
+    const roles = await RoleModel.findByUserId(userId, tenantId);
+    const userRole = roles[0]?.name;
 
-      // Set audit context
-      setAuditContext({
-        userId: req.user!.id,
-        userEmail: req.user!.email,
-        userRole,
-        request: req,
-      });
+    // Set audit context
+    setAuditContext({
+      userId: userId,
+      userEmail: req.user!.email,
+      userRole,
+      request: req,
+    });
 
     try {
-      // Fetch user role
-      const { RoleModel: RoleModelDelete } = await import('../models/role');
-      const rolesDelete = await RoleModelDelete.findByUserId(req.user!.id);
-      const userRoleDelete = rolesDelete[0]?.name;
-
-      // Delete user with automatic audit logging
-      await AuditableUserModel.deleteWithAudit(id, {
-        userId: req.user!.id,
+      // Delete user with automatic audit logging (tenant-scoped)
+      await AuditableUserModel.deleteWithAudit(id, tenantId, {
+        userId: userId,
         userEmail: req.user!.email,
-        userRole: userRoleDelete,
+        userRole,
         request: req,
       });
 
@@ -267,19 +272,30 @@ router.get(
   authenticate,
   requirePermission('users:list'),
   asyncHandler(async (req: Request, res: Response) => {
+    const { tenantId } = getTenantContext(req);
+
     // Manual audit logging for list operation
     await audit.logRead(req, 'user', null, {
       operation: 'list',
       filters: req.query,
     });
 
-    // In a real implementation, you would fetch users from database
-    // For this example, we'll return a mock response
+    // Fetch users within tenant scope
+    const users = await UserModel.findAllByTenant(tenantId);
+    
     res.json({
       success: true,
       data: {
-        users: [],
-        total: 0,
+        users: users.map(u => ({
+          id: u.id,
+          email: u.email,
+          first_name: u.first_name,
+          last_name: u.last_name,
+          is_active: u.is_active,
+          created_at: u.created_at,
+        })),
+        total: users.length,
+        tenant_id: tenantId,
       },
     });
   })
