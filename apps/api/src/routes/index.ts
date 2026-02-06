@@ -8,6 +8,7 @@ import documentsRouter from './documents';
 import factsRouter from './facts';
 import generatedDocumentsRouter from './generated-documents';
 import auctionsRouter from './auctions';
+import workflowRouter from './workflow';
 import { config } from '../config';
 
 const router = Router();
@@ -44,6 +45,9 @@ router.use('/generated-documents', generatedDocumentsRouter);
 // Auction engine (MPGA workflow)
 router.use('/auctions', auctionsRouter);
 
+// Event-driven workflow automation
+router.use('/workflow', workflowRouter);
+
 // Future: Add more route modules here
 // router.use('/users', userRouter);
 // router.use('/roles', rolesRouter);
@@ -70,6 +74,7 @@ router.get('/', (req, res) => {
       facts: '/api/v1/facts',
       generated_documents: '/api/v1/generated-documents',
       auctions: '/api/v1/auctions',
+      workflow: '/api/v1/workflow',
       // Future: Add more endpoints as they're created
     },
   });
