@@ -43,6 +43,9 @@ const envSchema = z.object({
 
   // Tenant (Fonte 5 - Motor Payton) – default tenant when user has no association
   DEFAULT_TENANT_ID: z.string().uuid().optional(),
+
+  // Gemini (Fase 2 – document processor: OCR Vision fallback + FPDN)
+  GEMINI_API_KEY: z.string().min(1).optional(),
 });
 
 type EnvConfig = z.infer<typeof envSchema>;
@@ -113,6 +116,9 @@ export const config = {
   },
   tenant: {
     defaultTenantId: env.DEFAULT_TENANT_ID,
+  },
+  gemini: {
+    apiKey: env.GEMINI_API_KEY,
   },
 } as const;
 

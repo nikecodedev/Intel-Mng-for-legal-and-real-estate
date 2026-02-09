@@ -7,6 +7,7 @@ import { DocumentModel } from '../models/document';
 import { DocumentExtractionModel, ExtractedParty, ExtractedMonetaryValue, ExtractedDate } from '../models/document-extraction';
 import { DocumentQualityFlagModel, QualityFlagType, FlagSeverity } from '../models/document-quality-flag';
 import { DocumentFactModel, CreateDocumentFactInput } from '../models/document-fact';
+import { extractTextFromPdf } from './document-processor';
 
 /**
  * Quality control thresholds (GEMS compliance)
@@ -244,9 +245,14 @@ export class DocumentExtractionService {
       });
 
       // Step 5: Extract structured fields (only if OCR was successful)
+      // QG1: use document-processor for text (pdf-parse + OCR Vision fallback for image/scanned PDFs)
       if (result.ocr_result.confidence && result.ocr_result.confidence >= 50) {
         try {
-          const extraction = await this.extractFields(tenantId, documentId, filePath, result.ocr_result.confidence);
+          const { text: fullText, usedOcrFallback } = await extractTextFromPdf(filePath);
+          if (usedOcrFallback) {
+            result.quality_flags.push('OCR_VISION_FALLBACK_USED');
+          }
+          const extraction = await this.extractFields(tenantId, documentId, filePath, result.ocr_result.confidence, fullText);
           result.extraction = extraction;
 
           // Create extraction record
@@ -359,7 +365,8 @@ export class DocumentExtractionService {
     tenantId: string,
     documentId: string,
     filePath: string,
-    ocrConfidence: number
+    ocrConfidence: number,
+    fullText: string = ''
   ): Promise<FieldExtractionResult> {
     const result: FieldExtractionResult = {
       process_number: null,
@@ -374,24 +381,12 @@ export class DocumentExtractionService {
       warnings: [],
     };
 
-    // TODO: Implement actual field extraction logic
-    // This would involve:
-    // 1. Running OCR to get full text
-    // 2. Using regex patterns to extract process numbers
-    // 3. Using NER or patterns to extract parties
-    // 4. Using patterns to extract monetary values
-    // 5. Using date patterns to extract dates
-
-    // For now, use placeholder regex patterns
     try {
-      // Read the file and run basic extraction
-      // In production, this would use the full OCR text from Python service
-      
-      // Placeholder extraction logic
-      result.process_number = this.extractProcessNumber('');
-      result.parties = this.extractParties('');
-      result.monetary_values = this.extractMonetaryValues('');
-      result.extracted_dates = this.extractDates('');
+      // QG1: fullText from document-processor (pdf-parse + OCR Vision fallback when needed)
+      result.process_number = this.extractProcessNumber(fullText);
+      result.parties = this.extractParties(fullText);
+      result.monetary_values = this.extractMonetaryValues(fullText);
+      result.extracted_dates = this.extractDates(fullText);
 
       // Calculate field confidences based on extraction success
       result.field_confidences = {
