@@ -39,10 +39,16 @@ export interface FPDNOutput {
   nexo_causal: string;
 }
 
-/** Carrega pdf-parse (CommonJS). */
-async function loadPdfParse(): Promise<(buffer: Buffer) => Promise<{ text: string; numpages: number }>> {
+type PdfParseFn = (buffer: Buffer) => Promise<{ text: string; numpages: number }>;
+
+let cachedPdfParse: PdfParseFn | null = null;
+
+/** Carrega e cacheia pdf-parse (CommonJS) para evitar import repetido. */
+async function getPdfParse(): Promise<PdfParseFn> {
+  if (cachedPdfParse) return cachedPdfParse;
   const mod = await import('pdf-parse');
-  return mod.default ?? (mod as unknown as (buffer: Buffer) => Promise<{ text: string; numpages: number }>);
+  cachedPdfParse = mod.default ?? (mod as unknown as PdfParseFn);
+  return cachedPdfParse;
 }
 
 /**
@@ -53,7 +59,7 @@ export async function extractTextFromPdf(filePath: string): Promise<ExtractedTex
   const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(filePath);
   const buffer = fs.readFileSync(absolutePath);
 
-  const pdfParse = await loadPdfParse();
+  const pdfParse = await getPdfParse();
   const { text: rawText, numpages } = await pdfParse(buffer);
 
   const trimmed = (rawText ?? '').trim();

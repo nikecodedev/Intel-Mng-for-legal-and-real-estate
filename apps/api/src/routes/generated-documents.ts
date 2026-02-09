@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware';
 import { getTenantContext } from '../utils/tenant-context';
+import { parsePagination } from '../utils/pagination';
 import { createGeneratedDocument, GeneratedDocumentValidationError } from '../services/generated-document';
 import { GeneratedDocumentModel } from '../models/generated-document';
 import { AuditService, AuditAction, AuditEventCategory } from '../services/audit';
@@ -82,8 +83,7 @@ router.get(
   requirePermission('documents:list'),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId } = getTenantContext(req);
-    const limit = Math.min(parseInt((req.query.limit as string) || '50', 10), 100);
-    const offset = parseInt((req.query.offset as string) || '0', 10);
+    const { limit, offset } = parsePagination(req.query, 50, 100);
 
     const list = await GeneratedDocumentModel.listByTenant(tenantId, { limit, offset });
 

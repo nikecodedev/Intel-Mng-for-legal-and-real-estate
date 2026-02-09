@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware';
 import { getTenantContext } from '../utils/tenant-context';
+import { parsePagination } from '../utils/pagination';
 import { NotFoundError, ValidationError, ConflictError } from '../utils/errors';
 import { DocumentModel } from '../models/document';
 import { DocumentExtractionModel } from '../models/document-extraction';
@@ -197,14 +198,15 @@ router.get(
   validateRequest(listDocumentsSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId, userId } = getTenantContext(req);
-    const { status, status_cpo, document_type, limit = 50, offset = 0 } = req.query as Record<string, string>;
+    const { status, status_cpo, document_type } = req.query as Record<string, string>;
+    const { limit, offset } = parsePagination(req.query);
 
     const documents = await DocumentModel.findAllByTenant(tenantId, {
       status,
       status_cpo,
       document_type,
-      limit: parseInt(limit as string, 10),
-      offset: parseInt(offset as string, 10),
+      limit,
+      offset,
     });
 
     const total = await DocumentModel.countByTenant(tenantId, { status, status_cpo });
@@ -225,11 +227,7 @@ router.get(
       success: true,
       data: {
         documents: documents.map(formatDocumentResponse),
-        pagination: {
-          total,
-          limit: parseInt(limit as string, 10),
-          offset: parseInt(offset as string, 10),
-        },
+        pagination: { total, limit, offset },
       },
     });
   })
@@ -799,13 +797,14 @@ router.get(
   validateRequest(sanitationQueueSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId, userId } = getTenantContext(req);
-    const { severity, flag_type, limit = 50, offset = 0 } = req.query as Record<string, string>;
+    const { severity, flag_type } = req.query as Record<string, string>;
+    const { limit, offset } = parsePagination(req.query);
 
     const queueItems = await DocumentQualityFlagModel.getSanitationQueue(tenantId, {
       severity: severity as 'ERROR' | 'WARNING' | 'INFO' | undefined,
       flag_type: flag_type as any,
-      limit: parseInt(limit as string, 10),
-      offset: parseInt(offset as string, 10),
+      limit,
+      offset,
     });
 
     const counts = await DocumentQualityFlagModel.countByStatus(tenantId);
@@ -833,8 +832,8 @@ router.get(
         },
         pagination: {
           total: counts.PENDING + counts.IN_REVIEW + counts.ESCALATED,
-          limit: parseInt(limit as string, 10),
-          offset: parseInt(offset as string, 10),
+          limit,
+          offset,
         },
       },
     });

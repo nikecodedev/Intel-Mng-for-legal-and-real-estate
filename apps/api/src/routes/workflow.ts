@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware';
 import { getTenantContext } from '../utils/tenant-context';
+import { parsePagination } from '../utils/pagination';
 import { NotFoundError, AuthorizationError } from '../utils/errors';
 import { AuditService, AuditAction, AuditEventCategory } from '../services/audit';
 import { WorkflowTriggerModel, type WorkflowActionType } from '../models/workflow-trigger';
@@ -42,8 +43,7 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId } = getTenantContext(req);
     const event_type = req.query.event_type as string | undefined;
-    const limit = parseInt((req.query.limit as string) || '50', 10);
-    const offset = parseInt((req.query.offset as string) || '0', 10);
+    const { limit, offset } = parsePagination(req.query);
 
     const triggers = await WorkflowTriggerModel.listByTenant(tenantId, {
       event_type,

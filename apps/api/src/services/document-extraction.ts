@@ -252,7 +252,7 @@ export class DocumentExtractionService {
           if (usedOcrFallback) {
             result.quality_flags.push('OCR_VISION_FALLBACK_USED');
           }
-          const extraction = await this.extractFields(tenantId, documentId, filePath, result.ocr_result.confidence, fullText);
+          const extraction = await this.extractFields(tenantId, documentId, result.ocr_result.confidence, fullText);
           result.extraction = extraction;
 
           // Create extraction record
@@ -364,9 +364,8 @@ export class DocumentExtractionService {
   private async extractFields(
     tenantId: string,
     documentId: string,
-    filePath: string,
     ocrConfidence: number,
-    fullText: string = ''
+    fullText: string
   ): Promise<FieldExtractionResult> {
     const result: FieldExtractionResult = {
       process_number: null,
