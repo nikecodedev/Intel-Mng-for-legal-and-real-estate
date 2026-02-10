@@ -17,6 +17,7 @@ import crmRouter from './crm';
 import matchingRouter from './matching';
 import knowledgeRouter from './knowledge';
 import qualityGatesRouter from './quality-gates';
+import superAdminRouter from './super-admin';
 import { config } from '../config';
 
 const router = Router();
@@ -80,6 +81,9 @@ router.use('/knowledge', knowledgeRouter);
 // Quality Gates and Compliance
 router.use('/quality-gates', qualityGatesRouter);
 
+// Super Admin
+router.use('/super-admin', superAdminRouter);
+
 // Future: Add more route modules here
 // router.use('/users', userRouter);
 // router.use('/roles', rolesRouter);
@@ -115,6 +119,7 @@ router.get('/', (req, res) => {
       matching: '/api/v1/matching',
       knowledge: '/api/v1/knowledge',
       quality_gates: '/api/v1/quality-gates',
+      super_admin: '/api/v1/super-admin',
       // Future: Add more endpoints as they're created
     },
   });
