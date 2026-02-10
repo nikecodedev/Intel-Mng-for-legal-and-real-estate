@@ -16,6 +16,7 @@ import financeRouter from './finance';
 import crmRouter from './crm';
 import matchingRouter from './matching';
 import knowledgeRouter from './knowledge';
+import qualityGatesRouter from './quality-gates';
 import { config } from '../config';
 
 const router = Router();
@@ -76,6 +77,9 @@ router.use('/matching', matchingRouter);
 // Knowledge Management
 router.use('/knowledge', knowledgeRouter);
 
+// Quality Gates and Compliance
+router.use('/quality-gates', qualityGatesRouter);
+
 // Future: Add more route modules here
 // router.use('/users', userRouter);
 // router.use('/roles', rolesRouter);
@@ -110,6 +114,7 @@ router.get('/', (req, res) => {
       crm: '/api/v1/crm',
       matching: '/api/v1/matching',
       knowledge: '/api/v1/knowledge',
+      quality_gates: '/api/v1/quality-gates',
       // Future: Add more endpoints as they're created
     },
   });
