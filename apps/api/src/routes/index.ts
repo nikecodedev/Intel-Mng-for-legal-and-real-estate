@@ -13,6 +13,8 @@ import intelligenceRouter from './intelligence';
 import investorRouter from './investor';
 import realEstateAssetsRouter from './real-estate-assets';
 import financeRouter from './finance';
+import crmRouter from './crm';
+import matchingRouter from './matching';
 import { config } from '../config';
 
 const router = Router();
@@ -64,6 +66,12 @@ router.use('/assets', realEstateAssetsRouter);
 // Finance & Accounting
 router.use('/finance', financeRouter);
 
+// CRM and Investor Management
+router.use('/crm', crmRouter);
+
+// Investor Matching Engine
+router.use('/matching', matchingRouter);
+
 // Future: Add more route modules here
 // router.use('/users', userRouter);
 // router.use('/roles', rolesRouter);
@@ -95,6 +103,8 @@ router.get('/', (req, res) => {
       investor: '/api/v1/investor',
       assets: '/api/v1/assets',
       finance: '/api/v1/finance',
+      crm: '/api/v1/crm',
+      matching: '/api/v1/matching',
       // Future: Add more endpoints as they're created
     },
   });
