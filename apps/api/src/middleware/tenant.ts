@@ -6,6 +6,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { AuthService, JWTPayload } from '../services/auth';
+import { InvestorAuthService, InvestorJWTPayload } from '../services/investor-auth';
 import { getTenantById } from '../services/tenant';
 import type { UserContext } from '../types/user-context';
 import {
@@ -26,6 +27,8 @@ const SKIP_PATHS = [
   '/auth/login',
   '/auth/register',
   '/auth/refresh',
+  '/investor/auth/login',
+  '/investor/auth/refresh',
 ];
 
 function normalizePath(path: string): string {
@@ -47,15 +50,44 @@ declare global {
 }
 
 /**
+ * Check if path is investor route
+ */
+function isInvestorRoute(path: string): boolean {
+  return path.startsWith('/investor/');
+}
+
+/**
  * Extract tenant identity from JWT (Fonte 5 - Seção 2).
  * Primary source: Authorization Bearer token. tid, uid, role from payload.
+ * Supports both regular users and investors.
  */
-function extractTenantIdentity(req: Request): { tid: string; uid: string; role: 'OWNER' | 'REVISOR' | 'OPERATIONAL' } {
+function extractTenantIdentity(req: Request): { tid: string; uid: string; role: 'OWNER' | 'REVISOR' | 'OPERATIONAL' | 'INVESTOR' } {
   const auth = req.headers.authorization;
   if (!auth || !auth.startsWith('Bearer ')) {
     throw new AuthenticationError('Token Ausente');
   }
   const token = auth.slice(7);
+  
+  // Check if this is an investor route
+  if (isInvestorRoute(req.path)) {
+    try {
+      const payload: InvestorJWTPayload = InvestorAuthService.verifyToken(token);
+      const tid = payload.tid;
+      if (!tid || typeof tid !== 'string') {
+        throw new AuthenticationError("FATAL: Token inválido - Claim 'tid' ausente");
+      }
+      const uid = payload.uid ?? payload.investorId;
+      return { tid, uid: String(uid), role: 'INVESTOR' };
+    } catch (error) {
+      // If investor token fails, try regular token (for backwards compatibility)
+      // But investor routes should use investor tokens
+      if (isInvestorRoute(req.path)) {
+        throw error;
+      }
+    }
+  }
+  
+  // Regular user token
   const payload: JWTPayload = AuthService.verifyToken(token);
   const tid = payload.tid;
   if (!tid || typeof tid !== 'string') {
@@ -81,7 +113,7 @@ export const tenantMiddleware = asyncHandler(
 
     let tid: string;
     let uid: string;
-    let role: 'OWNER' | 'REVISOR' | 'OPERATIONAL';
+    let role: 'OWNER' | 'REVISOR' | 'OPERATIONAL' | 'INVESTOR';
 
     try {
       const identity = extractTenantIdentity(req);

@@ -10,6 +10,7 @@ import generatedDocumentsRouter from './generated-documents';
 import auctionsRouter from './auctions';
 import workflowRouter from './workflow';
 import intelligenceRouter from './intelligence';
+import investorRouter from './investor';
 import { config } from '../config';
 
 const router = Router();
@@ -52,6 +53,9 @@ router.use('/workflow', workflowRouter);
 // Rule-bound intelligence (validate, suggest, refuse; no override of CPO/risk/workflow)
 router.use('/intelligence', intelligenceRouter);
 
+// Investor Portal (read-only, separate authentication)
+router.use('/investor', investorRouter);
+
 // Future: Add more route modules here
 // router.use('/users', userRouter);
 // router.use('/roles', rolesRouter);
@@ -80,6 +84,7 @@ router.get('/', (req, res) => {
       auctions: '/api/v1/auctions',
       workflow: '/api/v1/workflow',
       intelligence: '/api/v1/intelligence',
+      investor: '/api/v1/investor',
       // Future: Add more endpoints as they're created
     },
   });
