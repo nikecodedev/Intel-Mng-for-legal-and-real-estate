@@ -3,10 +3,10 @@
  * Validates tenant existence and status. Supports Redis cache (5 min TTL).
  */
 
-import { db } from '../models/database';
-import { redisClient } from './redis';
-import { config } from '../config';
-import { logger } from '../utils/logger';
+import { db } from '../models/database.js';
+import { redisClient } from './redis.js';
+import { config } from '../config/index.js';
+import { logger } from '../utils/logger.js';
 
 const CACHE_KEY_PREFIX = 'tenant:';
 const CACHE_TTL_SEC = 5 * 60; // 5 minutes

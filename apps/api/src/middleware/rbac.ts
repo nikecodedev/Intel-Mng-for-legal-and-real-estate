@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { RBACService } from '../services/rbac';
-import { AuthorizationError, AuthenticationError, TenantRequiredError } from '../utils/errors';
-import { asyncHandler } from './validator';
+import { RBACService } from '../services/rbac.js';
+import { AuthorizationError, AuthenticationError, TenantRequiredError } from '../utils/errors.js';
+import { asyncHandler } from './validator.js';
 
 /**
  * RBAC Middleware Factory with Tenant Isolation

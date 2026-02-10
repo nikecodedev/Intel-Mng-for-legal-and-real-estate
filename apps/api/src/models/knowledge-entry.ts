@@ -1,6 +1,6 @@
-import { db } from './database';
+import { db } from './database.js';
 import { QueryResult } from 'pg';
-import { TenantRequiredError, NotFoundError } from '../utils/errors';
+import { TenantRequiredError, NotFoundError } from '../utils/errors.js';
 
 export type KnowledgeEntryType = 'LEGAL_THESIS' | 'CASE_OUTCOME' | 'LEGAL_PRECEDENT' | 'LEGAL_OPINION';
 export type OutcomeType = 'FAVORABLE' | 'UNFAVORABLE' | 'MIXED' | 'SETTLED';

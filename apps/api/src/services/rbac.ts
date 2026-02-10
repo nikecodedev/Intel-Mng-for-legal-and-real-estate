@@ -1,7 +1,7 @@
-import { PermissionModel } from '../models/permission';
-import { RoleModel } from '../models/role';
-import { AuthorizationError, TenantRequiredError } from '../utils/errors';
-import { logger } from '../utils/logger';
+import { PermissionModel } from '../models/permission.js';
+import { RoleModel } from '../models/role.js';
+import { AuthorizationError, TenantRequiredError } from '../utils/errors.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Validate tenant ID is provided

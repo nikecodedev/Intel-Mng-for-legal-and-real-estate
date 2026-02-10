@@ -1,12 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware';
-import { getTenantContext } from '../utils/tenant-context';
-import { parsePagination } from '../utils/pagination';
-import { NotFoundError, AuthorizationError } from '../utils/errors';
-import { AuditService, AuditAction, AuditEventCategory } from '../services/audit';
-import { WorkflowTriggerModel, type WorkflowActionType } from '../models/workflow-trigger';
-import { runWorkflow } from '../services/workflow-engine';
+import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware/index.js';
+import { getTenantContext } from '../utils/tenant-context.js';
+import { parsePagination } from '../utils/pagination.js';
+import { NotFoundError, AuthorizationError } from '../utils/errors.js';
+import { AuditService, AuditAction, AuditEventCategory } from '../services/audit.js';
+import { WorkflowTriggerModel, type WorkflowActionType } from '../models/workflow-trigger.js';
+import { runWorkflow } from '../services/workflow-engine.js';
 
 const router = Router();
 

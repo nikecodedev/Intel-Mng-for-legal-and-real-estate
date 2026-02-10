@@ -1,5 +1,5 @@
-import { RealEstateAssetModel, RealEstateAsset } from '../models/real-estate-asset';
-import { AssetCostModel } from '../models/asset-cost';
+import { RealEstateAssetModel, RealEstateAsset } from '../models/real-estate-asset.js';
+import { AssetCostModel } from '../models/asset-cost.js';
 
 export interface RealCostBreakdown {
   acquisition_cost_cents: number;

@@ -2,17 +2,17 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import * as path from 'path';
 import * as fs from 'fs';
-import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware';
-import { getTenantContext } from '../utils/tenant-context';
-import { parsePagination } from '../utils/pagination';
-import { NotFoundError, ValidationError, ConflictError } from '../utils/errors';
-import { DocumentModel } from '../models/document';
-import { DocumentExtractionModel } from '../models/document-extraction';
-import { DocumentQualityFlagModel } from '../models/document-quality-flag';
-import { DocumentFactModel } from '../models/document-fact';
-import { DocumentExtractionService, documentExtractionService } from '../services/document-extraction';
-import { AuditService, AuditAction, AuditEventType } from '../services/audit';
-import { logger } from '../utils/logger';
+import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware/index.js';
+import { getTenantContext } from '../utils/tenant-context.js';
+import { parsePagination } from '../utils/pagination.js';
+import { NotFoundError, ValidationError, ConflictError } from '../utils/errors.js';
+import { DocumentModel } from '../models/document.js';
+import { DocumentExtractionModel } from '../models/document-extraction.js';
+import { DocumentQualityFlagModel } from '../models/document-quality-flag.js';
+import { DocumentFactModel } from '../models/document-fact.js';
+import { DocumentExtractionService, documentExtractionService } from '../services/document-extraction.js';
+import { AuditService, AuditAction, AuditEventType } from '../services/audit.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 

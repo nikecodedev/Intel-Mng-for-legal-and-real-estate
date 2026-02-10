@@ -1,18 +1,18 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware';
-import { getTenantContext } from '../utils/tenant-context';
-import { NotFoundError, ValidationError, AuthorizationError } from '../utils/errors';
-import { AuditService, AuditAction, AuditEventCategory } from '../services/audit';
+import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware/index.js';
+import { getTenantContext } from '../utils/tenant-context.js';
+import { NotFoundError, ValidationError, AuthorizationError } from '../utils/errors.js';
+import { AuditService, AuditAction, AuditEventCategory } from '../services/audit.js';
 import {
   AuctionAssetModel,
   AuctionBidModel,
   AUCTION_STAGES,
   type DueDiligenceItem,
   isRiskHigh,
-} from '../models/auction-asset';
-import { AuctionAssetROIModel } from '../models/auction-asset-roi';
-import { validate as validateIntelligence } from '../services/intelligence';
+} from '../models/auction-asset.js';
+import { AuctionAssetROIModel } from '../models/auction-asset-roi.js';
+import { validate as validateIntelligence } from '../services/intelligence.js';
 
 const router = Router();
 

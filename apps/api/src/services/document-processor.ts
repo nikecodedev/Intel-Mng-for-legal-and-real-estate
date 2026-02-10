@@ -10,8 +10,8 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { logger } from '../utils/logger';
-import { config } from '../config';
+import { logger } from '../utils/logger.js';
+import { config } from '../config/index.js';
 
 /** Mínimo de caracteres para considerar o texto extraído válido (evita PDF só de imagem). */
 const MIN_TEXT_LENGTH = 200;

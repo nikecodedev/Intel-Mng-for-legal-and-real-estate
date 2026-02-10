@@ -1,8 +1,8 @@
-import { db } from '../models/database';
-import { RealEstateAssetModel, RealEstateAsset } from '../models/real-estate-asset';
-import { getTenantContext } from '../utils/tenant-context';
-import { logger } from '../utils/logger';
-import { AuditService, AuditAction, AuditEventCategory } from './audit';
+import { db } from '../models/database.js';
+import { RealEstateAssetModel, RealEstateAsset } from '../models/real-estate-asset.js';
+import { getTenantContext } from '../utils/tenant-context.js';
+import { logger } from '../utils/logger.js';
+import { AuditService, AuditAction, AuditEventCategory } from './audit.js';
 
 export interface VacancyAlert {
   asset_id: string;

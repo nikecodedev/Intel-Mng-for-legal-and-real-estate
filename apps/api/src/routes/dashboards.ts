@@ -1,10 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware';
-import { NotFoundError } from '../utils/errors';
-import { DashboardConfigModel } from '../models/dashboard';
-import { DashboardKPIService } from '../services/dashboard-kpis';
-import { logger } from '../utils/logger';
+import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware/index.js';
+import { NotFoundError } from '../utils/errors.js';
+import { DashboardConfigModel } from '../models/dashboard.js';
+import { DashboardKPIService } from '../services/dashboard-kpis.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 

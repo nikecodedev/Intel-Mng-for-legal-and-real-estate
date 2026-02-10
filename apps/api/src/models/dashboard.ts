@@ -1,6 +1,6 @@
-import { db } from './database';
+import { db } from './database.js';
 import { QueryResult } from 'pg';
-import { TenantRequiredError, NotFoundError } from '../utils/errors';
+import { TenantRequiredError, NotFoundError } from '../utils/errors.js';
 
 export type DashboardType = 'EXECUTIVE' | 'OPERATIONAL' | 'FINANCIAL' | 'LEGAL' | 'CUSTOM';
 export type KPIType = 'CASH_FLOW' | 'DEADLINES' | 'ROI' | 'RISK_EXPOSURE' | 'CUSTOM';

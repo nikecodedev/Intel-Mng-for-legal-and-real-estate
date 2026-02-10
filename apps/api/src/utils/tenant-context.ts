@@ -1,6 +1,6 @@
 import { Request } from 'express';
-import { TenantRequiredError } from './errors';
-import type { UserContext } from '../types/user-context';
+import { TenantRequiredError } from './errors.js';
+import type { UserContext } from '../types/user-context.js';
 
 /**
  * Tenant context extracted from request

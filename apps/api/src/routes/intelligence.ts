@@ -1,9 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware';
-import { getTenantContext } from '../utils/tenant-context';
-import { AuthorizationError } from '../utils/errors';
-import { validate as validateIntelligence, type IntelligenceOperationContext } from '../services/intelligence';
+import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware/index.js';
+import { getTenantContext } from '../utils/tenant-context.js';
+import { AuthorizationError } from '../utils/errors.js';
+import { validate as validateIntelligence, type IntelligenceOperationContext } from '../services/intelligence.js';
 
 const router = Router();
 

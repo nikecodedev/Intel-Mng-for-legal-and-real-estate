@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
-import { db } from '../models/database';
-import { RedisClient } from './redis';
-import { logger } from '../utils/logger';
+import { db } from '../models/database.js';
+import { redisClient } from './redis.js';
+import { logger } from '../utils/logger.js';
 
 export interface Metrics {
   requests: {
@@ -243,7 +243,7 @@ export class MonitoringService {
       : 0;
 
     try {
-      const redis = RedisClient.getInstance();
+      const redis = redisClient.getClient();
       const keys = await redis.dbsize();
       this.metrics.cache!.total_keys = keys;
     } catch (error) {

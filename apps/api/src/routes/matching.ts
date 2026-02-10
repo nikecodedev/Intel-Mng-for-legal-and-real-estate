@@ -1,13 +1,13 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { asyncHandler, authenticate, requirePermission } from '../middleware';
-import { getTenantContext } from '../utils/tenant-context';
-import { NotFoundError, ValidationError } from '../utils/errors';
-import { InvestorMatchingService } from '../services/investor-matching';
-import { KYCDataModel } from '../models/kyc-data';
-import { AuditService, AuditAction, AuditEventCategory } from '../services/audit';
-import { logger } from '../utils/logger';
-import { db } from '../models/database';
+import { asyncHandler, authenticate, requirePermission } from '../middleware/index.js';
+import { getTenantContext } from '../utils/tenant-context.js';
+import { NotFoundError, ValidationError } from '../utils/errors.js';
+import { InvestorMatchingService } from '../services/investor-matching.js';
+import { KYCDataModel } from '../models/kyc-data.js';
+import { AuditService, AuditAction, AuditEventCategory } from '../services/audit.js';
+import { logger } from '../utils/logger.js';
+import { db } from '../models/database.js';
 
 const router = Router();
 

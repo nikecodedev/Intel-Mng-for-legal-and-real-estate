@@ -1,6 +1,6 @@
-import { db } from './database';
+import { db } from './database.js';
 import { QueryResult } from 'pg';
-import { TenantRequiredError, NotFoundError, ValidationError } from '../utils/errors';
+import { TenantRequiredError, NotFoundError, ValidationError } from '../utils/errors.js';
 
 export type ExpenseStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'PAID' | 'CANCELLED';
 export type CapturedVia = 'MOBILE' | 'WEB' | 'API';

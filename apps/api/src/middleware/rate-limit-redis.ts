@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { redisClient } from '../services/redis';
-import { logger } from '../utils/logger';
-import { asyncHandler } from './validator';
+import { redisClient } from '../services/redis.js';
+import { logger } from '../utils/logger.js';
+import { asyncHandler } from './validator.js';
 
 /**
  * Rate limit configuration

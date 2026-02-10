@@ -1,20 +1,20 @@
 import express, { Express } from 'express';
 import 'express-async-errors'; // Must be imported before routes
-import { config } from './config';
-import { logger } from './utils/logger';
-import { db } from './models/database';
-import { redisClient } from './services/redis';
+import { config } from './config/index.js';
+import { logger } from './utils/logger.js';
+import { db } from './models/database.js';
+import { redisClient } from './services/redis.js';
 import {
   securityMiddleware,
   requestId,
   requestLogger,
   errorHandler,
   notFoundHandler,
-} from './middleware';
-import { rateLimit, tenantRateLimit } from './middleware/rate-limit';
-import { MonitoringService } from './services/monitoring';
-import apiRouter from './routes';
-import healthRouter from './routes/health';
+} from './middleware/index.js';
+import { rateLimit, tenantRateLimit } from './middleware/rate-limit.js';
+import { MonitoringService } from './services/monitoring.js';
+import apiRouter from './routes/index.js';
+import healthRouter from './routes/health.js';
 
 /**
  * Application factory function

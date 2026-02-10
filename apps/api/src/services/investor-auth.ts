@@ -1,10 +1,10 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { config } from '../config';
-import { InvestorUserModel, InvestorUser } from '../models/investor-user';
-import { AuthenticationError } from '../utils/errors';
-import { logger } from '../utils/logger';
-import { db } from '../models/database';
+import { config } from '../config/index.js';
+import { InvestorUserModel, InvestorUser } from '../models/investor-user.js';
+import { AuthenticationError } from '../utils/errors.js';
+import { logger } from '../utils/logger.js';
+import { db } from '../models/database.js';
 
 /**
  * Investor JWT payload interface

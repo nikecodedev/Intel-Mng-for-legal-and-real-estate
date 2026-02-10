@@ -1,7 +1,7 @@
-import { db } from '../models/database';
-import { logger } from '../utils/logger';
+import { db } from '../models/database.js';
+import { logger } from '../utils/logger.js';
 import { Request } from 'express';
-import { TenantRequiredError } from '../utils/errors';
+import { TenantRequiredError } from '../utils/errors.js';
 
 /**
  * Audit log event types

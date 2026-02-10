@@ -3,8 +3,8 @@
  * All actions are audited.
  */
 
-import { AuditService, AuditAction, AuditEventCategory } from './audit';
-import { WorkflowTriggerModel, WorkflowTaskModel, WorkflowNotificationModel, type WorkflowTrigger } from '../models/workflow-trigger';
+import { AuditService, AuditAction, AuditEventCategory } from './audit.js';
+import { WorkflowTriggerModel, WorkflowTaskModel, WorkflowNotificationModel, type WorkflowTrigger } from '../models/workflow-trigger.js';
 import type { Request } from 'express';
 
 export type WorkflowActionResult =

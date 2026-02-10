@@ -1,7 +1,7 @@
-import { DocumentFactModel } from '../models/document-fact';
-import { GeneratedDocumentModel } from '../models/generated-document';
-import { DocumentModel } from '../models/document';
-import { TenantRequiredError } from '../utils/errors';
+import { DocumentFactModel } from '../models/document-fact.js';
+import { GeneratedDocumentModel } from '../models/generated-document.js';
+import { DocumentModel } from '../models/document.js';
+import { TenantRequiredError } from '../utils/errors.js';
 
 export class GeneratedDocumentValidationError extends Error {
   constructor(

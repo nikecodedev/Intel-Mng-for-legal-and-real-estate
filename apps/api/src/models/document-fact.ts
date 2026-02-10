@@ -1,6 +1,6 @@
-import { db } from './database';
+import { db } from './database.js';
 import { QueryResult } from 'pg';
-import { TenantRequiredError } from '../utils/errors';
+import { TenantRequiredError } from '../utils/errors.js';
 
 /**
  * Bounding box in normalized coordinates (e.g. 0-1 or page-relative)

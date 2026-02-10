@@ -1,6 +1,6 @@
-import { db } from '../models/database';
-import { DocumentTemplateModel, DocumentTemplate } from '../models/document-template';
-import { logger } from '../utils/logger';
+import { db } from '../models/database.js';
+import { DocumentTemplateModel, DocumentTemplate } from '../models/document-template.js';
+import { logger } from '../utils/logger.js';
 
 export interface TemplateSuccessMetrics {
   template_id: string;

@@ -1,14 +1,14 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware';
-import { getTenantContext } from '../utils/tenant-context';
-import { NotFoundError } from '../utils/errors';
-import { KnowledgeEntryModel, KnowledgeEntryType, OutcomeType } from '../models/knowledge-entry';
-import { DocumentTemplateModel } from '../models/document-template';
-import { KnowledgeSearchService } from '../services/knowledge-search';
-import { TemplateSuccessTrackingService } from '../services/template-success-tracking';
-import { AuditService, AuditAction, AuditEventCategory } from '../services/audit';
-import { logger } from '../utils/logger';
+import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware/index.js';
+import { getTenantContext } from '../utils/tenant-context.js';
+import { NotFoundError } from '../utils/errors.js';
+import { KnowledgeEntryModel, KnowledgeEntryType, OutcomeType } from '../models/knowledge-entry.js';
+import { DocumentTemplateModel } from '../models/document-template.js';
+import { KnowledgeSearchService } from '../services/knowledge-search.js';
+import { TemplateSuccessTrackingService } from '../services/template-success-tracking.js';
+import { AuditService, AuditAction, AuditEventCategory } from '../services/audit.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 

@@ -1,10 +1,10 @@
 import { Router, Request, Response } from 'express';
-import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware';
-import { getTenantContext } from '../utils/tenant-context';
-import { NotFoundError } from '../utils/errors';
-import { DocumentFactModel } from '../models/document-fact';
-import { DocumentModel } from '../models/document';
-import { AuditService, AuditAction, AuditEventCategory } from '../services/audit';
+import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware/index.js';
+import { getTenantContext } from '../utils/tenant-context.js';
+import { NotFoundError } from '../utils/errors.js';
+import { DocumentFactModel } from '../models/document-fact.js';
+import { DocumentModel } from '../models/document.js';
+import { AuditService, AuditAction, AuditEventCategory } from '../services/audit.js';
 
 const router = Router();
 

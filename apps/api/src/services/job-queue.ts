@@ -1,7 +1,7 @@
 import Queue from 'bull';
-import { RedisClient } from './redis';
-import { logger } from '../utils/logger';
-import { config } from '../config';
+import { redisClient } from './redis.js';
+import { logger } from '../utils/logger.js';
+import { config } from '../config/index.js';
 
 export interface JobData {
   [key: string]: unknown;

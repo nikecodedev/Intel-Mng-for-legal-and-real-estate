@@ -1,6 +1,6 @@
-import { db } from '../models/database';
-import { redisClient } from './redis';
-import { logger } from '../utils/logger';
+import { db } from '../models/database.js';
+import { redisClient } from './redis.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Health check result interface

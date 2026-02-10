@@ -1,6 +1,6 @@
 import Redis, { RedisOptions } from 'ioredis';
-import { config } from '../config';
-import { logger } from '../utils/logger';
+import { config } from '../config/index.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Redis client singleton

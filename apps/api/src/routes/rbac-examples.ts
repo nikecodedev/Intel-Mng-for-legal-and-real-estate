@@ -7,9 +7,9 @@ import {
   requireResourcePermission,
   requireDynamicPermission,
   asyncHandler,
-} from '../middleware';
-import { RBACService } from '../services/rbac';
-import { getTenantContext } from '../utils/tenant-context';
+} from '../middleware/index.js';
+import { RBACService } from '../services/rbac.js';
+import { getTenantContext } from '../utils/tenant-context.js';
 
 const router = Router();
 

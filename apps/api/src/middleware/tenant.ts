@@ -5,18 +5,18 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { AuthService, JWTPayload } from '../services/auth';
-import { InvestorAuthService, InvestorJWTPayload } from '../services/investor-auth';
-import { getTenantById } from '../services/tenant';
-import type { UserContext } from '../types/user-context';
+import { AuthService, JWTPayload } from '../services/auth.js';
+import { InvestorAuthService, InvestorJWTPayload } from '../services/investor-auth.js';
+import { getTenantById } from '../services/tenant.js';
+import type { UserContext } from '../types/user-context.js';
 import {
   AuthenticationError,
   AuthorizationError,
   PaymentRequiredError,
   TenantAccountSuspendedError,
-} from '../utils/errors';
-import { asyncHandler } from './validator';
-import { logger } from '../utils/logger';
+} from '../utils/errors.js';
+import { asyncHandler } from './validator.js';
+import { logger } from '../utils/logger.js';
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

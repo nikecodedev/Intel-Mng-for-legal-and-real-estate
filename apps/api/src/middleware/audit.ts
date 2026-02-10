@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
-import { AuditService, AuditAction } from '../services/audit';
-import { asyncHandler } from './validator';
-import { logger } from '../utils/logger';
-import { getTenantContext } from '../utils/tenant-context';
+import { AuditService, AuditAction } from '../services/audit.js';
+import { asyncHandler } from './validator.js';
+import { logger } from '../utils/logger.js';
+import { getTenantContext } from '../utils/tenant-context.js';
 
 /**
  * Audit middleware factory

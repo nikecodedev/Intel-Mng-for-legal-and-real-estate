@@ -1,12 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware';
-import { getTenantContext } from '../utils/tenant-context';
-import { NotFoundError, ValidationError } from '../utils/errors';
-import { KYCDataModel, KYCStatus } from '../models/kyc-data';
-import { InvestorPreferenceProfileModel } from '../models/investor-preference-profile';
-import { AuditService, AuditAction, AuditEventCategory } from '../services/audit';
-import { logger } from '../utils/logger';
+import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware/index.js';
+import { getTenantContext } from '../utils/tenant-context.js';
+import { NotFoundError, ValidationError } from '../utils/errors.js';
+import { KYCDataModel, KYCStatus } from '../models/kyc-data.js';
+import { InvestorPreferenceProfileModel } from '../models/investor-preference-profile.js';
+import { AuditService, AuditAction, AuditEventCategory } from '../services/audit.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 

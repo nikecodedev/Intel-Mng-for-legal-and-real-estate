@@ -1,6 +1,6 @@
-import { db } from './database';
+import { db } from './database.js';
 import { QueryResult } from 'pg';
-import { TenantRequiredError, InvalidTransitionError, NotFoundError } from '../utils/errors';
+import { TenantRequiredError, InvalidTransitionError, NotFoundError } from '../utils/errors.js';
 
 /**
  * Real Estate Asset State Machine

@@ -1,6 +1,6 @@
-import { db } from './database';
+import { db } from './database.js';
 import { QueryResult } from 'pg';
-import { NotFoundError } from '../utils/errors';
+import { NotFoundError } from '../utils/errors.js';
 
 export type TenantStatus = 'ACTIVE' | 'SUSPENDED' | 'INACTIVE' | 'TRIAL';
 export type SubscriptionPlan = 'FREE' | 'STANDARD' | 'PREMIUM' | 'ENTERPRISE' | 'CUSTOM';

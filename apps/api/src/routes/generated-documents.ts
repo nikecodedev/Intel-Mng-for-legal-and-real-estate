@@ -1,11 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware';
-import { getTenantContext } from '../utils/tenant-context';
-import { parsePagination } from '../utils/pagination';
-import { createGeneratedDocument, GeneratedDocumentValidationError } from '../services/generated-document';
-import { GeneratedDocumentModel } from '../models/generated-document';
-import { AuditService, AuditAction, AuditEventCategory } from '../services/audit';
+import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware/index.js';
+import { getTenantContext } from '../utils/tenant-context.js';
+import { parsePagination } from '../utils/pagination.js';
+import { createGeneratedDocument, GeneratedDocumentValidationError } from '../services/generated-document.js';
+import { GeneratedDocumentModel } from '../models/generated-document.js';
+import { AuditService, AuditAction, AuditEventCategory } from '../services/audit.js';
 
 const router = Router();
 

@@ -1,15 +1,15 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware';
-import { getTenantContext } from '../utils/tenant-context';
-import { NotFoundError, ValidationError } from '../utils/errors';
-import { FinancialTransactionModel, TransactionType, PaymentStatus } from '../models/financial-transaction';
-import { AccountsPayableModel } from '../models/accounts-payable';
-import { AccountsReceivableModel } from '../models/accounts-receivable';
-import { ExpenseCaptureModel, ExpenseStatus } from '../models/expense-capture';
-import { BankReconciliationService } from '../services/bank-reconciliation';
-import { AuditService, AuditAction, AuditEventCategory } from '../services/audit';
-import { logger } from '../utils/logger';
+import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware/index.js';
+import { getTenantContext } from '../utils/tenant-context.js';
+import { NotFoundError, ValidationError } from '../utils/errors.js';
+import { FinancialTransactionModel, TransactionType, PaymentStatus } from '../models/financial-transaction.js';
+import { AccountsPayableModel } from '../models/accounts-payable.js';
+import { AccountsReceivableModel } from '../models/accounts-receivable.js';
+import { ExpenseCaptureModel, ExpenseStatus } from '../models/expense-capture.js';
+import { BankReconciliationService } from '../services/bank-reconciliation.js';
+import { AuditService, AuditAction, AuditEventCategory } from '../services/audit.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 

@@ -1,10 +1,10 @@
-import { db } from '../models/database';
-import { InvestorPreferenceProfileModel, InvestorPreferenceProfile } from '../models/investor-preference-profile';
-import { KYCDataModel } from '../models/kyc-data';
-import { AuctionAssetModel, AuctionAsset } from '../models/auction-asset';
-import { AuctionAssetROIModel } from '../models/auction-asset-roi';
-import { logger } from '../utils/logger';
-import { AuditService, AuditAction, AuditEventCategory } from './audit';
+import { db } from '../models/database.js';
+import { InvestorPreferenceProfileModel, InvestorPreferenceProfile } from '../models/investor-preference-profile.js';
+import { KYCDataModel } from '../models/kyc-data.js';
+import { AuctionAssetModel, AuctionAsset } from '../models/auction-asset.js';
+import { AuctionAssetROIModel } from '../models/auction-asset-roi.js';
+import { logger } from '../utils/logger.js';
+import { AuditService, AuditAction, AuditEventCategory } from './audit.js';
 
 export interface MatchScore {
   overall_score: number; // 0-100

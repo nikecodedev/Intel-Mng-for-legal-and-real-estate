@@ -1,6 +1,6 @@
-import { db } from './database';
+import { db } from './database.js';
 import { QueryResult } from 'pg';
-import { TenantRequiredError, NotFoundError } from '../utils/errors';
+import { TenantRequiredError, NotFoundError } from '../utils/errors.js';
 
 export type GateType = 'DOCUMENT' | 'APPROVAL' | 'RISK_SCORE' | 'CUSTOM' | 'DATA_COMPLETENESS' | 'VALIDATION';
 export type FailureAction = 'BLOCK' | 'WARN' | 'REQUIRE_OVERRIDE';

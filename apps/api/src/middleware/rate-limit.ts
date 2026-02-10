@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { redisClient } from '../services/redis';
-import { logger } from '../utils/logger';
-import { TooManyRequestsError } from '../utils/errors';
+import { redisClient } from '../services/redis.js';
+import { logger } from '../utils/logger.js';
+import { TooManyRequestsError } from '../utils/errors.js';
 
 export interface RateLimitConfig {
   windowMs: number; // Time window in milliseconds

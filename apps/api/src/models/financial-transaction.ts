@@ -1,6 +1,6 @@
-import { db } from './database';
+import { db } from './database.js';
 import { QueryResult } from 'pg';
-import { TenantRequiredError, NotFoundError, ValidationError } from '../utils/errors';
+import { TenantRequiredError, NotFoundError, ValidationError } from '../utils/errors.js';
 
 export type TransactionType = 'PAYABLE' | 'RECEIVABLE' | 'EXPENSE' | 'INCOME' | 'TRANSFER';
 export type PaymentStatus = 'PENDING' | 'PAID' | 'PARTIAL' | 'CANCELLED' | 'OVERDUE';

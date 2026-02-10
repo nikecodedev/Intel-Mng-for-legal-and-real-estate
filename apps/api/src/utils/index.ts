@@ -11,7 +11,7 @@ export {
   getUserContext,
   requireUserContext,
   type TenantContext 
-} from './tenant-context';
+} from './tenant-context.js';
 
 // Error Classes
 export {
@@ -28,10 +28,10 @@ export {
   InternalServerError,
   formatErrorResponse,
   type ErrorResponse,
-} from './errors';
+} from './errors.js';
 
 // Logger
-export { logger } from './logger';
+export { logger } from './logger.js';
 
 // Pagination
-export { parsePagination, type PaginationParams } from './pagination';
+export { parsePagination, type PaginationParams } from './pagination.js';

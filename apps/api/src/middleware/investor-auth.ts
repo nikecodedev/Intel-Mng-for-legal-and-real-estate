@@ -1,11 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
-import { InvestorAuthService, InvestorJWTPayload } from '../services/investor-auth';
-import { InvestorUserModel } from '../models/investor-user';
-import { AuthenticationError } from '../utils/errors';
-import { asyncHandler } from './validator';
-import { getTenantContext } from '../utils/tenant-context';
-import { AuditService, AuditAction, AuditEventCategory } from '../services/audit';
-import { logger } from '../utils/logger';
+import { InvestorAuthService, InvestorJWTPayload } from '../services/investor-auth.js';
+import { InvestorUserModel } from '../models/investor-user.js';
+import { AuthenticationError } from '../utils/errors.js';
+import { asyncHandler } from './validator.js';
+import { getTenantContext } from '../utils/tenant-context.js';
+import { AuditService, AuditAction, AuditEventCategory } from '../services/audit.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Extend Express Request to include investor

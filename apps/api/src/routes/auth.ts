@@ -1,9 +1,9 @@
 import { Router, Request, Response } from 'express';
-import { asyncHandler, validateRequest, authenticate } from '../middleware';
-import { AuthService, User } from '../services/auth';
-import { config } from '../config';
+import { asyncHandler, validateRequest, authenticate } from '../middleware/index.js';
+import { AuthService, User } from '../services/auth.js';
+import { config } from '../config/index.js';
 import { z } from 'zod';
-import { logger } from '../utils/logger';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 

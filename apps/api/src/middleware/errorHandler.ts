@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
-import { AppError, formatErrorResponse } from '../utils/errors';
-import { logger, logHelpers } from '../utils/logger';
-import { ErrorTrackingService } from '../services/error-tracking';
-import { config } from '../config';
+import { AppError, formatErrorResponse } from '../utils/errors.js';
+import { logger, logHelpers } from '../utils/logger.js';
+import { ErrorTrackingService } from '../services/error-tracking.js';
+import { config } from '../config/index.js';
 
 /**
  * Centralized error handling middleware

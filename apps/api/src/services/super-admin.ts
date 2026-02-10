@@ -1,10 +1,10 @@
-import { db } from '../models/database';
-import { TenantManagementModel, Tenant } from '../models/tenant-management';
-import { WhiteLabelConfigModel } from '../models/white-label-config';
-import { TenantStorageUsageModel } from '../models/tenant-storage-usage';
-import { TenantQuotaModel, TenantQuota } from '../models/tenant-storage-usage';
-import { logger } from '../utils/logger';
-import { AuditService, AuditAction, AuditEventCategory } from './audit';
+import { db } from '../models/database.js';
+import { TenantManagementModel, Tenant } from '../models/tenant-management.js';
+import { WhiteLabelConfigModel } from '../models/white-label-config.js';
+import { TenantStorageUsageModel } from '../models/tenant-storage-usage.js';
+import { TenantQuotaModel, TenantQuota } from '../models/tenant-storage-usage.js';
+import { logger } from '../utils/logger.js';
+import { AuditService, AuditAction, AuditEventCategory } from './audit.js';
 
 export interface TenantDashboardStats {
   tenant: Tenant;

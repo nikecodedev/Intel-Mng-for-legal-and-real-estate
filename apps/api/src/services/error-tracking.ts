@@ -1,5 +1,5 @@
-import { logger } from '../utils/logger';
-import { AppError } from '../utils/errors';
+import { logger } from '../utils/logger.js';
+import { AppError } from '../utils/errors.js';
 import { Request } from 'express';
 
 /**

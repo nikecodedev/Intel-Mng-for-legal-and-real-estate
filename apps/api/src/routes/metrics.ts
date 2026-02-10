@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { asyncHandler, authenticate, requirePermission } from '../middleware';
-import { MonitoringService } from '../services/monitoring';
+import { asyncHandler, authenticate, requirePermission } from '../middleware/index.js';
+import { MonitoringService } from '../services/monitoring.js';
 
 const router = Router();
 

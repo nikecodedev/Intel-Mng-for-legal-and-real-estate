@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { StructuredLogger } from '../utils/logger-enhanced';
-import { asyncHandler } from './validator';
+import { StructuredLogger } from '../utils/logger-enhanced.js';
+import { asyncHandler } from './validator.js';
 
 /**
  * Enhanced request logging middleware

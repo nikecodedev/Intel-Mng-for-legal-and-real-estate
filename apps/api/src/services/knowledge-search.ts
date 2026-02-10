@@ -1,6 +1,6 @@
-import { db } from '../models/database';
-import { KnowledgeEntryModel, KnowledgeEntry } from '../models/knowledge-entry';
-import { logger } from '../utils/logger';
+import { db } from '../models/database.js';
+import { KnowledgeEntryModel, KnowledgeEntry } from '../models/knowledge-entry.js';
+import { logger } from '../utils/logger.js';
 import * as crypto from 'crypto';
 
 export interface SearchResult {

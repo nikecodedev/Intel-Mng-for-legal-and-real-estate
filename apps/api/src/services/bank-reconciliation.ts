@@ -1,6 +1,6 @@
-import { db } from '../models/database';
-import { FinancialTransactionModel } from '../models/financial-transaction';
-import { logger } from '../utils/logger';
+import { db } from '../models/database.js';
+import { FinancialTransactionModel } from '../models/financial-transaction.js';
+import { logger } from '../utils/logger.js';
 
 export interface BankTransaction {
   bank_transaction_id: string;

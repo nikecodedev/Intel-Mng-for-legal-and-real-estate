@@ -1,8 +1,8 @@
 import { Router, Request, Response } from 'express';
-import { asyncHandler } from '../middleware';
-import { db } from '../models/database';
-import { RedisClient } from '../services/redis';
-import { logger } from '../utils/logger';
+import { asyncHandler } from '../middleware/index.js';
+import { db } from '../models/database.js';
+import { redisClient } from '../services/redis.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 
@@ -83,7 +83,7 @@ router.get(
     // Check Redis
     try {
       const redisStart = Date.now();
-      const redis = RedisClient.getInstance();
+      const redis = redisClient.getClient();
       await redis.ping();
       checks.redis = true;
       checks.redis_response_time_ms = Date.now() - redisStart;
@@ -147,7 +147,7 @@ router.get(
     // Check Redis
     try {
       const redisStart = Date.now();
-      const redis = RedisClient.getInstance();
+      const redis = redisClient.getClient();
       await redis.ping();
       result.services.redis = {
         status: 'healthy',

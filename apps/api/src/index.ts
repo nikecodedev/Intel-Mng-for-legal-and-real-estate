@@ -3,7 +3,7 @@
  * Initializes and starts the Express server
  */
 import { startServer } from './app.js';
-import { logger } from './utils/logger';
+import { logger } from './utils/logger.js';
 
 // Start the server
 try {

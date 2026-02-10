@@ -3,7 +3,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
-import { config } from '../config';
+import { config } from '../config/index.js';
 
 /**
  * Security middleware configuration

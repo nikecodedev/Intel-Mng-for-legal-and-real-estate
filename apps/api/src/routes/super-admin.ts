@@ -1,15 +1,15 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware';
-import { NotFoundError, ValidationError } from '../utils/errors';
-import { TenantManagementModel, TenantStatus, SubscriptionPlan } from '../models/tenant-management';
-import { WhiteLabelConfigModel } from '../models/white-label-config';
-import { TenantStorageUsageModel } from '../models/tenant-storage-usage';
-import { TenantQuotaModel } from '../models/tenant-storage-usage';
-import { SuperAdminService } from '../services/super-admin';
-import { QuotaEnforcementService } from '../services/quota-enforcement';
-import { AuditService, AuditAction, AuditEventCategory } from '../services/audit';
-import { logger } from '../utils/logger';
+import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware/index.js';
+import { NotFoundError, ValidationError } from '../utils/errors.js';
+import { TenantManagementModel, TenantStatus, SubscriptionPlan } from '../models/tenant-management.js';
+import { WhiteLabelConfigModel } from '../models/white-label-config.js';
+import { TenantStorageUsageModel } from '../models/tenant-storage-usage.js';
+import { TenantQuotaModel } from '../models/tenant-storage-usage.js';
+import { SuperAdminService } from '../services/super-admin.js';
+import { QuotaEnforcementService } from '../services/quota-enforcement.js';
+import { AuditService, AuditAction, AuditEventCategory } from '../services/audit.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 

@@ -1,13 +1,19 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 import { spawn } from 'child_process';
-import { logger } from '../utils/logger';
-import { DocumentModel } from '../models/document';
-import { DocumentExtractionModel, ExtractedParty, ExtractedMonetaryValue, ExtractedDate } from '../models/document-extraction';
-import { DocumentQualityFlagModel, QualityFlagType, FlagSeverity } from '../models/document-quality-flag';
-import { DocumentFactModel, CreateDocumentFactInput } from '../models/document-fact';
-import { extractTextFromPdf } from './document-processor';
+import { logger } from '../utils/logger.js';
+
+// ES module __dirname equivalent
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+import { DocumentModel } from '../models/document.js';
+import { DocumentExtractionModel, ExtractedParty, ExtractedMonetaryValue, ExtractedDate } from '../models/document-extraction.js';
+import { DocumentQualityFlagModel, QualityFlagType, FlagSeverity } from '../models/document-quality-flag.js';
+import { DocumentFactModel, CreateDocumentFactInput } from '../models/document-fact.js';
+import { extractTextFromPdf } from './document-processor.js';
 
 /**
  * Quality control thresholds (GEMS compliance)

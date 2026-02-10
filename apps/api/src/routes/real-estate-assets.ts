@@ -1,14 +1,14 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware';
-import { getTenantContext } from '../utils/tenant-context';
-import { NotFoundError, ValidationError, InvalidTransitionError } from '../utils/errors';
-import { RealEstateAssetModel, AssetState, getValidNextStates } from '../models/real-estate-asset';
-import { AssetCostModel, CostType, PaymentStatus } from '../models/asset-cost';
-import { VacancyMonitoringService } from '../services/vacancy-monitoring';
-import { AssetCostCalculationService } from '../services/asset-cost-calculation';
-import { AuditService, AuditAction, AuditEventCategory } from '../services/audit';
-import { logger } from '../utils/logger';
+import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware/index.js';
+import { getTenantContext } from '../utils/tenant-context.js';
+import { NotFoundError, ValidationError, InvalidTransitionError } from '../utils/errors.js';
+import { RealEstateAssetModel, AssetState, getValidNextStates } from '../models/real-estate-asset.js';
+import { AssetCostModel, CostType, PaymentStatus } from '../models/asset-cost.js';
+import { VacancyMonitoringService } from '../services/vacancy-monitoring.js';
+import { AssetCostCalculationService } from '../services/asset-cost-calculation.js';
+import { AuditService, AuditAction, AuditEventCategory } from '../services/audit.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 

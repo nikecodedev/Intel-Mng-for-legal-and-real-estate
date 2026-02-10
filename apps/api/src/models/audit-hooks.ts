@@ -1,5 +1,5 @@
-import { db } from './database';
-import { AuditService, AuditAction } from '../services/audit';
+import { db } from './database.js';
+import { AuditService, AuditAction } from '../services/audit.js';
 import { Request } from 'express';
 
 /**

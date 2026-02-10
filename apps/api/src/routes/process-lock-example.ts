@@ -1,9 +1,9 @@
 import { Router, Request, Response } from 'express';
-import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware';
-import { DistributedLockService } from '../services/distributed-lock';
+import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware/index.js';
+import { DistributedLockService } from '../services/distributed-lock.js';
 import { z } from 'zod';
-import { ConflictError, NotFoundError } from '../utils/errors';
-import { logger } from '../utils/logger';
+import { ConflictError, NotFoundError } from '../utils/errors.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 

@@ -1,7 +1,7 @@
-import { db } from '../models/database';
-import { TenantQuotaModel, TenantQuota } from '../models/tenant-storage-usage';
-import { TenantStorageUsageModel } from '../models/tenant-storage-usage';
-import { logger } from '../utils/logger';
+import { db } from '../models/database.js';
+import { TenantQuotaModel, TenantQuota } from '../models/tenant-storage-usage.js';
+import { TenantStorageUsageModel } from '../models/tenant-storage-usage.js';
+import { logger } from '../utils/logger.js';
 
 export interface QuotaCheckResult {
   within_quota: boolean;

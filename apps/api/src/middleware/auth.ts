@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
-import { AuthService, JWTPayload } from '../services/auth';
-import { UserModel } from '../models/user';
-import { AuthenticationError } from '../utils/errors';
-import { asyncHandler } from './validator';
+import { AuthService, JWTPayload } from '../services/auth.js';
+import { UserModel } from '../models/user.js';
+import { AuthenticationError } from '../utils/errors.js';
+import { asyncHandler } from './validator.js';
 
 /**
  * Extend Express Request to include user

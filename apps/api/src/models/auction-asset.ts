@@ -1,6 +1,6 @@
-import { db } from './database';
+import { db } from './database.js';
 import { QueryResult } from 'pg';
-import { TenantRequiredError, InvalidTransitionError, NotFoundError } from '../utils/errors';
+import { TenantRequiredError, InvalidTransitionError, NotFoundError } from '../utils/errors.js';
 
 export const AUCTION_STAGES = ['F0', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9'] as const;
 export type AuctionStage = (typeof AUCTION_STAGES)[number];

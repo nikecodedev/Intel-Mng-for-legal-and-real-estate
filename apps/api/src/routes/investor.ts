@@ -1,17 +1,17 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { asyncHandler, validateRequest } from '../middleware';
-import { authenticateInvestor, requireInvestor } from '../middleware/investor-auth';
-import { InvestorAuthService } from '../services/investor-auth';
-import { InvestorUserModel } from '../models/investor-user';
-import { InvestorAssetLinkModel } from '../models/investor-asset-link';
-import { AuctionAssetModel } from '../models/auction-asset';
-import { AuctionAssetROIModel } from '../models/auction-asset-roi';
-import { DocumentModel } from '../models/document';
-import { getTenantContext } from '../utils/tenant-context';
-import { AuthenticationError, NotFoundError, AuthorizationError } from '../utils/errors';
-import { AuditService, AuditAction, AuditEventCategory } from '../services/audit';
-import { logger } from '../utils/logger';
+import { asyncHandler, validateRequest } from '../middleware/index.js';
+import { authenticateInvestor, requireInvestor } from '../middleware/investor-auth.js';
+import { InvestorAuthService } from '../services/investor-auth.js';
+import { InvestorUserModel } from '../models/investor-user.js';
+import { InvestorAssetLinkModel } from '../models/investor-asset-link.js';
+import { AuctionAssetModel } from '../models/auction-asset.js';
+import { AuctionAssetROIModel } from '../models/auction-asset-roi.js';
+import { DocumentModel } from '../models/document.js';
+import { getTenantContext } from '../utils/tenant-context.js';
+import { AuthenticationError, NotFoundError, AuthorizationError } from '../utils/errors.js';
+import { AuditService, AuditAction, AuditEventCategory } from '../services/audit.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 

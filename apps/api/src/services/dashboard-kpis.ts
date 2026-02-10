@@ -1,10 +1,10 @@
-import { db } from '../models/database';
-import { FinancialTransactionModel } from '../models/financial-transaction';
-import { AuctionAssetROIModel } from '../models/auction-asset-roi';
-import { AuctionAssetModel } from '../models/auction-asset';
-import { RealEstateAssetModel } from '../models/real-estate-asset';
-import { DashboardKPICacheModel, KPIType, PeriodType } from '../models/dashboard';
-import { logger } from '../utils/logger';
+import { db } from '../models/database.js';
+import { FinancialTransactionModel } from '../models/financial-transaction.js';
+import { AuctionAssetROIModel } from '../models/auction-asset-roi.js';
+import { AuctionAssetModel } from '../models/auction-asset.js';
+import { RealEstateAssetModel } from '../models/real-estate-asset.js';
+import { DashboardKPICacheModel, KPIType, PeriodType } from '../models/dashboard.js';
+import { logger } from '../utils/logger.js';
 
 export interface CashFlowKPI {
   total_inflow_cents: number;

@@ -1,6 +1,6 @@
-import { db } from './database';
+import { db } from './database.js';
 import { QueryResult } from 'pg';
-import { TenantRequiredError } from '../utils/errors';
+import { TenantRequiredError } from '../utils/errors.js';
 
 /**
  * Permission model types

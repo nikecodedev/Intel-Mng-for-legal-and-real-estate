@@ -1,6 +1,6 @@
-import { db } from './database';
+import { db } from './database.js';
 import { QueryResult } from 'pg';
-import { TenantRequiredError, NotFoundError } from '../utils/errors';
+import { TenantRequiredError, NotFoundError } from '../utils/errors.js';
 
 export type CostType = 'acquisition' | 'regularization' | 'renovation' | 'maintenance' | 'taxes' | 'legal' | 'other';
 export type PaymentStatus = 'PENDING' | 'PAID' | 'PARTIAL' | 'CANCELLED';

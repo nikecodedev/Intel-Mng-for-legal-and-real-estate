@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { logger, logHelpers } from '../utils/logger';
+import * as crypto from 'crypto';
+import { logger, logHelpers } from '../utils/logger.js';
 
 /**
  * Request logging middleware

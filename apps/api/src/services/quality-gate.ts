@@ -1,7 +1,7 @@
-import { db } from '../models/database';
-import { QualityGateModel, QualityGate } from '../models/quality-gate';
-import { GateCheckModel, GateCheck, ResourceType, CheckStatus } from '../models/gate-check';
-import { logger } from '../utils/logger';
+import { db } from '../models/database.js';
+import { QualityGateModel, QualityGate } from '../models/quality-gate.js';
+import { GateCheckModel, GateCheck, ResourceType, CheckStatus } from '../models/gate-check.js';
+import { logger } from '../utils/logger.js';
 
 export interface GateCheckResult {
   passed: boolean;

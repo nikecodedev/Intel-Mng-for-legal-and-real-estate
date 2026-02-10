@@ -1,6 +1,6 @@
-import { db } from './database';
+import { db } from './database.js';
 import { QueryResult } from 'pg';
-import { TenantRequiredError, NotFoundError } from '../utils/errors';
+import { TenantRequiredError, NotFoundError } from '../utils/errors.js';
 
 export type CheckStatus = 'PENDING' | 'PASSED' | 'FAILED' | 'OVERRIDDEN' | 'SKIPPED';
 export type ResourceType = 'PROCESS' | 'AUCTION_ASSET' | 'REAL_ESTATE_ASSET' | 'DOCUMENT';

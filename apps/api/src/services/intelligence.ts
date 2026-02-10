@@ -6,7 +6,7 @@
  * - All explanations deterministic; all suggestions logged. No autonomous execution.
  */
 
-import { AuditService, AuditAction, AuditEventCategory } from './audit';
+import { AuditService, AuditAction, AuditEventCategory } from './audit.js';
 import type { Request } from 'express';
 import {
   type IntelligenceResult,
@@ -14,10 +14,10 @@ import {
   IntelligenceRuleCode,
   RULE_MESSAGES,
   type FindingSeverity,
-} from '../types/intelligence';
-import { DocumentModel } from '../models/document';
-import { AuctionAssetModel, isRiskHigh } from '../models/auction-asset';
-import { AuctionAssetROIModel } from '../models/auction-asset-roi';
+} from '../types/intelligence.js';
+import { DocumentModel } from '../models/document.js';
+import { AuctionAssetModel, isRiskHigh } from '../models/auction-asset.js';
+import { AuctionAssetROIModel } from '../models/auction-asset-roi.js';
 
 export type IntelligenceResourceType = 'document' | 'auction_asset' | 'auction_asset_roi';
 
