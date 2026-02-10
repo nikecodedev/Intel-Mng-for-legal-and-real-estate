@@ -24,6 +24,8 @@ const UUID_REGEX =
 /** Paths that bypass tenant isolation (no JWT required) */
 const SKIP_PATHS = [
   '/health',
+  '/', // Root API endpoint (when accessed as /api/v1/)
+  '/api/v1', // API info/documentation endpoint - public access
   '/auth/login',
   '/auth/register',
   '/auth/refresh',
@@ -37,6 +39,10 @@ function normalizePath(path: string): string {
 
 function shouldSkipTenantMiddleware(path: string): boolean {
   const p = normalizePath(path);
+  // Check exact match or if path is root (/)
+  if (p === '/' || p === '') {
+    return SKIP_PATHS.includes('/') || SKIP_PATHS.includes('/api/v1');
+  }
   return SKIP_PATHS.some((s) => p === s || p.startsWith(s + '/'));
 }
 
