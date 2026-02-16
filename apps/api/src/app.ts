@@ -14,6 +14,7 @@ import {
 import { rateLimit, tenantRateLimit } from './middleware/rate-limit.js';
 import { MonitoringService } from './services/monitoring.js';
 import { globalRequestValidation } from './middleware/request-validation.js';
+import { globalTimeout } from './middleware/timeout.js';
 import apiRouter from './routes/index.js';
 import healthRouter from './routes/health.js';
 
@@ -58,6 +59,9 @@ export function createApp(): Express {
 
   // Global request validation (after body parsing, before routes)
   app.use(globalRequestValidation());
+
+  // Global timeout middleware (prevent hanging requests)
+  app.use(globalTimeout());
 
   // Health check routes (before API routes, no rate limiting)
   app.use('/health', healthRouter);

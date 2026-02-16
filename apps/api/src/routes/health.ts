@@ -169,6 +169,108 @@ router.get(
 );
 
 /**
+ * GET /health/api
+ * API service health check
+ */
+router.get(
+  '/api',
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const memoryUsage = process.memoryUsage();
+    const heapUsagePercent = (memoryUsage.heapUsed / memoryUsage.heapTotal) * 100;
+    
+    const status = heapUsagePercent > 90 ? 'unhealthy' : heapUsagePercent > 75 ? 'degraded' : 'healthy';
+    const statusCode = status === 'healthy' ? 200 : status === 'degraded' ? 200 : 503;
+
+    res.status(statusCode).json({
+      status,
+      service: 'api',
+      timestamp: new Date().toISOString(),
+      uptime_seconds: Math.floor((Date.now() - startTime) / 1000),
+      memory: {
+        heap_used_mb: Math.round(memoryUsage.heapUsed / 1024 / 1024),
+        heap_total_mb: Math.round(memoryUsage.heapTotal / 1024 / 1024),
+        heap_usage_percent: Math.round(heapUsagePercent),
+        rss_mb: Math.round(memoryUsage.rss / 1024 / 1024),
+      },
+      version: process.env.APP_VERSION || '1.0.0',
+    });
+  })
+);
+
+/**
+ * GET /health/db
+ * Database health check
+ */
+router.get(
+  '/db',
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const startTime = Date.now();
+    let status: 'healthy' | 'unhealthy' = 'healthy';
+    let message = 'Database connection successful';
+    let responseTime: number | undefined;
+
+    try {
+      await db.query('SELECT 1');
+      responseTime = Date.now() - startTime;
+    } catch (error) {
+      status = 'unhealthy';
+      message = error instanceof Error ? error.message : 'Database connection failed';
+      responseTime = Date.now() - startTime;
+      logger.error('Database health check failed', { error, responseTime });
+    }
+
+    const statusCode = status === 'healthy' ? 200 : 503;
+    res.status(statusCode).json({
+      status,
+      service: 'database',
+      timestamp: new Date().toISOString(),
+      response_time_ms: responseTime,
+      message,
+    });
+  })
+);
+
+/**
+ * GET /health/redis
+ * Redis health check
+ */
+router.get(
+  '/redis',
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const startTime = Date.now();
+    let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
+    let message = 'Redis connection successful';
+    let responseTime: number | undefined;
+
+    try {
+      if (!redisClient.isAvailable()) {
+        status = 'degraded';
+        message = 'Redis is disabled or unavailable';
+        responseTime = Date.now() - startTime;
+      } else {
+        const redis = redisClient.getClient();
+        await redis.ping();
+        responseTime = Date.now() - startTime;
+      }
+    } catch (error) {
+      status = 'unhealthy';
+      message = error instanceof Error ? error.message : 'Redis connection failed';
+      responseTime = Date.now() - startTime;
+      logger.error('Redis health check failed', { error, responseTime });
+    }
+
+    const statusCode = status === 'healthy' ? 200 : status === 'degraded' ? 200 : 503;
+    res.status(statusCode).json({
+      status,
+      service: 'redis',
+      timestamp: new Date().toISOString(),
+      response_time_ms: responseTime,
+      message,
+    });
+  })
+);
+
+/**
  * GET /health/metrics
  * Prometheus-compatible metrics endpoint
  */

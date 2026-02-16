@@ -160,8 +160,21 @@ router.post(
       documentNumber
     );
 
-    // Start async processing
-    processDocumentAsync(tenantId, document.id, filePath, userId);
+    // Queue document processing job (with retry mechanism)
+    const { JobQueueService } = await import('../services/job-queue.js');
+    await JobQueueService.addJob('document-processing', {
+      tenantId,
+      documentId: document.id,
+      filePath,
+      userId,
+    }, {
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 2000,
+      },
+      timeout: 300000, // 5 minutes for OCR processing
+    });
 
     logger.info('Document uploaded', { 
       tenantId, 
