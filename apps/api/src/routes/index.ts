@@ -19,6 +19,7 @@ import qualityGatesRouter from './quality-gates.js';
 import superAdminRouter from './super-admin.js';
 import dashboardsRouter from './dashboards.js';
 import metricsRouter from './metrics.js';
+import auditIntegrityRouter from './audit-integrity.js';
 import { config } from '../config/index.js';
 
 const router = Router();
@@ -90,6 +91,9 @@ router.use('/dashboards', dashboardsRouter);
 // Metrics (monitoring)
 router.use('/metrics', metricsRouter);
 
+// Audit Integrity Verification
+router.use('/audit-integrity', auditIntegrityRouter);
+
 // Future: Add more route modules here
 // router.use('/users', userRouter);
 // router.use('/roles', rolesRouter);
@@ -127,6 +131,7 @@ router.get('/', (req, res) => {
       quality_gates: '/api/v1/quality-gates',
       super_admin: '/api/v1/super-admin',
       dashboards: '/api/v1/dashboards',
+      audit_integrity: '/api/v1/audit-integrity',
       // Future: Add more endpoints as they're created
     },
   });
