@@ -1,0 +1,497 @@
+================================================================================
+END-TO-END HOMOLOGATION TEST PLAN
+Platform v1.0.0 - Production Release
+================================================================================
+
+OVERVIEW
+--------
+This document outlines 8 comprehensive test scenarios for platform homologation.
+Each scenario validates critical functionality and security requirements.
+
+PREREQUISITES
+-------------
+1. All services running (PostgreSQL, Redis, API, Intelligence)
+2. Database migrations applied
+3. API accessible at http://localhost:3000
+4. Super admin user exists (or can be created via database)
+
+TEST EXECUTION
+--------------
+Run the automated test script:
+  ./tests/homologation-test-scenarios.sh
+
+Or execute scenarios manually using the API endpoints and expected outcomes
+documented below.
+
+================================================================================
+SCENARIO 1: Tenant Creation → User Creation → Login
+================================================================================
+
+OBJECTIVE: Validate tenant provisioning, user registration, and authentication flow.
+
+STEPS:
+------
+1.1 Login as Super Admin
+    Endpoint: POST /api/v1/auth/login
+    Payload: { "email": "superadmin@test.com", "password": "SuperAdmin123!" }
+    Expected: 200 OK, access_token returned
+
+1.2 Create Tenant
+    Endpoint: POST /api/v1/super-admin/tenants
+    Headers: Authorization: Bearer {super_admin_token}
+    Payload: {
+        "name": "Test Tenant",
+        "subscription_plan": "STANDARD",
+        "contact_email": "admin@testtenant.com"
+    }
+    Expected: 201 Created, tenant.id returned, status = "ACTIVE"
+
+1.3 Create User in Tenant
+    Endpoint: POST /api/v1/auth/register
+    Payload: {
+        "tenant_id": "{tenant_id}",
+        "email": "user@testtenant.com",
+        "password": "TestUser123!",
+        "first_name": "Test",
+        "last_name": "User"
+    }
+    Expected: 201 Created, user.id returned
+
+1.4 Login as Regular User
+    Endpoint: POST /api/v1/auth/login
+    Payload: { "email": "user@testtenant.com", "password": "TestUser123!" }
+    Expected: 200 OK, access_token returned, user.tenant_id matches created tenant
+
+VALIDATION:
+-----------
+✓ Tenant created with ACTIVE status
+✓ User created and associated with correct tenant
+✓ Login successful with correct tenant context
+✓ JWT token contains correct tenant_id (tid claim)
+
+================================================================================
+SCENARIO 2: Upload Legal Document → OCR → CPO Approval
+================================================================================
+
+OBJECTIVE: Validate document upload, OCR processing, and CPO quality assessment.
+
+STEPS:
+------
+2.1 Upload Document
+    Endpoint: POST /api/v1/documents/upload
+    Headers: Authorization: Bearer {user_token}
+    Payload: {
+        "title": "Test Legal Contract",
+        "document_type": "legal_contract",
+        "file_path": "/path/to/document.pdf",
+        "description": "Test document"
+    }
+    Expected: 201 Created, document.id returned, processing_status = "queued"
+
+2.2 Wait for OCR Processing
+    Endpoint: GET /api/v1/documents/{document_id}
+    Headers: Authorization: Bearer {user_token}
+    Expected: extraction_status = "completed" or "success" (poll until complete)
+
+2.3 Verify CPO Status
+    Endpoint: GET /api/v1/documents/{document_id}
+    Headers: Authorization: Bearer {user_token}
+    Expected: status_cpo = "VERDE" | "AMARELO" | "VERMELHO", ocr_confidence > 0
+
+2.4 Verify Document Extraction
+    Endpoint: GET /api/v1/documents/{document_id}/extraction
+    Headers: Authorization: Bearer {user_token}
+    Expected: extracted_text present, ocr_confidence value
+
+VALIDATION:
+-----------
+✓ Document uploaded and queued for processing
+✓ OCR processing completes successfully
+✓ CPO status assigned (VERDE/AMARELO/VERMELHO)
+✓ OCR confidence score calculated
+✓ Document extraction data available
+
+================================================================================
+SCENARIO 3: Extract Facts → Generate Document → Trace Proof
+================================================================================
+
+OBJECTIVE: Validate fact extraction, document generation, and audit trail.
+
+STEPS:
+------
+3.1 Extract Facts from Document
+    Endpoint: GET /api/v1/documents/{document_id}/facts
+    Headers: Authorization: Bearer {user_token}
+    Expected: 200 OK, facts array returned (may be empty for test documents)
+
+3.2 Create Generated Document
+    Endpoint: POST /api/v1/generated-documents
+    Headers: Authorization: Bearer {user_token}
+    Payload: {
+        "template_id": "standard_contract",
+        "source_document_id": "{document_id}",
+        "title": "Generated Contract",
+        "metadata": { "source": "test" }
+    }
+    Expected: 201 Created, generated_document.id returned
+
+3.3 Verify Audit Trail
+    Endpoint: GET /api/v1/audit-integrity/status
+    Headers: Authorization: Bearer {user_token}
+    Expected: 200 OK, integrity_status = "valid" | "verified"
+
+3.4 Verify Document Access Logged
+    Endpoint: GET /api/v1/audit-integrity/verify
+    Headers: Authorization: Bearer {user_token}
+    Expected: Audit logs contain entries for document operations
+
+VALIDATION:
+-----------
+✓ Facts can be extracted from documents
+✓ Generated documents can be created from templates
+✓ All operations logged in audit trail
+✓ Audit hash chain integrity verified
+✓ Document access traceable through audit logs
+
+================================================================================
+SCENARIO 4: Create Auction → Risk Scoring → ROI Calculation
+================================================================================
+
+OBJECTIVE: Validate auction asset creation, due diligence, and ROI calculation.
+
+STEPS:
+------
+4.1 Create Auction Asset
+    Endpoint: POST /api/v1/auctions/assets
+    Headers: Authorization: Bearer {user_token}
+    Payload: {
+        "linked_document_ids": ["{document_id}"],
+        "title": "Test Real Estate Asset",
+        "asset_reference": "ASSET-001"
+    }
+    Expected: 201 Created, asset.id returned, stage = "F0"
+
+4.2 Update Due Diligence
+    Endpoint: PATCH /api/v1/auctions/assets/{asset_id}/due-diligence
+    Headers: Authorization: Bearer {user_token}
+    Payload: {
+        "occupancy": { "status": "ok", "notes": "Vacant" },
+        "debts": { "status": "ok", "notes": "No debts" },
+        "legal_risks": { "status": "ok", "notes": "No issues" },
+        "zoning": { "status": "ok", "notes": "Compliant" }
+    }
+    Expected: 200 OK, stage may advance based on due diligence
+
+4.3 Calculate ROI
+    Endpoint: POST /api/v1/auctions/assets/{asset_id}/roi
+    Headers: Authorization: Bearer {user_token}
+    Payload: {
+        "acquisition_price_cents": 50000000,
+        "taxes_itbi_cents": 500000,
+        "legal_costs_cents": 200000,
+        "renovation_estimate_cents": 1000000,
+        "expected_resale_value_cents": 60000000,
+        "expected_resale_date": "2025-12-31"
+    }
+    Expected: 201 Created, calculated_roi_percentage returned
+
+4.4 Verify ROI Versioning
+    Endpoint: GET /api/v1/auctions/assets/{asset_id}/roi/versions
+    Headers: Authorization: Bearer {user_token}
+    Expected: 200 OK, versions array with ROI history
+
+VALIDATION:
+-----------
+✓ Auction asset created at stage F0
+✓ Due diligence can be updated
+✓ ROI calculation works correctly
+✓ ROI percentage calculated accurately
+✓ ROI versioning maintains history
+
+================================================================================
+SCENARIO 5: Trigger Workflow Automation
+================================================================================
+
+OBJECTIVE: Validate workflow trigger creation and event-driven automation.
+
+STEPS:
+------
+5.1 Create Workflow Trigger
+    Endpoint: POST /api/v1/workflow/triggers
+    Headers: Authorization: Bearer {user_token}
+    Payload: {
+        "name": "Test Document Upload Trigger",
+        "event_type": "document.uploaded",
+        "condition": { "document_type": "legal_contract" },
+        "action_type": "create_task",
+        "action_config": {
+            "task_title": "Review uploaded contract",
+            "task_description": "A legal contract has been uploaded"
+        }
+    }
+    Expected: 201 Created, trigger.id returned
+
+5.2 Emit Event
+    Endpoint: POST /api/v1/workflow/emit
+    Headers: Authorization: Bearer {user_token}
+    Payload: {
+        "event_type": "document.uploaded",
+        "payload": {
+            "document_id": "{document_id}",
+            "document_type": "legal_contract"
+        }
+    }
+    Expected: 200 OK, success = true
+
+5.3 Verify Trigger Execution
+    Endpoint: GET /api/v1/workflow/triggers/{trigger_id}
+    Headers: Authorization: Bearer {user_token}
+    Expected: 200 OK, is_active = true
+
+VALIDATION:
+-----------
+✓ Workflow trigger created successfully
+✓ Events can be emitted
+✓ Triggers execute based on conditions
+✓ Workflow automation functions correctly
+
+================================================================================
+SCENARIO 6: Finance Entry → Proof Upload → Audit Validation
+================================================================================
+
+OBJECTIVE: Validate financial transaction creation, payment tracking, and audit logging.
+
+STEPS:
+------
+6.1 Create Financial Transaction
+    Endpoint: POST /api/v1/finance/transactions
+    Headers: Authorization: Bearer {user_token}
+    Payload: {
+        "transaction_type": "PAYABLE",
+        "amount_cents": 100000,
+        "currency": "BRL",
+        "transaction_date": "2024-01-15",
+        "due_date": "2024-02-15",
+        "description": "Test payable transaction",
+        "vendor_name": "Test Vendor",
+        "vendor_tax_id": "12345678000190"
+    }
+    Expected: 201 Created, transaction.id returned, payment_status = "PENDING"
+
+6.2 Mark Payment with Proof
+    Endpoint: POST /api/v1/finance/transactions/{transaction_id}/mark-paid
+    Headers: Authorization: Bearer {user_token}
+    Payload: {
+        "paid_date": "2024-01-20",
+        "payment_method": "BANK_TRANSFER",
+        "payment_reference": "TXN-REF-001",
+        "proof_document_id": "{document_id}"
+    }
+    Expected: 200 OK, payment_status = "PAID"
+
+6.3 Verify Audit Log Entry
+    Endpoint: GET /api/v1/audit-integrity/verify
+    Headers: Authorization: Bearer {user_token}
+    Expected: Audit logs contain financial_transaction entries
+
+6.4 Verify Audit Hash Chain
+    Endpoint: GET /api/v1/audit-integrity/verify
+    Headers: Authorization: Bearer {user_token}
+    Expected: integrity_status = "valid" | "verified"
+
+VALIDATION:
+-----------
+✓ Financial transaction created
+✓ Payment can be marked with proof document
+✓ All financial operations logged in audit trail
+✓ Audit hash chain integrity maintained
+✓ Financial audit trail is complete and traceable
+
+================================================================================
+SCENARIO 7: Investor Portal Read-Only Access
+================================================================================
+
+OBJECTIVE: Validate investor portal access with read-only permissions.
+
+STEPS:
+------
+7.1 Create Investor User
+    Endpoint: POST /api/v1/investor/register (if available)
+    Payload: {
+        "email": "investor@test.com",
+        "password": "Investor123!",
+        "full_name": "Test Investor"
+    }
+    Expected: 201 Created or requires setup
+
+7.2 Login as Investor
+    Endpoint: POST /api/v1/investor/auth/login
+    Payload: { "email": "investor@test.com", "password": "Investor123!" }
+    Expected: 200 OK, access_token returned (investor token)
+
+7.3 Test Read-Only Access
+    Endpoint: GET /api/v1/investor/assets
+    Headers: Authorization: Bearer {investor_token}
+    Expected: 200 OK, assets list returned (read succeeds)
+
+7.4 Test Write Access (Should Fail)
+    Endpoint: POST /api/v1/auctions/assets
+    Headers: Authorization: Bearer {investor_token}
+    Payload: { "title": "Unauthorized Asset" }
+    Expected: 403 Forbidden or AUTHORIZATION_ERROR
+
+VALIDATION:
+-----------
+✓ Investor can authenticate
+✓ Investor has read access to assets
+✓ Investor write access is blocked
+✓ RBAC correctly enforces investor permissions
+✓ Investor portal isolation maintained
+
+================================================================================
+SCENARIO 8: Cross-Tenant Access Attempt → Must Fail
+================================================================================
+
+OBJECTIVE: Validate tenant isolation and prevent cross-tenant data access.
+
+STEPS:
+------
+8.1 Create Second Tenant
+    Endpoint: POST /api/v1/super-admin/tenants
+    Headers: Authorization: Bearer {super_admin_token}
+    Payload: {
+        "name": "Test Tenant 2",
+        "subscription_plan": "STANDARD"
+    }
+    Expected: 201 Created, tenant2.id returned
+
+8.2 Create User in Tenant 2
+    Endpoint: POST /api/v1/auth/register
+    Payload: {
+        "tenant_id": "{tenant2_id}",
+        "email": "user2@tenant2.com",
+        "password": "TestUser123!",
+        "first_name": "User2",
+        "last_name": "Tenant2"
+    }
+    Expected: 201 Created, user2.id returned
+
+8.3 Login as User 2
+    Endpoint: POST /api/v1/auth/login
+    Payload: { "email": "user2@tenant2.com", "password": "TestUser123!" }
+    Expected: 200 OK, user2_token returned
+
+8.4 Attempt Cross-Tenant Access
+    Endpoint: GET /api/v1/documents/{tenant1_document_id}
+    Headers: Authorization: Bearer {user2_token}
+    Expected: 403 Forbidden or 404 Not Found or AUTHORIZATION_ERROR
+
+8.5 Verify Normal Access Still Works
+    Endpoint: GET /api/v1/documents/{tenant1_document_id}
+    Headers: Authorization: Bearer {tenant1_user_token}
+    Expected: 200 OK, document data returned
+
+VALIDATION:
+-----------
+✓ Second tenant created successfully
+✓ User in Tenant 2 cannot access Tenant 1 data
+✓ Cross-tenant access returns error (AUTHORIZATION_ERROR, NOT_FOUND, or FORBIDDEN)
+✓ Normal tenant access still works correctly
+✓ Tenant isolation enforced at API and database levels
+✓ CRITICAL: No data leakage between tenants
+
+================================================================================
+EXPECTED OUTCOMES SUMMARY
+================================================================================
+
+SCENARIO 1: Tenant & User Management
+  ✓ Tenant provisioning works
+  ✓ User registration works
+  ✓ Authentication works
+  ✓ Tenant context correctly set in JWT
+
+SCENARIO 2: Document Processing
+  ✓ Document upload works
+  ✓ OCR processing completes
+  ✓ CPO status assigned
+  ✓ Quality assessment functional
+
+SCENARIO 3: Document Intelligence
+  ✓ Fact extraction works
+  ✓ Document generation works
+  ✓ Audit trail maintained
+  ✓ Trace proof available
+
+SCENARIO 4: Auction Management
+  ✓ Asset creation works
+  ✓ Due diligence tracking works
+  ✓ ROI calculation accurate
+  ✓ Versioning maintained
+
+SCENARIO 5: Workflow Automation
+  ✓ Trigger creation works
+  ✓ Event emission works
+  ✓ Automation executes
+  ✓ Workflow functional
+
+SCENARIO 6: Financial Management
+  ✓ Transaction creation works
+  ✓ Payment tracking works
+  ✓ Proof document linking works
+  ✓ Audit logging complete
+
+SCENARIO 7: Investor Portal
+  ✓ Investor authentication works
+  ✓ Read access granted
+  ✓ Write access blocked
+  ✓ Permissions enforced
+
+SCENARIO 8: Security & Isolation
+  ✓ Tenant isolation enforced
+  ✓ Cross-tenant access blocked
+  ✓ No data leakage
+  ✓ Security maintained
+
+================================================================================
+CRITICAL VALIDATION POINTS
+================================================================================
+
+SECURITY:
+  - Cross-tenant access MUST fail (Scenario 8)
+  - Investor write access MUST be blocked (Scenario 7)
+  - JWT tokens MUST contain correct tenant_id
+  - All operations MUST be logged in audit trail
+
+DATA INTEGRITY:
+  - Audit hash chain MUST be valid
+  - All financial operations MUST be traceable
+  - Document processing MUST maintain data integrity
+  - ROI calculations MUST be versioned
+
+FUNCTIONALITY:
+  - All CRUD operations MUST work within tenant context
+  - OCR processing MUST complete successfully
+  - Workflow automation MUST execute correctly
+  - Document generation MUST work
+
+PERFORMANCE:
+  - OCR processing should complete within 60 seconds
+  - API responses should be < 2 seconds
+  - Database queries should be optimized
+  - No N+1 query issues
+
+================================================================================
+TEST EXECUTION NOTES
+================================================================================
+
+1. Run scenarios in order (scenarios depend on previous ones)
+2. Some scenarios may require manual setup (e.g., super admin user)
+3. Test data cleanup may be needed between test runs
+4. Some operations are asynchronous (OCR, workflow) - allow time for completion
+5. Investor portal may require additional setup
+6. All API calls require proper authentication headers
+7. Tenant IDs and document IDs from previous scenarios should be reused
+
+================================================================================
+END OF TEST PLAN
+================================================================================
