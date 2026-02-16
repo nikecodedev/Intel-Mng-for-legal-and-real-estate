@@ -1,0 +1,256 @@
+# ============================================
+# Production Docker Compose Configuration
+# v1.0.0 - Final Production Release
+# ============================================
+#
+# This is the production-ready configuration.
+# All services are configured with:
+# - Security hardening
+# - Health checks
+# - Resource limits
+# - Proper restart policies
+# - Non-root users
+# - Read-only filesystems where possible
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Environment Variables Required:
+#   - POSTGRES_USER (default: platform_user)
+#   - POSTGRES_PASSWORD (REQUIRED - must be changed)
+#   - POSTGRES_DB (default: platform_db)
+#   - REDIS_PASSWORD (REQUIRED - must be changed)
+#   - JWT_SECRET (REQUIRED - minimum 64 characters)
+#   - CORS_ORIGIN (REQUIRED - cannot be "*")
+#
+# ============================================
+
+version: '3.8'
+
+services:
+  # ============================================
+  # PostgreSQL Database
+  # ============================================
+  postgres:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.postgres
+    container_name: platform-postgres-prod
+    image: platform/postgres:v1.0.0
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-platform_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-platform_db}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init-scripts:/docker-entrypoint-initdb.d:ro
+    networks:
+      - platform-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-platform_user} -d ${POSTGRES_DB:-platform_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '2'
+          memory: 4G
+
+  # ============================================
+  # Redis Cache
+  # ============================================
+  redis:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.redis
+    container_name: platform-redis-prod
+    image: platform/redis:v1.0.0
+    restart: always
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD}
+      --maxmemory 2gb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - platform-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "-a", "${REDIS_PASSWORD}", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  # ============================================
+  # Node.js API
+  # ============================================
+  api:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.api
+      args:
+        NODE_ENV: production
+    container_name: platform-api-prod
+    image: platform/api:v1.0.0
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-platform_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-platform_db}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/${REDIS_DB:-0}
+      REDIS_ENABLED: "true"
+      JWT_SECRET: ${JWT_SECRET}
+      API_VERSION: v1
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-900000}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-100}
+    ports:
+      - "${API_PORT:-3000}:3000"
+    volumes:
+      - api_logs:/app/logs
+    networks:
+      - platform-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================
+  # Python Intelligence Service
+  # ============================================
+  intelligence:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.intelligence
+    container_name: platform-intelligence-prod
+    image: platform/intelligence:v1.0.0
+    restart: always
+    environment:
+      ENV: production
+      PORT: 8000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-platform_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-platform_db}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/${REDIS_DB:-0}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    ports:
+      - "${INTELLIGENCE_PORT:-8000}:8000"
+    volumes:
+      - intelligence_logs:/app/logs
+    networks:
+      - platform-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# ============================================
+# Networks
+# ============================================
+networks:
+  platform-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+# ============================================
+# Volumes
+# ============================================
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/postgres
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/redis
+  api_logs:
+    driver: local
+  intelligence_logs:
+    driver: local

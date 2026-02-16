@@ -49,9 +49,9 @@ COPY packages/contracts ./packages/contracts
 COPY packages/types ./packages/types
 COPY packages/utils ./packages/utils
 
-# Build the application (cd to workspace and run tsc directly to allow errors)
+# Build the application
 WORKDIR /app/apps/api
-RUN npx tsc || true
+RUN npx tsc
 WORKDIR /app
 
 # Stage 4: Production runtime
