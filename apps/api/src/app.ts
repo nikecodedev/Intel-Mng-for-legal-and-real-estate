@@ -13,6 +13,7 @@ import {
 } from './middleware/index.js';
 import { rateLimit, tenantRateLimit } from './middleware/rate-limit.js';
 import { MonitoringService } from './services/monitoring.js';
+import { globalRequestValidation } from './middleware/request-validation.js';
 import apiRouter from './routes/index.js';
 import healthRouter from './routes/health.js';
 
@@ -54,6 +55,9 @@ export function createApp(): Express {
   // Body parsing middleware
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+  // Global request validation (after body parsing, before routes)
+  app.use(globalRequestValidation());
 
   // Health check routes (before API routes, no rate limiting)
   app.use('/health', healthRouter);

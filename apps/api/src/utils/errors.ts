@@ -122,13 +122,17 @@ export interface ErrorResponse {
 
 /**
  * Format error for API response
+ * @param error - Error to format
+ * @param path - Request path
+ * @param isProduction - Whether running in production (hides stack traces)
  */
 export function formatErrorResponse(
   error: Error | AppError,
-  path?: string
+  path?: string,
+  isProduction = false
 ): ErrorResponse {
   if (error instanceof AppError) {
-    return {
+    const response: ErrorResponse = {
       success: false,
       error: {
         code: error.code || 'ERROR',
@@ -138,17 +142,40 @@ export function formatErrorResponse(
         path,
       },
     };
+
+    // Never expose stack traces in production
+    if (!isProduction && error.stack) {
+      (response.error as any).stack = error.stack;
+    }
+
+    return response;
   }
 
   // Unknown/unexpected errors
-  logger.error('Unexpected error', { error, path });
+  // In production, log full error but don't expose details
+  if (isProduction) {
+    logger.error('Unexpected error', {
+      message: error.message,
+      name: error.name,
+      path,
+      // Stack trace logged but not exposed to client
+      stack: error.stack,
+    });
+  } else {
+    logger.error('Unexpected error', { error, path });
+  }
+
   return {
     success: false,
     error: {
       code: 'INTERNAL_SERVER_ERROR',
-      message: 'An unexpected error occurred',
+      message: isProduction
+        ? 'An unexpected error occurred'
+        : error.message, // In dev, show actual error message
       timestamp: new Date().toISOString(),
       path,
+      // Never expose stack traces in production
+      ...(isProduction ? {} : { stack: error.stack }),
     },
   };
 }

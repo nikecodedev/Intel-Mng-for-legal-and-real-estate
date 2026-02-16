@@ -7,8 +7,11 @@ dotenv.config();
 /**
  * Environment variable schema validation
  * Ensures all required environment variables are present and valid
+ * Production mode enforces stricter validation
  */
-const envSchema = z.object({
+const isProduction = process.env.NODE_ENV === 'production';
+
+const baseEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.string().regex(/^\d+$/).transform(Number).default('3000'),
   API_VERSION: z.string().default('v1'),
@@ -48,15 +51,48 @@ const envSchema = z.object({
   GEMINI_API_KEY: z.string().min(1).optional(),
 });
 
+// Production-specific validations
+const productionEnvSchema = baseEnvSchema.extend({
+  // In production, CORS_ORIGIN cannot be wildcard
+  CORS_ORIGIN: z.string().refine(
+    (val) => val !== '*',
+    { message: 'CORS_ORIGIN cannot be "*" in production. Specify allowed origins.' }
+  ),
+  // In production, JWT_SECRET must be at least 64 characters
+  JWT_SECRET: z.string().min(64, 'JWT_SECRET must be at least 64 characters in production'),
+  // In production, require Redis password if Redis is enabled
+  REDIS_PASSWORD: z.string().min(1, 'REDIS_PASSWORD is required in production when Redis is enabled').optional(),
+});
+
+// Use production schema if in production, otherwise base schema
+const envSchema = isProduction ? productionEnvSchema : baseEnvSchema;
+
 type EnvConfig = z.infer<typeof envSchema>;
 
 /**
  * Validates and returns environment configuration
  * Throws error if validation fails
+ * Production mode enforces stricter validation
  */
 function validateEnv(): EnvConfig {
   try {
-    return envSchema.parse(process.env);
+    const result = envSchema.parse(process.env);
+    
+    // Additional production checks
+    if (isProduction) {
+      // Ensure no development fallbacks are used
+      if (result.CORS_ORIGIN === '*') {
+        throw new Error('CORS_ORIGIN cannot be "*" in production');
+      }
+      if (result.JWT_SECRET.length < 64) {
+        throw new Error('JWT_SECRET must be at least 64 characters in production');
+      }
+      if (result.REDIS_ENABLED && !result.REDIS_PASSWORD) {
+        throw new Error('REDIS_PASSWORD is required in production when Redis is enabled');
+      }
+    }
+    
+    return result;
   } catch (error) {
     if (error instanceof z.ZodError) {
       const missingVars = error.errors.map((err) => `${err.path.join('.')}: ${err.message}`);

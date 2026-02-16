@@ -1,14 +1,37 @@
 import winston from 'winston';
 import { config } from '../config/index.js';
+import { sanitizeLogData } from './log-sanitizer.js';
 
 /**
  * Structured logging configuration using Winston
  * Supports different log levels and formats based on environment
+ * Production: Sanitizes sensitive data from logs
  */
+const sanitizeFormat = winston.format((info) => {
+  // Sanitize metadata in production
+  if (config.app.isProduction && info.meta) {
+    info.meta = sanitizeLogData(info.meta) as Record<string, unknown>;
+  }
+  // Sanitize any additional fields
+  if (config.app.isProduction) {
+    const sanitized: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(info)) {
+      if (key === 'password' || key === 'token' || key === 'secret' || key.includes('password') || key.includes('token') || key.includes('secret')) {
+        sanitized[key] = '[REDACTED]';
+      } else {
+        sanitized[key] = value;
+      }
+    }
+    Object.assign(info, sanitized);
+  }
+  return info;
+});
+
 const logFormat = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
   winston.format.errors({ stack: true }),
   winston.format.splat(),
+  sanitizeFormat(),
   winston.format.json()
 );
 
@@ -102,13 +125,16 @@ export const logHelpers = {
   },
 
   /**
-   * Log error with context
+   * Log error with context (sanitized)
    */
   logError: (error: Error, context?: Record<string, unknown>) => {
+    const sanitizedContext = config.app.isProduction && context
+      ? sanitizeLogData(context) as Record<string, unknown>
+      : context;
     logger.error('Error occurred', {
       message: error.message,
       stack: error.stack,
-      ...context,
+      ...sanitizedContext,
       timestamp: new Date().toISOString(),
     });
   },

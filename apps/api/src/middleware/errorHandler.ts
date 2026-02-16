@@ -3,6 +3,7 @@ import { AppError, formatErrorResponse } from '../utils/errors.js';
 import { logger, logHelpers } from '../utils/logger.js';
 import { ErrorTrackingService } from '../services/error-tracking.js';
 import { config } from '../config/index.js';
+import { sanitizeRequestBody, sanitizeQueryParams } from '../utils/log-sanitizer.js';
 
 /**
  * Centralized error handling middleware
@@ -29,7 +30,7 @@ export function errorHandler(
     },
   });
 
-  // Log error with context
+  // Log error with context (sanitized)
   if (error instanceof AppError && error.isOperational) {
     logger.warn('Operational error', {
       error: error.message,
@@ -42,14 +43,14 @@ export function errorHandler(
     logHelpers.logError(error, {
       path: req.path,
       method: req.method,
-      body: req.body,
-      query: req.query,
+      body: sanitizeRequestBody(req.body),
+      query: sanitizeQueryParams(req.query),
       params: req.params,
     });
   }
 
-  // Format error response
-  const errorResponse = formatErrorResponse(error, req.path);
+  // Format error response (sanitized for production)
+  const errorResponse = formatErrorResponse(error, req.path, config.app.isProduction);
 
   // Send error response
   const statusCode = error instanceof AppError ? error.statusCode : 500;
