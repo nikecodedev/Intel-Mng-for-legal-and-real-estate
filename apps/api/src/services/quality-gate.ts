@@ -141,7 +141,7 @@ export class QualityGateService {
       checkResult.failure_details || {},
       userId,
       gate.is_blocking && !checkResult.passed,
-      stage
+      undefined
     );
 
     return check;

@@ -79,7 +79,7 @@ function validateExpenseLinks(input: {
   }
 }
 
-function mapRow(row: Record<string, unknown>): ExpenseCapture {
+function mapRow(row: any): ExpenseCapture {
   return {
     id: row.id as string,
     tenant_id: row.tenant_id as string,

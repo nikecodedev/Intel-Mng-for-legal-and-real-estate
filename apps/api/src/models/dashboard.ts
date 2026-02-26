@@ -65,7 +65,7 @@ function requireTenantId(tenantId: string | undefined | null, operation: string)
   }
 }
 
-function mapDashboardConfigRow(row: Record<string, unknown>): DashboardConfig {
+function mapDashboardConfigRow(row: any): DashboardConfig {
   return {
     id: row.id as string,
     tenant_id: row.tenant_id as string,
@@ -89,7 +89,7 @@ function mapDashboardConfigRow(row: Record<string, unknown>): DashboardConfig {
   };
 }
 
-function mapKPICacheRow(row: Record<string, unknown>): DashboardKPICache {
+function mapKPICacheRow(row: any): DashboardKPICache {
   return {
     id: row.id as string,
     tenant_id: row.tenant_id as string,

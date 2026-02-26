@@ -25,7 +25,7 @@ function requireTenantId(tenantId: string | undefined | null, operation: string)
   }
 }
 
-function mapRow(row: Record<string, unknown>): GeneratedDocument {
+function mapRow(row: any): GeneratedDocument {
   const sourceIds = row.source_fact_ids;
   return {
     id: row.id as string,

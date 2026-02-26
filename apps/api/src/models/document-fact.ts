@@ -55,7 +55,7 @@ function parseBoundingBox(val: unknown): BoundingBox | null {
   return null;
 }
 
-function mapRow(row: Record<string, unknown>): DocumentFact {
+function mapRow(row: any): DocumentFact {
   return {
     id: row.id as string,
     tenant_id: row.tenant_id as string,

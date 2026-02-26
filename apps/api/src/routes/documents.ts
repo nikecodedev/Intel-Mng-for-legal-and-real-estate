@@ -12,7 +12,7 @@ import { DocumentExtractionModel } from '../models/document-extraction.js';
 import { DocumentQualityFlagModel } from '../models/document-quality-flag.js';
 import { DocumentFactModel } from '../models/document-fact.js';
 import { DocumentExtractionService, documentExtractionService } from '../services/document-extraction.js';
-import { AuditService, AuditAction, AuditEventType } from '../services/audit.js';
+import { AuditService, AuditAction, AuditEventType, AuditEventCategory } from '../services/audit.js';
 import { logger } from '../utils/logger.js';
 
 const router = Router();
@@ -110,7 +110,7 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId, userId } = getTenantContext(req);
     const { title, description, document_type, category, document_date, metadata, tags, confidentiality_level } = req.body;
-    const filePath = (req as Request & { file?: multer.File }).file?.path ?? req.body?.file_path;
+    const filePath = (req as Request & { file?: Express.Multer.File }).file?.path ?? req.body?.file_path;
     if (!filePath) {
       throw new ValidationError('File is required: send multipart field "file" or body file_path');
     }

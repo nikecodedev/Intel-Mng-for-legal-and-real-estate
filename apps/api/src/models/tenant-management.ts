@@ -59,7 +59,7 @@ export interface UpdateTenantInput {
   notes?: string;
 }
 
-function mapRow(row: Record<string, unknown>): Tenant {
+function mapRow(row: any): Tenant {
   return {
     id: row.id as string,
     name: row.name as string,

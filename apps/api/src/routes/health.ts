@@ -67,7 +67,7 @@ router.get(
 router.get(
   '/ready',
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const checks: Record<string, boolean> = {};
+    const checks: Record<string, boolean | number> = {};
 
     // Check database
     try {

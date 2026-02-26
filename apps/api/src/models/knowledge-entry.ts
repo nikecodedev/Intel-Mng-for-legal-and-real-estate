@@ -71,7 +71,7 @@ function requireTenantId(tenantId: string | undefined | null, operation: string)
   }
 }
 
-function mapRow(row: Record<string, unknown>): KnowledgeEntry {
+function mapRow(row: any): KnowledgeEntry {
   return {
     id: row.id as string,
     tenant_id: row.tenant_id as string,

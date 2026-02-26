@@ -7,6 +7,7 @@ import { QualityGateModel, GateType, FailureAction } from '../models/quality-gat
 import { GateCheckModel, ResourceType } from '../models/gate-check.js';
 import { QualityGateService } from '../services/quality-gate.js';
 import { AuditService, AuditAction, AuditEventCategory } from '../services/audit.js';
+import { db } from '../models/database.js';
 import { logger } from '../utils/logger.js';
 
 const router = Router();

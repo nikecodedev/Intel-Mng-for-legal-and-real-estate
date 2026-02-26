@@ -9,7 +9,7 @@ import type { UserContext } from '../types/user-context.js';
 export interface TenantContext {
   tenantId: string;
   userId: string;
-  role: 'OWNER' | 'REVISOR' | 'OPERATIONAL';
+  role: 'OWNER' | 'REVISOR' | 'OPERATIONAL' | 'INVESTOR';
 }
 
 /**

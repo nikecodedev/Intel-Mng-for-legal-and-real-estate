@@ -81,7 +81,7 @@ function parseChecklist(raw: unknown): DueDiligenceChecklist {
   };
 }
 
-function mapRow(row: Record<string, unknown>): AuctionAsset {
+function mapRow(row: any): AuctionAsset {
   const linked = row.linked_document_ids;
   return {
     id: row.id as string,

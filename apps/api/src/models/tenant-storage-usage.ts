@@ -70,7 +70,7 @@ function requireTenantId(tenantId: string | undefined | null, operation: string)
   }
 }
 
-function mapStorageUsageRow(row: Record<string, unknown>): TenantStorageUsage {
+function mapStorageUsageRow(row: any): TenantStorageUsage {
   return {
     id: row.id as string,
     tenant_id: row.tenant_id as string,
@@ -88,7 +88,7 @@ function mapStorageUsageRow(row: Record<string, unknown>): TenantStorageUsage {
   };
 }
 
-function mapQuotaRow(row: Record<string, unknown>): TenantQuota {
+function mapQuotaRow(row: any): TenantQuota {
   return {
     id: row.id as string,
     tenant_id: row.tenant_id as string,

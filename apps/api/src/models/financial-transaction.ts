@@ -122,7 +122,7 @@ function validateTransactionLinks(input: {
   }
 }
 
-function mapRow(row: Record<string, unknown>): FinancialTransaction {
+function mapRow(row: any): FinancialTransaction {
   return {
     id: row.id as string,
     tenant_id: row.tenant_id as string,

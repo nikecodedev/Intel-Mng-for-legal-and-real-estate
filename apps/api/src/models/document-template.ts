@@ -61,7 +61,7 @@ function requireTenantId(tenantId: string | undefined | null, operation: string)
   }
 }
 
-function mapRow(row: Record<string, unknown>): DocumentTemplate {
+function mapRow(row: any): DocumentTemplate {
   return {
     id: row.id as string,
     tenant_id: row.tenant_id as string,

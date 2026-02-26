@@ -70,10 +70,14 @@ export enum AuditAction {
  */
 export interface AuditLogEntry {
   tenant_id: string; // REQUIRED - no optional
+  /** @deprecated Use tenant_id */
+  tenantId?: string;
   event_type: string;
   event_category: AuditEventCategory;
   action: AuditAction;
   user_id?: string;
+  /** @deprecated Use user_id */
+  userId?: string;
   user_email?: string;
   user_role?: string;
   resource_type?: string;
@@ -174,8 +178,8 @@ export class AuditService {
    */
   static async log(entry: AuditLogEntry): Promise<void> {
     try {
-      // STRICT validation - tenant_id is REQUIRED
-      this.validateTenantId(entry.tenant_id, 'log');
+      const tenantId = entry.tenant_id ?? entry.tenantId;
+      this.validateTenantId(tenantId, 'log');
 
       // Validate other required fields
       if (!entry.event_type || !entry.event_category || !entry.action) {
@@ -210,40 +214,40 @@ export class AuditService {
           compliance_flags, retention_category
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
-        )`,
+          `.trim(),
         [
-          entry.tenant_id, // REQUIRED - validated above
+          tenantId,
           entry.event_type,
           entry.event_category,
           entry.action,
-          entry.user_id || null,
-          entry.user_email || null,
-          entry.user_role || null,
-          entry.resource_type || null,
-          entry.resource_id || null,
-          entry.target_resource_id || entry.resource_id || null,
-          entry.resource_identifier || null,
-          entry.description || null,
+          entry.user_id ?? entry.userId ?? null,
+          entry.user_email ?? null,
+          entry.user_role ?? null,
+          entry.resource_type ?? null,
+          entry.resource_id ?? null,
+          entry.target_resource_id ?? null,
+          entry.resource_identifier ?? null,
+          entry.description ?? null,
           JSON.stringify(payloadEvento),
           JSON.stringify(detailsPayload),
-          entry.ip_address || null,
-          entry.user_agent || null,
-          entry.request_id || null,
-          entry.session_id || null,
-          entry.success !== undefined ? entry.success : true,
-          entry.error_code || null,
-          entry.error_message || null,
-          entry.compliance_flags || null,
-          entry.retention_category || null,
+          entry.ip_address ?? null,
+          entry.user_agent ?? null,
+          entry.request_id ?? null,
+          entry.session_id ?? null,
+          entry.success ?? null,
+          entry.error_code ?? null,
+          entry.error_message ?? null,
+          entry.compliance_flags ?? null,
+          entry.retention_category ?? null,
         ]
       );
-
       logger.debug('Audit log created', {
-        tenant_id: entry.tenant_id,
+        tenant_id: tenantId,
         event_type: entry.event_type,
         resource_type: entry.resource_type,
         resource_id: entry.resource_id,
       });
+      return;
     } catch (error) {
       // Re-throw TenantRequiredError - this is a programming error
       if (error instanceof TenantRequiredError) {

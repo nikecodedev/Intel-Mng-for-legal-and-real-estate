@@ -52,7 +52,7 @@ function requireTenantId(tenantId: string | undefined | null, operation: string)
   }
 }
 
-function mapRow(row: Record<string, unknown>): InvestorUser {
+function mapRow(row: any): InvestorUser {
   return {
     id: row.id as string,
     tenant_id: row.tenant_id as string,

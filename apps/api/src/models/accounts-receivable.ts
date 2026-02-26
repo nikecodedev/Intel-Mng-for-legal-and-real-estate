@@ -51,7 +51,7 @@ function requireTenantId(tenantId: string | undefined | null, operation: string)
   }
 }
 
-function mapRow(row: Record<string, unknown>): AccountsReceivable {
+function mapRow(row: any): AccountsReceivable {
   return {
     id: row.id as string,
     tenant_id: row.tenant_id as string,

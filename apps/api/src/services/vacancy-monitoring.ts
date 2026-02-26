@@ -49,7 +49,7 @@ export class VacancyMonitoringService {
           asset_id: asset.id,
           asset_code: asset.asset_code,
           property_address: asset.property_address,
-          vacancy_days,
+          vacancy_days: vacancyDays,
           threshold_days: asset.vacancy_alert_threshold_days,
           alert_type: 'threshold_reached',
         });
@@ -60,7 +60,7 @@ export class VacancyMonitoringService {
           asset_id: asset.id,
           asset_code: asset.asset_code,
           property_address: asset.property_address,
-          vacancy_days,
+          vacancy_days: vacancyDays,
           threshold_days: asset.vacancy_alert_threshold_days,
           alert_type: 'extended_vacancy',
         });

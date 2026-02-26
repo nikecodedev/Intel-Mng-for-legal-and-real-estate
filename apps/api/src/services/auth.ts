@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { config } from '../config/index.js';
 import { UserModel, User } from '../models/user.js';
+export type { User };
 import { AuthenticationError, InternalServerError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import { db } from '../models/database.js';

@@ -82,7 +82,110 @@ git clone https://YOUR_TOKEN@github.com/YOUR_ORG/Intel-Mng-for-legal-and-real-es
 
 ---
 
-## 5. Environment variables
+## 4b. Clone / pull and deploy (steps 5–9 in order)
+
+If you already have the VPS ready (Node, PM2, Nginx, Postgres, Redis) and only need to **clone or pull and go live**, run these in order on the server.
+
+**A. Clone or pull**
+
+```bash
+cd /var
+# First time: clone
+git clone https://github.com/nikecodedev/Intel-Mng-for-legal-and-real-estate.git gems
+# Already cloned: pull latest
+# cd /var/gems && git pull origin main
+cd gems
+```
+
+**B. API env**
+
+```bash
+cd /var/gems/apps/api
+cp .env.example .env
+nano .env
+```
+
+Set at least (use your real DB/Redis passwords and a 64+ char JWT secret):
+
+```env
+NODE_ENV=production
+PORT=3000
+DATABASE_URL=postgresql://platform_user:YOUR_DB_PASSWORD@localhost:5432/platform_db
+JWT_SECRET=your-64-character-or-longer-secret-key-change-this
+CORS_ORIGIN=http://164.92.71.218
+REDIS_ENABLED=true
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=YOUR_REDIS_PASSWORD
+```
+
+Save (Ctrl+O, Enter, Ctrl+X in nano).
+
+**C. GEMS env**
+
+```bash
+cd /var/gems/apps/gems
+cp .env.example .env.local
+echo 'NEXT_PUBLIC_API_URL=http://164.92.71.218/api/v1' > .env.local
+# Or: nano .env.local  and paste that line
+```
+
+**D. Install, build, and run with PM2**
+
+```bash
+cd /var/gems
+npm install
+cd apps/api && (npm run build || npm run build:transpile) && cd ../..
+cd apps/gems && npm run build && cd ../..
+cd /var/gems
+pm2 delete api gems 2>/dev/null || true
+pm2 start apps/api/dist/index.js --name api -i 1
+pm2 start npm --name gems -- start --prefix apps/gems
+pm2 save
+pm2 startup
+```
+
+**E. Nginx**
+
+```bash
+sudo cp /var/gems/infrastructure/nginx/gems.conf /etc/nginx/sites-available/gems
+sudo ln -sf /etc/nginx/sites-available/gems /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+**F. Firewall (if not done)**
+
+```bash
+sudo ufw allow 22
+sudo ufw allow 80
+sudo ufw allow 443
+sudo ufw --force enable
+```
+
+**G. Verify**
+
+```bash
+pm2 status
+curl -s http://localhost:3000/api/v1/health
+curl -s http://164.92.71.218/api/v1/health
+```
+
+Then open **http://164.92.71.218** in a browser. You should see the app; login will call the API at `http://164.92.71.218/api/v1`.
+
+**Later: update after a git pull**
+
+```bash
+cd /var/gems
+git pull origin main
+npm install
+cd apps/api && npm run build && cd ../..
+cd apps/gems && npm run build && cd ../..
+pm2 restart api gems
+```
+
+---
+
+## 5. Environment variables (reference)
 
 ### Backend API (`apps/api/.env`)
 

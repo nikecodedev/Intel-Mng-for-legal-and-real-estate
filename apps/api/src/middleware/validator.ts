@@ -2,38 +2,40 @@ import { Request, Response, NextFunction } from 'express';
 import { z, ZodSchema, ZodError } from 'zod';
 import { ValidationError } from '../utils/errors.js';
 
+type RequestSchemas =
+  | { body?: ZodSchema; query?: ZodSchema; params?: ZodSchema }
+  | z.ZodObject<{ body?: ZodSchema; query?: ZodSchema; params?: ZodSchema }>;
+
+function getBodySchema(schemas: RequestSchemas): ZodSchema | undefined {
+  return 'shape' in schemas && schemas.shape?.body ? (schemas.shape as { body?: ZodSchema }).body : (schemas as { body?: ZodSchema }).body;
+}
+function getQuerySchema(schemas: RequestSchemas): ZodSchema | undefined {
+  return 'shape' in schemas && schemas.shape?.query ? (schemas.shape as { query?: ZodSchema }).query : (schemas as { query?: ZodSchema }).query;
+}
+function getParamsSchema(schemas: RequestSchemas): ZodSchema | undefined {
+  return 'shape' in schemas && schemas.shape?.params ? (schemas.shape as { params?: ZodSchema }).params : (schemas as { params?: ZodSchema }).params;
+}
+
 /**
  * Request validation middleware factory
- * Validates request data (body, query, params) against Zod schemas
- * 
- * @example
- * router.post('/users', 
- *   validateRequest({ 
- *     body: createUserSchema 
- *   }), 
- *   handler
- * );
+ * Validates request data (body, query, params) against Zod schemas.
+ * Accepts either { body, query, params } or a single ZodObject with shape { body?, query?, params? }.
  */
-export function validateRequest(schemas: {
-  body?: ZodSchema;
-  query?: ZodSchema;
-  params?: ZodSchema;
-}) {
+export function validateRequest(schemas: RequestSchemas) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      // Validate body
-      if (schemas.body) {
-        req.body = await schemas.body.parseAsync(req.body);
-      }
+      const bodySchema = getBodySchema(schemas);
+      const querySchema = getQuerySchema(schemas);
+      const paramsSchema = getParamsSchema(schemas);
 
-      // Validate query parameters
-      if (schemas.query) {
-        req.query = await schemas.query.parseAsync(req.query);
+      if (bodySchema) {
+        req.body = await bodySchema.parseAsync(req.body);
       }
-
-      // Validate route parameters
-      if (schemas.params) {
-        req.params = await schemas.params.parseAsync(req.params);
+      if (querySchema) {
+        req.query = await querySchema.parseAsync(req.query);
+      }
+      if (paramsSchema) {
+        req.params = await paramsSchema.parseAsync(req.params);
       }
 
       next();
