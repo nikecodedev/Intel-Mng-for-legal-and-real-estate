@@ -64,7 +64,7 @@ if [[ "${BACKUP_FILE}" == *.gz ]]; then
 elif [[ "${BACKUP_FILE}" == *.bz2 ]]; then
     log "Decompressing bzip2 backup..."
     RESTORE_FILE="${BACKUP_FILE%.bz2}"
-    bunzip2 -c "${BACKUP_FILE}" > "${REST_FILE}"
+    bunzip2 -c "${BACKUP_FILE}" > "${RESTORE_FILE}"
 elif [[ "${BACKUP_FILE}" == *.xz ]]; then
     log "Decompressing xz backup..."
     RESTORE_FILE="${BACKUP_FILE%.xz}"

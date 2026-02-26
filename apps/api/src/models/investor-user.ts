@@ -97,6 +97,26 @@ export class InvestorUserModel {
   }
 
   /**
+   * List investors by tenant (for admin/CRM)
+   */
+  static async listByTenant(
+    tenantId: string,
+    options?: { limit?: number; offset?: number }
+  ): Promise<InvestorUser[]> {
+    requireTenantId(tenantId, 'InvestorUserModel.listByTenant');
+    const limit = Math.min(options?.limit ?? 50, 100);
+    const offset = options?.offset ?? 0;
+    const result: QueryResult<InvestorUser> = await db.query<InvestorUser>(
+      `SELECT * FROM investor_users
+       WHERE tenant_id = $1 AND deleted_at IS NULL
+       ORDER BY created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [tenantId, limit, offset]
+    );
+    return result.rows.map(mapRow);
+  }
+
+  /**
    * Find investor by email within tenant
    */
   static async findByEmail(email: string, tenantId: string): Promise<InvestorUser | null> {

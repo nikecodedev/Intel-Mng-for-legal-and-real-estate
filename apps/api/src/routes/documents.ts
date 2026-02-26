@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import multer from 'multer';
 import { z } from 'zod';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -16,6 +17,19 @@ import { logger } from '../utils/logger.js';
 
 const router = Router();
 
+// Multer: store uploaded file to disk for processing (field name: file)
+const uploadDir = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadDir),
+    filename: (_req, file, cb) => cb(null, `${Date.now()}-${path.basename(file.originalname || 'document')}`),
+  }),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+});
+
 // ============================================
 // Schema definitions
 // ============================================
@@ -23,12 +37,12 @@ const router = Router();
 const uploadDocumentSchema = z.object({
   body: z.object({
     title: z.string().min(1).max(500),
-    description: z.string().optional(),
+    description: z.union([z.string(), z.undefined()]).optional(),
     document_type: z.string().min(1).max(100),
-    category: z.string().optional(),
-    document_date: z.string().datetime().optional(),
-    metadata: z.record(z.unknown()).optional(),
-    tags: z.array(z.string()).optional(),
+    category: z.union([z.string(), z.undefined()]).optional(),
+    document_date: z.union([z.string(), z.undefined()]).optional(),
+    metadata: z.optional(z.unknown()),
+    tags: z.optional(z.unknown()),
     confidentiality_level: z.enum(['PUBLIC', 'INTERNAL', 'CONFIDENTIAL', 'RESTRICTED']).optional(),
   }),
 });
@@ -85,23 +99,24 @@ const sanitationQueueSchema = z.object({
 
 /**
  * POST /documents/upload
- * Upload a new document for processing
+ * Upload a new document for processing (multipart file or body file_path for testing).
  */
 router.post(
   '/upload',
   authenticate,
   requirePermission('documents:create'),
+  upload.single('file'),
   validateRequest(uploadDocumentSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId, userId } = getTenantContext(req);
     const { title, description, document_type, category, document_date, metadata, tags, confidentiality_level } = req.body;
-
-    // Check if file was uploaded (requires multer middleware in production)
-    // For now, we'll accept file path in body for testing
-    const filePath = req.body.file_path;
+    const filePath = (req as Request & { file?: multer.File }).file?.path ?? req.body?.file_path;
     if (!filePath) {
-      throw new ValidationError('File path is required');
+      throw new ValidationError('File is required: send multipart field "file" or body file_path');
     }
+    const metadataObj =
+      typeof metadata === 'string' ? (() => { try { return JSON.parse(metadata); } catch { return undefined; } })() : metadata;
+    const tagsArr = typeof tags === 'string' ? (() => { try { return JSON.parse(tags); } catch { return []; } })() : (Array.isArray(tags) ? tags : undefined);
 
     // Verify file exists
     if (!fs.existsSync(filePath)) {
@@ -141,8 +156,8 @@ router.post(
       owner_id: userId,
       created_by: userId,
       document_date: document_date ? new Date(document_date) : undefined,
-      metadata,
-      tags,
+      metadata: metadataObj,
+      tags: tagsArr,
       confidentiality_level,
     });
 
@@ -463,6 +478,40 @@ router.get(
             : null,
         },
       },
+    });
+  })
+);
+
+/**
+ * GET /documents/:id/facts
+ * List facts for a document (proof lineage).
+ */
+router.get(
+  '/:id/facts',
+  authenticate,
+  requirePermission('documents:read'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { tenantId } = getTenantContext(req);
+    const { id } = req.params;
+
+    const document = await DocumentModel.findById(id, tenantId);
+    if (!document) {
+      throw new NotFoundError('Document');
+    }
+
+    const facts = await DocumentFactModel.findByDocumentId(id, tenantId);
+    res.json({
+      success: true,
+      data: facts.map((f) => ({
+        id: f.id,
+        document_id: f.document_id,
+        fact_type: f.fact_type,
+        fact_value: f.fact_value,
+        page_number: f.page_number,
+        bounding_box: f.bounding_box,
+        confidence_score: f.confidence_score,
+        created_at: f.created_at,
+      })),
     });
   })
 );

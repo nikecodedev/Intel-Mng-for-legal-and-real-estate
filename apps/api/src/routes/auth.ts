@@ -1,13 +1,15 @@
 import { Router, Request, Response } from 'express';
 import { asyncHandler, validateRequest, authenticate } from '../middleware/index.js';
 import { AuthService, User } from '../services/auth.js';
+import { AuditService, AuditEventType } from '../services/audit.js';
 import { config } from '../config/index.js';
 import { z } from 'zod';
 import { logger } from '../utils/logger.js';
+import { AuthenticationError } from '../utils/errors.js';
 
 const router = Router();
 
-/** System Tenant ID (Fonte 5) - used when no tenant context exists */
+/** System Tenant ID (Fonte 5) - used when no tenant context exists (e.g. failed login audit) */
 const SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
 /**
@@ -64,6 +66,7 @@ const refreshTokenSchema = z.object({
  * 
  * NOTE: This route is EXEMPT from TenantMiddleware (login path).
  * tenant_id is extracted from the authenticated user's DB record.
+ * Success and failure are both written to the audit log (mandatory for compliance).
  */
 router.post(
   '/login',
@@ -71,39 +74,66 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const { email, password } = req.body;
 
-    // Authenticate user - returns user with tenant_id from DB
-    const user = await AuthService.authenticate(email, password);
+    try {
+      // Authenticate user - returns user with tenant_id from DB
+      const user = await AuthService.authenticate(email, password);
 
-    // Generate tokens using user's tenant_id from DB (not from headers/request)
-    const accessToken = AuthService.generateAccessToken(user, tenantOptsFromUser(user));
-    const refreshToken = await AuthService.generateRefreshToken(
-      user.id,
-      req.get('user-agent'),
-      req.ip
-    );
+      // Generate tokens using user's tenant_id from DB (not from headers/request)
+      const accessToken = AuthService.generateAccessToken(user, tenantOptsFromUser(user));
+      const refreshToken = await AuthService.generateRefreshToken(
+        user.id,
+        req.get('user-agent'),
+        req.ip
+      );
 
-    logger.info('User logged in', { 
-      userId: user.id, 
-      email: user.email,
-      tenantId: user.tenant_id 
-    });
+      // Audit: successful login (mandatory for compliance)
+      await AuditService.logAuthEvent(
+        user.tenant_id,
+        AuditEventType.USER_LOGIN,
+        user.id,
+        user.email,
+        req,
+        true
+      ).catch((err) => logger.warn('Audit log login success failed', { error: err }));
 
-    res.json({
-      success: true,
-      data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          first_name: user.first_name,
-          last_name: user.last_name,
-          tenant_id: user.tenant_id,
+      logger.info('User logged in', {
+        userId: user.id,
+        email: user.email,
+        tenantId: user.tenant_id,
+      });
+
+      res.json({
+        success: true,
+        data: {
+          user: {
+            id: user.id,
+            email: user.email,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            tenant_id: user.tenant_id,
+          },
+          tokens: {
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          },
         },
-        tokens: {
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        },
-      },
-    });
+      });
+    } catch (err) {
+      // Audit: failed login (mandatory for compliance; use system tenant)
+      const errorMessage = err instanceof Error ? err.message : 'Authentication failed';
+      await AuditService.logAuthEvent(
+        SYSTEM_TENANT_ID,
+        AuditEventType.USER_LOGIN,
+        undefined,
+        email,
+        req,
+        false,
+        errorMessage
+      ).catch((auditErr) => logger.warn('Audit log login failure failed', { error: auditErr }));
+
+      if (err instanceof AuthenticationError) throw err;
+      throw err;
+    }
   })
 );
 
@@ -142,10 +172,20 @@ router.post(
       req.ip
     );
 
-    logger.info('User registered', { 
-      userId: user.id, 
+    // Audit: user registration (mandatory for compliance)
+    await AuditService.logAuthEvent(
+      user.tenant_id,
+      AuditEventType.USER_REGISTER,
+      user.id,
+      user.email,
+      req,
+      true
+    ).catch((err) => logger.warn('Audit log register failed', { error: err }));
+
+    logger.info('User registered', {
+      userId: user.id,
       email: user.email,
-      tenantId: user.tenant_id 
+      tenantId: user.tenant_id,
     });
 
     res.status(201).json({
@@ -221,9 +261,24 @@ router.post(
   validateRequest(refreshTokenSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { refresh_token } = req.body;
+    const tenantId = req.context?.tenant_id;
+    const userId = req.user?.id;
+    const userEmail = req.user?.email ?? '';
 
     // Revoke refresh token
-    await AuthService.revokeRefreshToken(refresh_token, req.user?.id);
+    await AuthService.revokeRefreshToken(refresh_token, userId);
+
+    // Audit: logout (mandatory for compliance)
+    if (tenantId) {
+      await AuditService.logAuthEvent(
+        tenantId,
+        AuditEventType.USER_LOGOUT,
+        userId,
+        userEmail,
+        req,
+        true
+      ).catch((err) => logger.warn('Audit log logout failed', { error: err }));
+    }
 
     logger.info('User logged out', { userId: req.user?.id });
 

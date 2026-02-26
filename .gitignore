@@ -15,6 +15,7 @@ dist/
 build/
 .next/
 out/
+apps/api/uploads/
 *.egg-info/
 *.egg
 .pytest_cache/

@@ -158,6 +158,8 @@ router.get(
     const real_estate_asset_id = req.query.real_estate_asset_id as string | undefined;
     const client_id = req.query.client_id as string | undefined;
     const is_reconciled = req.query.is_reconciled === 'true' ? true : req.query.is_reconciled === 'false' ? false : undefined;
+    const start_date = req.query.start_date as string | undefined; // ISO date YYYY-MM-DD
+    const end_date = req.query.end_date as string | undefined;
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
     const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
 
@@ -168,6 +170,8 @@ router.get(
       real_estate_asset_id,
       client_id,
       is_reconciled,
+      start_date,
+      end_date,
       limit,
       offset,
     });

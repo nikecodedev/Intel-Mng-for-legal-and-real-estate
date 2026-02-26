@@ -5,6 +5,9 @@ import { getTenantContext } from '../utils/tenant-context.js';
 import { NotFoundError, ValidationError } from '../utils/errors.js';
 import { KYCDataModel, KYCStatus } from '../models/kyc-data.js';
 import { InvestorPreferenceProfileModel } from '../models/investor-preference-profile.js';
+import { InvestorUserModel } from '../models/investor-user.js';
+import { InvestorAssetLinkModel } from '../models/investor-asset-link.js';
+import { AuctionAssetModel } from '../models/auction-asset.js';
 import { AuditService, AuditAction, AuditEventCategory } from '../services/audit.js';
 import { logger } from '../utils/logger.js';
 
@@ -190,6 +193,129 @@ router.put(
     res.json({
       success: true,
       kyc_data: kycData,
+    });
+  })
+);
+
+// ============================================
+// Investor List & Detail (Admin)
+// ============================================
+
+/**
+ * GET /crm/investors
+ * List investors for tenant (admin)
+ */
+router.get(
+  '/investors',
+  authenticate,
+  requirePermission('crm:read'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
+    const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
+
+    const investors = await InvestorUserModel.listByTenant(tenantContext.tenantId, { limit, offset });
+
+    const list = investors.map((inv) => ({
+      id: inv.id,
+      email: inv.email,
+      first_name: inv.first_name,
+      last_name: inv.last_name,
+      company_name: inv.company_name,
+      is_active: inv.is_active,
+      last_login_at: inv.last_login_at,
+      created_at: inv.created_at,
+    }));
+
+    res.json({
+      success: true,
+      investors: list,
+      total: list.length,
+      limit,
+      offset,
+    });
+  })
+);
+
+/**
+ * GET /crm/investors/:id
+ * Get single investor (admin)
+ */
+router.get(
+  '/investors/:id',
+  authenticate,
+  requirePermission('crm:read'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const { id } = req.params;
+
+    const investor = await InvestorUserModel.findById(id, tenantContext.tenantId);
+    if (!investor) {
+      throw new NotFoundError('Investor');
+    }
+
+    res.json({
+      success: true,
+      investor: {
+        id: investor.id,
+        email: investor.email,
+        first_name: investor.first_name,
+        last_name: investor.last_name,
+        company_name: investor.company_name,
+        is_active: investor.is_active,
+        is_email_verified: investor.is_email_verified,
+        last_login_at: investor.last_login_at,
+        last_activity_at: investor.last_activity_at,
+        created_at: investor.created_at,
+        updated_at: investor.updated_at,
+      },
+    });
+  })
+);
+
+/**
+ * GET /crm/investors/:id/assigned-assets
+ * List assigned auction assets for investor (admin view)
+ */
+router.get(
+  '/investors/:id/assigned-assets',
+  authenticate,
+  requirePermission('crm:read'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const { id } = req.params;
+
+    const investor = await InvestorUserModel.findById(id, tenantContext.tenantId);
+    if (!investor) {
+      throw new NotFoundError('Investor');
+    }
+
+    const links = await InvestorAssetLinkModel.findByInvestor(id, tenantContext.tenantId);
+    const assets = await Promise.all(
+      links.map(async (link) => {
+        const asset = await AuctionAssetModel.findById(link.auction_asset_id, tenantContext.tenantId);
+        if (!asset) return null;
+        return {
+          link_id: link.id,
+          granted_at: link.granted_at,
+          access_notes: link.access_notes,
+          asset: {
+            id: asset.id,
+            asset_reference: asset.asset_reference,
+            title: asset.title,
+            current_stage: asset.current_stage,
+            risk_score: asset.risk_score,
+          },
+        };
+      })
+    );
+
+    const valid = assets.filter((a): a is NonNullable<typeof a> => a !== null);
+
+    res.json({
+      success: true,
+      assigned_assets: valid,
+      total: valid.length,
     });
   })
 );

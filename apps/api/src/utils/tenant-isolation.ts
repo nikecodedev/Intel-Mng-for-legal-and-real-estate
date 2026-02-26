@@ -27,26 +27,32 @@ export function requireTenantId(
 }
 
 /**
- * Ensure a WHERE clause includes tenant_id filtering
- * This is a safety check to prevent accidental cross-tenant queries
- * 
+ * Ensure a WHERE clause includes tenant_id filtering.
+ * HARD ENFORCEMENT: throws TenantRequiredError if query does not include tenant_id,
+ * to prevent accidental cross-tenant data access.
+ *
+ * Detection uses a simple regex; parameterized queries use $1, $2, etc.
+ *
  * @param query - SQL query string
  * @param tenantId - Tenant ID to enforce
- * @returns Modified query with tenant_id filter
+ * @returns The same query string (validated)
+ * @throws TenantRequiredError if query appears to lack tenant_id filter
  */
 export function enforceTenantFilter(query: string, tenantId: string): string {
   requireTenantId(tenantId, 'enforceTenantFilter');
-  
-  // Check if query already has tenant_id filter
-  const hasTenantFilter = /tenant_id\s*=\s*\$?\d+|\$?\d+\s*=\s*tenant_id/i.test(query);
-  
+
+  const normalized = query.replace(/\s+/g, ' ').trim();
+  const hasTenantFilter =
+    /\btenant_id\s*=\s*\$?\d+/i.test(normalized) ||
+    /\$?\d+\s*=\s*tenant_id\b/i.test(normalized) ||
+    /\btenant_id\s*IN\s*\(/i.test(normalized);
+
   if (!hasTenantFilter) {
-    // This is a warning - in production, we should fail hard
-    // For now, log a warning but don't modify the query
-    // The caller should ensure tenant_id is in the WHERE clause
-    console.warn('Query missing tenant_id filter:', query.substring(0, 100));
+    throw new TenantRequiredError(
+      `Query missing tenant_id filter (security: cross-tenant prevention). Query prefix: ${normalized.substring(0, 120)}...`
+    );
   }
-  
+
   return query;
 }
 
