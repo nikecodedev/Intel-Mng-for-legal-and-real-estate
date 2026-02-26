@@ -3,17 +3,9 @@
 import { useQuery } from 'react-query';
 import Link from 'next/link';
 import { DataTable } from '@/components/tables/DataTable';
+import { DateDisplay, BlockLoader } from '@/components/ui';
 import { RiskIndicator } from '@/components/auctions/RiskIndicator';
 import { fetchAuctions, type AuctionAsset, type RiskLevel } from '@/lib/auction-api';
-
-function formatDate(iso: string | undefined) {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'short' });
-  } catch {
-    return iso;
-  }
-}
 
 export default function AuctionsListPage() {
   const { data, isLoading, error } = useQuery('auctions-list', () => fetchAuctions({ limit: 100 }), {
@@ -48,17 +40,11 @@ export default function AuctionsListPage() {
     {
       key: 'created_at',
       header: 'Created',
-      render: (row: AuctionAsset) => formatDate(row.created_at),
+      render: (row: AuctionAsset) => <DateDisplay value={row.created_at} style="short" />,
     },
   ];
 
-  if (isLoading) {
-    return (
-      <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">
-        Loading auctions…
-      </div>
-    );
-  }
+  if (isLoading) return <BlockLoader message="Loading auctions…" />;
 
   if (error) {
     return (

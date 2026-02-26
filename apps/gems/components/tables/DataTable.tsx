@@ -1,30 +1,28 @@
 'use client';
 
+import { EmptyState } from '@/components/ui/EmptyState';
+
 interface Column<T> {
   key: keyof T | string;
   header: string;
   render?: (row: T) => React.ReactNode;
 }
 
-interface DataTableProps<T extends Record<string, unknown>> {
+interface DataTableProps<T extends object> {
   columns: Column<T>[];
   data: T[];
   keyExtractor: (row: T) => string;
   emptyMessage?: string;
 }
 
-export function DataTable<T extends Record<string, unknown>>({
+export function DataTable<T extends object>({
   columns,
   data,
   keyExtractor,
   emptyMessage = 'No data',
 }: DataTableProps<T>) {
   if (data.length === 0) {
-    return (
-      <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">
-        {emptyMessage}
-      </div>
-    );
+    return <EmptyState message={emptyMessage} />;
   }
 
   return (

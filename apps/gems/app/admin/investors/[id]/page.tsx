@@ -3,21 +3,13 @@
 import { use } from 'react';
 import { useQuery } from 'react-query';
 import Link from 'next/link';
+import { DateDisplay, BlockLoader } from '@/components/ui';
 import {
   fetchInvestorById,
   fetchInvestorAssignedAssets,
-  fetchMatchesForInvestor,
   type AssignedAssetItem,
-  type MatchRecord,
 } from '@/lib/crm-api';
-function formatDate(iso: string | undefined | null) {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' });
-  } catch {
-    return String(iso);
-  }
-}
+import { fetchMatchesForInvestor, type MatchRecord } from '@/lib/matching-api';
 
 function matchScoreColor(score: number) {
   if (score >= 80) return 'text-green-700 bg-green-100';
@@ -45,13 +37,7 @@ export default function AdminInvestorDetailPage({ params }: { params: Promise<{ 
   );
   const matches = matchesData?.matches ?? [];
 
-  if (invLoading) {
-    return (
-      <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">
-        Loading investor…
-      </div>
-    );
-  }
+  if (invLoading) return <BlockLoader message="Loading investor…" />;
 
   if (invError || !investor) {
     return (
@@ -82,9 +68,9 @@ export default function AdminInvestorDetailPage({ params }: { params: Promise<{ 
           <dt className="text-gray-600">Active</dt>
           <dd className="font-medium">{investor.is_active ? 'Yes' : 'No'}</dd>
           <dt className="text-gray-600">Last login</dt>
-          <dd className="font-medium">{formatDate(investor.last_login_at)}</dd>
+          <dd className="font-medium"><DateDisplay value={investor.last_login_at} style="medium" /></dd>
           <dt className="text-gray-600">Created</dt>
-          <dd className="font-medium">{formatDate(investor.created_at)}</dd>
+          <dd className="font-medium"><DateDisplay value={investor.created_at} style="medium" /></dd>
         </dl>
       </section>
 

@@ -3,37 +3,15 @@
 import { use, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import Link from 'next/link';
+import { StatusBadge, DateDisplay, BlockLoader } from '@/components/ui';
+import { formatBytes } from '@/lib/utils';
 import {
   fetchTenantDashboard,
   suspendTenant,
   reactivateTenant,
-  formatBytes,
   getApiErrorMessage,
   type Tenant,
 } from '@/lib/super-admin-api';
-
-function formatDate(iso: string | undefined | null) {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium' });
-  } catch {
-    return String(iso);
-  }
-}
-
-function statusBadge(status: string) {
-  const styles: Record<string, string> = {
-    ACTIVE: 'bg-green-100 text-green-800',
-    SUSPENDED: 'bg-red-100 text-red-800',
-    INACTIVE: 'bg-gray-100 text-gray-700',
-    TRIAL: 'bg-blue-100 text-blue-800',
-  };
-  return (
-    <span className={`inline-flex rounded px-2 py-1 text-sm font-medium ${styles[status] ?? 'bg-gray-100 text-gray-800'}`}>
-      {status}
-    </span>
-  );
-}
 
 export default function SuperAdminTenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -65,13 +43,7 @@ export default function SuperAdminTenantDetailPage({ params }: { params: Promise
     },
   });
 
-  if (isLoading) {
-    return (
-      <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">
-        Loading…
-      </div>
-    );
-  }
+  if (isLoading) return <BlockLoader message="Loading…" />;
 
   if (error || !dashboard) {
     return (
@@ -96,7 +68,7 @@ export default function SuperAdminTenantDetailPage({ params }: { params: Promise
       <section className="rounded-lg border border-gray-200 bg-white p-6">
         <h3 className="text-sm font-medium text-gray-500 mb-3">Status</h3>
         <div className="flex items-center gap-3">
-          {statusBadge(tenant.status)}
+          <StatusBadge variant="tenant" value={tenant.status} />
           {tenant.status === 'SUSPENDED' ? (
             <button
               type="button"
@@ -132,7 +104,7 @@ export default function SuperAdminTenantDetailPage({ params }: { params: Promise
           <dt className="text-gray-600">Contact</dt>
           <dd className="font-medium">{tenant.contact_email ?? '—'}</dd>
           <dt className="text-gray-600">Created</dt>
-          <dd className="font-medium">{formatDate(tenant.created_at)}</dd>
+          <dd className="font-medium"><DateDisplay value={tenant.created_at} style="medium" /></dd>
         </dl>
       </section>
 

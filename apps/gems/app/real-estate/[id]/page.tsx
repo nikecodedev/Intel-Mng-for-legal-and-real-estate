@@ -3,25 +3,9 @@
 import { use } from 'react';
 import { useQuery } from 'react-query';
 import Link from 'next/link';
+import { DateDisplay, CurrencyDisplay, BlockLoader } from '@/components/ui';
 import { fetchAssetById, fetchCostBreakdown, type RealEstateAsset } from '@/lib/real-estate-api';
 import { StatusProgressionTimeline } from '@/components/real-estate/StatusProgressionTimeline';
-
-function formatDate(iso: string | undefined | null) {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'short' });
-  } catch {
-    return String(iso);
-  }
-}
-
-function formatCents(cents: number): string {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2,
-  }).format(cents / 100);
-}
 
 export default function RealEstateAssetDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -38,13 +22,7 @@ export default function RealEstateAssetDetailPage({ params }: { params: Promise<
     { staleTime: 60 * 1000, retry: false }
   );
 
-  if (assetLoading) {
-    return (
-      <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">
-        Loading asset…
-      </div>
-    );
-  }
+  if (assetLoading) return <BlockLoader message="Loading asset…" />;
 
   if (assetError || !asset) {
     return (
@@ -78,10 +56,10 @@ export default function RealEstateAssetDetailPage({ params }: { params: Promise<
           <dt className="text-gray-600">Rooms</dt>
           <dd className="font-medium">{a.number_of_rooms ?? '—'}</dd>
           <dt className="text-gray-600">Acquisition date</dt>
-          <dd className="font-medium">{formatDate(a.acquisition_date)}</dd>
+          <dd className="font-medium"><DateDisplay value={a.acquisition_date} style="short" /></dd>
           <dt className="text-gray-600">Acquisition price</dt>
           <dd className="font-medium">
-            {a.acquisition_price_cents != null ? formatCents(a.acquisition_price_cents) : '—'}
+            {a.acquisition_price_cents != null ? <CurrencyDisplay cents={a.acquisition_price_cents} /> : '—'}
           </dd>
         </dl>
       </section>
@@ -100,9 +78,9 @@ export default function RealEstateAssetDetailPage({ params }: { params: Promise<
       <section className="rounded-lg border border-gray-200 bg-white p-6">
         <h3 className="text-sm font-medium text-gray-500 mb-3">Cost breakdown</h3>
         {breakdownLoading && <p className="text-sm text-gray-500">Loading…</p>}
-        {breakdownError && (
+        {breakdownError ? (
           <p className="text-sm text-gray-500">Cost breakdown not available.</p>
-        )}
+        ) : null}
         {breakdown && !breakdownError && breakdown.formatted && (
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <dt className="text-gray-600">Acquisition (price)</dt>

@@ -3,46 +3,14 @@
 import { use, useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import Link from 'next/link';
+import { StatusBadge, DateDisplay, CurrencyDisplay, BlockLoader } from '@/components/ui';
 import {
   fetchTransactionById,
   markPayment,
   getFinanceValidationError,
   type FinancialTransaction,
-  type PaymentStatus,
 } from '@/lib/finance-api';
 import { uploadDocument } from '@/lib/legal-api';
-
-function formatDate(iso: string | undefined | null) {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' });
-  } catch {
-    return String(iso);
-  }
-}
-
-function formatCents(cents: number): string {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2,
-  }).format(cents / 100);
-}
-
-function statusBadge(status: PaymentStatus) {
-  const styles: Record<string, string> = {
-    PENDING: 'bg-amber-100 text-amber-800',
-    PAID: 'bg-green-100 text-green-800',
-    PARTIAL: 'bg-blue-100 text-blue-800',
-    CANCELLED: 'bg-gray-100 text-gray-700',
-    OVERDUE: 'bg-red-100 text-red-800',
-  };
-  return (
-    <span className={`inline-flex rounded px-2 py-1 text-sm font-medium ${styles[status] ?? 'bg-gray-100 text-gray-800'}`}>
-      {status}
-    </span>
-  );
-}
 
 export default function TransactionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -83,13 +51,7 @@ export default function TransactionDetailPage({ params }: { params: Promise<{ id
 
   const validationError = markPaidMutation.isError ? getFinanceValidationError(markPaidMutation.error) : null;
 
-  if (isLoading) {
-    return (
-      <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">
-        Loading transaction…
-      </div>
-    );
-  }
+  if (isLoading) return <BlockLoader message="Loading transaction…" />;
 
   if (error || !transaction) {
     return (
@@ -114,9 +76,9 @@ export default function TransactionDetailPage({ params }: { params: Promise<{ id
       <section className="rounded-lg border border-gray-200 bg-white p-6">
         <h3 className="text-sm font-medium text-gray-500 mb-3">Status</h3>
         <div className="flex items-center gap-3">
-          {statusBadge(t.payment_status)}
+          <StatusBadge variant="payment" value={t.payment_status} />
           {t.paid_date && (
-            <span className="text-sm text-gray-600">Paid on {formatDate(t.paid_date)}</span>
+            <span className="text-sm text-gray-600">Paid on <DateDisplay value={t.paid_date} style="medium" /></span>
           )}
           {t.proof_document_id && (
             <Link
@@ -135,11 +97,11 @@ export default function TransactionDetailPage({ params }: { params: Promise<{ id
           <dt className="text-gray-600">Type</dt>
           <dd className="font-medium">{t.transaction_type}</dd>
           <dt className="text-gray-600">Amount</dt>
-          <dd className="font-medium">{formatCents(t.amount_cents)}</dd>
+          <dd className="font-medium"><CurrencyDisplay cents={t.amount_cents} /></dd>
           <dt className="text-gray-600">Transaction date</dt>
-          <dd className="font-medium">{formatDate(t.transaction_date)}</dd>
+          <dd className="font-medium"><DateDisplay value={t.transaction_date} style="medium" /></dd>
           <dt className="text-gray-600">Due date</dt>
-          <dd className="font-medium">{formatDate(t.due_date)}</dd>
+          <dd className="font-medium"><DateDisplay value={t.due_date} style="medium" /></dd>
           <dt className="text-gray-600">Description</dt>
           <dd className="font-medium">{t.description}</dd>
           {t.vendor_name && (

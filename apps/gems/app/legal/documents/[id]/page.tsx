@@ -3,16 +3,9 @@
 import { use } from 'react';
 import { useQuery } from 'react-query';
 import Link from 'next/link';
+import { DateDisplay, StatusBadge, BlockLoader } from '@/components/ui';
+import { formatPercent } from '@/lib/utils';
 import { fetchDocumentById, fetchDocumentFacts, type DocumentFact, type QualityFlag } from '@/lib/legal-api';
-
-function formatDate(iso: string | undefined | null) {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
-  } catch {
-    return String(iso);
-  }
-}
 
 export default function LegalDocumentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -25,13 +18,7 @@ export default function LegalDocumentDetailPage({ params }: { params: Promise<{ 
     { staleTime: 60 * 1000, enabled: !!id }
   );
 
-  if (isLoading) {
-    return (
-      <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">
-        Loading document…
-      </div>
-    );
-  }
+  if (isLoading) return <BlockLoader message="Loading document…" />;
 
   if (error || !data?.data) {
     return (
@@ -61,9 +48,9 @@ export default function LegalDocumentDetailPage({ params }: { params: Promise<{ 
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
           <dt className="text-gray-600">Number</dt><dd className="font-medium">{document.document_number}</dd>
           <dt className="text-gray-600">Type</dt><dd className="font-medium">{document.document_type}</dd>
-          <dt className="text-gray-600">Status (CPO)</dt><dd className="font-medium">{document.status_cpo ?? '—'}</dd>
-          <dt className="text-gray-600">OCR confidence</dt><dd className="font-medium">{document.ocr_confidence != null ? `${Math.round(Number(document.ocr_confidence) * 100)}%` : '—'}</dd>
-          <dt className="text-gray-600">Created</dt><dd className="font-medium">{formatDate(document.created_at)}</dd>
+          <dt className="text-gray-600">Status (CPO)</dt><dd className="font-medium"><StatusBadge variant="cpo" value={document.status_cpo} /></dd>
+          <dt className="text-gray-600">OCR confidence</dt><dd className="font-medium">{document.ocr_confidence != null ? formatPercent(Number(document.ocr_confidence), true) : '—'}</dd>
+          <dt className="text-gray-600">Created</dt><dd className="font-medium"><DateDisplay value={document.created_at} style="long" /></dd>
         </dl>
       </section>
 
@@ -73,8 +60,8 @@ export default function LegalDocumentDetailPage({ params }: { params: Promise<{ 
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             {ext.process_number != null && <><dt className="text-gray-600">Process number</dt><dd className="font-medium">{String(ext.process_number)}</dd></>}
             {ext.court != null && <><dt className="text-gray-600">Court</dt><dd className="font-medium">{String(ext.court)}</dd></>}
-            {ext.overall_confidence != null && <><dt className="text-gray-600">Confidence</dt><dd className="font-medium">{Math.round(Number(ext.overall_confidence) * 100)}%</dd></>}
-            {ext.processed_at != null && <><dt className="text-gray-600">Processed at</dt><dd className="font-medium">{formatDate(ext.processed_at)}</dd></>}
+            {ext.overall_confidence != null && <><dt className="text-gray-600">Confidence</dt><dd className="font-medium">{formatPercent(Number(ext.overall_confidence), true)}</dd></>}
+            {ext.processed_at != null && <><dt className="text-gray-600">Processed at</dt><dd className="font-medium"><DateDisplay value={ext.processed_at} style="long" /></dd></>}
           </dl>
           {(ext.parties != null && (Array.isArray(ext.parties) ? ext.parties.length > 0 : Object.keys(ext.parties as object).length > 0)) && (
             <div className="mt-3">

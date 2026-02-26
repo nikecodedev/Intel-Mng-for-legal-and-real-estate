@@ -3,6 +3,7 @@
 import { use } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import Link from 'next/link';
+import { DateDisplay, CurrencyDisplay, BlockLoader } from '@/components/ui';
 import {
   fetchAuctionById,
   advanceAuctionStage,
@@ -13,23 +14,6 @@ import {
   type RiskLevel,
 } from '@/lib/auction-api';
 import { RiskIndicator } from '@/components/auctions/RiskIndicator';
-
-function formatDate(iso: string | undefined | null) {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'short' });
-  } catch {
-    return String(iso);
-  }
-}
-
-function formatCents(cents: number): string {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2,
-  }).format(cents / 100);
-}
 
 export default function AuctionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -57,13 +41,7 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
   const nextStage = asset ? getNextStage(asset.current_stage) : null;
   const canAdvance = nextStage != null && !advanceMutation.isLoading;
 
-  if (assetLoading) {
-    return (
-      <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">
-        Loading auction…
-      </div>
-    );
-  }
+  if (assetLoading) return <BlockLoader message="Loading auction…" />;
 
   if (assetError || !asset) {
     return (
@@ -127,17 +105,17 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
       <section className="rounded-lg border border-gray-200 bg-white p-6">
         <h3 className="text-sm font-medium text-gray-500 mb-3">ROI summary</h3>
         {roiLoading && <p className="text-sm text-gray-500">Loading…</p>}
-        {roiError && <p className="text-sm text-gray-500">ROI not calculated for this asset yet.</p>}
+        {roiError ? <p className="text-sm text-gray-500">ROI not calculated for this asset yet.</p> : null}
         {roi && !roiError && (
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <dt className="text-gray-600">Total cost</dt>
-            <dd className="font-medium">{formatCents(roi.outputs.total_cost_cents)}</dd>
+            <dd className="font-medium"><CurrencyDisplay cents={roi.outputs.total_cost_cents} /></dd>
             <dt className="text-gray-600">Net profit</dt>
-            <dd className="font-medium">{formatCents(roi.outputs.net_profit_cents)}</dd>
+            <dd className="font-medium"><CurrencyDisplay cents={roi.outputs.net_profit_cents} /></dd>
             <dt className="text-gray-600">ROI %</dt>
             <dd className="font-medium">{roi.outputs.roi_percentage.toFixed(2)}%</dd>
             <dt className="text-gray-600">Break-even date</dt>
-            <dd className="font-medium">{formatDate(roi.outputs.break_even_date)}</dd>
+            <dd className="font-medium"><DateDisplay value={roi.outputs.break_even_date} style="short" /></dd>
             <dt className="text-gray-600">Version</dt>
             <dd className="font-medium">{roi.version_number}</dd>
           </dl>

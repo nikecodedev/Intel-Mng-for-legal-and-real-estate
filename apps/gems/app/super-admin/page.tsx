@@ -3,28 +3,15 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import Link from 'next/link';
+import { StatusBadge, BlockLoader } from '@/components/ui';
+import { formatBytes } from '@/lib/utils';
 import {
   fetchSuperAdminDashboard,
   suspendTenant,
   reactivateTenant,
-  formatBytes,
   getApiErrorMessage,
   type TenantListItem,
 } from '@/lib/super-admin-api';
-
-function statusBadge(status: string) {
-  const styles: Record<string, string> = {
-    ACTIVE: 'bg-green-100 text-green-800',
-    SUSPENDED: 'bg-red-100 text-red-800',
-    INACTIVE: 'bg-gray-100 text-gray-700',
-    TRIAL: 'bg-blue-100 text-blue-800',
-  };
-  return (
-    <span className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${styles[status] ?? 'bg-gray-100 text-gray-800'}`}>
-      {status}
-    </span>
-  );
-}
 
 export default function SuperAdminTenantsPage() {
   const queryClient = useQueryClient();
@@ -55,13 +42,7 @@ export default function SuperAdminTenantsPage() {
 
   const tenants = dashboard?.tenants ?? [];
 
-  if (isLoading) {
-    return (
-      <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">
-        Loading…
-      </div>
-    );
-  }
+  if (isLoading) return <BlockLoader message="Loading…" />;
 
   if (error) {
     return (
@@ -107,7 +88,7 @@ export default function SuperAdminTenantsPage() {
                     {row.name}
                   </Link>
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm">{statusBadge(row.status)}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm"><StatusBadge variant="tenant" value={row.status} /></td>
                 <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
                   {formatBytes(row.storage_bytes ?? 0)}
                 </td>

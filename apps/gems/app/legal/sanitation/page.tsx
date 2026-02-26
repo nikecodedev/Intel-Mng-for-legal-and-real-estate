@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import Link from 'next/link';
+import { BlockLoader } from '@/components/ui';
 import {
   fetchSanitationQueue,
   resolveFlag,
@@ -56,13 +57,7 @@ export default function LegalSanitationPage() {
     setEscalateNotes('');
   };
 
-  if (isLoading) {
-    return (
-      <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">
-        Loading sanitation queue…
-      </div>
-    );
-  }
+  if (isLoading) return <BlockLoader message="Loading sanitation queue…" />;
 
   if (error) {
     return (

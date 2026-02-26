@@ -1,11 +1,12 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoginForm } from '@/components/forms/LoginForm';
 
-export default function LoginPage() {
+function LoginContent() {
   const { isAuthenticated, isInitialized } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -36,5 +37,17 @@ export default function LoginPage() {
         <LoginForm onSuccess={handleSuccess} />
       </div>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-500">Loading...</p>
+      </main>
+    }>
+      <LoginContent />
+    </Suspense>
   );
 }

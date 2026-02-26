@@ -3,16 +3,8 @@
 import { useQuery } from 'react-query';
 import Link from 'next/link';
 import { DataTable } from '@/components/tables/DataTable';
+import { DateDisplay, BlockLoader } from '@/components/ui';
 import { fetchAssets, type RealEstateAsset } from '@/lib/real-estate-api';
-
-function formatDate(iso: string | undefined | null) {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'short' });
-  } catch {
-    return String(iso);
-  }
-}
 
 export default function RealEstateListPage() {
   const { data, isLoading, error } = useQuery('real-estate-assets', () => fetchAssets({ limit: 100 }), {
@@ -52,16 +44,10 @@ export default function RealEstateListPage() {
           <span className="text-gray-400">—</span>
         ),
     },
-    { key: 'created_at', header: 'Created', render: (row: RealEstateAsset) => formatDate(row.created_at) },
+    { key: 'created_at', header: 'Created', render: (row: RealEstateAsset) => <DateDisplay value={row.created_at} style="short" /> },
   ];
 
-  if (isLoading) {
-    return (
-      <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">
-        Loading assets…
-      </div>
-    );
-  }
+  if (isLoading) return <BlockLoader message="Loading assets…" />;
 
   if (error) {
     return (

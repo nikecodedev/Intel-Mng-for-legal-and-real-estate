@@ -3,16 +3,8 @@
 import { useQuery } from 'react-query';
 import Link from 'next/link';
 import { DataTable } from '@/components/tables/DataTable';
+import { DateDisplay, BlockLoader } from '@/components/ui';
 import { fetchInvestors, type InvestorListItem } from '@/lib/crm-api';
-
-function formatDate(iso: string | undefined | null) {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'short' });
-  } catch {
-    return String(iso);
-  }
-}
 
 export default function AdminInvestorsListPage() {
   const { data, isLoading, error } = useQuery('crm-investors', () => fetchInvestors({ limit: 100 }), {
@@ -46,17 +38,11 @@ export default function AdminInvestorsListPage() {
         </span>
       ),
     },
-    { key: 'last_login_at', header: 'Last login', render: (row: InvestorListItem) => formatDate(row.last_login_at) },
-    { key: 'created_at', header: 'Created', render: (row: InvestorListItem) => formatDate(row.created_at) },
+    { key: 'last_login_at', header: 'Last login', render: (row: InvestorListItem) => <DateDisplay value={row.last_login_at} style="short" /> },
+    { key: 'created_at', header: 'Created', render: (row: InvestorListItem) => <DateDisplay value={row.created_at} style="short" /> },
   ];
 
-  if (isLoading) {
-    return (
-      <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">
-        Loading investors…
-      </div>
-    );
-  }
+  if (isLoading) return <BlockLoader message="Loading investors…" />;
 
   if (error) {
     return (

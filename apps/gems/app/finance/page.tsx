@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useQuery } from 'react-query';
 import Link from 'next/link';
 import { DataTable } from '@/components/tables/DataTable';
+import { StatusBadge, DateDisplay, CurrencyDisplay, BlockLoader } from '@/components/ui';
 import {
   fetchTransactions,
   type FinancialTransaction,
@@ -11,38 +12,6 @@ import {
   type TransactionType,
 } from '@/lib/finance-api';
 import { fetchAssets as fetchRealEstateAssets } from '@/lib/real-estate-api';
-
-function formatDate(iso: string | undefined | null) {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'short' });
-  } catch {
-    return String(iso);
-  }
-}
-
-function formatCents(cents: number): string {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2,
-  }).format(cents / 100);
-}
-
-function statusBadge(status: PaymentStatus) {
-  const styles: Record<string, string> = {
-    PENDING: 'bg-amber-100 text-amber-800',
-    PAID: 'bg-green-100 text-green-800',
-    PARTIAL: 'bg-blue-100 text-blue-800',
-    CANCELLED: 'bg-gray-100 text-gray-700',
-    OVERDUE: 'bg-red-100 text-red-800',
-  };
-  return (
-    <span className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${styles[status] ?? 'bg-gray-100 text-gray-800'}`}>
-      {status}
-    </span>
-  );
-}
 
 export default function FinanceTransactionsPage() {
   const [processId, setProcessId] = useState('');
@@ -86,9 +55,9 @@ export default function FinanceTransactionsPage() {
       ),
     },
     { key: 'transaction_type', header: 'Type', render: (row: FinancialTransaction) => row.transaction_type },
-    { key: 'amount_cents', header: 'Amount', render: (row: FinancialTransaction) => formatCents(row.amount_cents) },
-    { key: 'transaction_date', header: 'Date', render: (row: FinancialTransaction) => formatDate(row.transaction_date) },
-    { key: 'payment_status', header: 'Status', render: (row: FinancialTransaction) => statusBadge(row.payment_status) },
+    { key: 'amount_cents', header: 'Amount', render: (row: FinancialTransaction) => <CurrencyDisplay cents={row.amount_cents} /> },
+    { key: 'transaction_date', header: 'Date', render: (row: FinancialTransaction) => <DateDisplay value={row.transaction_date} style="short" /> },
+    { key: 'payment_status', header: 'Status', render: (row: FinancialTransaction) => <StatusBadge variant="payment" value={row.payment_status} /> },
     { key: 'description', header: 'Description', render: (row: FinancialTransaction) => (row.description?.slice(0, 40) ?? '') + (row.description && row.description.length > 40 ? '…' : '') },
   ];
 
@@ -182,16 +151,12 @@ export default function FinanceTransactionsPage() {
         </div>
       </div>
 
-      {isLoading && (
-        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">
-          Loading transactions…
-        </div>
-      )}
-      {error && (
+      {isLoading && <BlockLoader message="Loading transactions…" />}
+      {error ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
           Failed to load transactions. Please try again.
         </div>
-      )}
+      ) : null}
       {!isLoading && !error && (
         <DataTable<FinancialTransaction>
           columns={columns}
