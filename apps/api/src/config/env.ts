@@ -22,11 +22,11 @@ const baseEnvSchema = z.object({
   RATE_LIMIT_WINDOW_MS: z.string().regex(/^\d+$/).transform(Number).default('900000'), // 15 minutes
   RATE_LIMIT_MAX_REQUESTS: z.string().regex(/^\d+$/).transform(Number).default('100'),
   
-  // Database
-  DATABASE_URL: z.string().url(),
+  // Database (optional in development so API can start without .env when using Docker)
+  DATABASE_URL: z.string().url().optional(),
   
-  // JWT Authentication
-  JWT_SECRET: z.string().min(32),
+  // JWT Authentication (optional in development with safe default)
+  JWT_SECRET: z.string().min(32).optional(),
   JWT_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
   
@@ -51,40 +51,47 @@ const baseEnvSchema = z.object({
   GEMINI_API_KEY: z.string().min(1).optional(),
 });
 
-// Production-specific validations
+// Production-specific validations (required vars)
 const productionEnvSchema = baseEnvSchema.extend({
-  // In production, CORS_ORIGIN cannot be wildcard
+  DATABASE_URL: z.string().url('DATABASE_URL is required in production'),
+  JWT_SECRET: z.string().min(64, 'JWT_SECRET must be at least 64 characters in production'),
   CORS_ORIGIN: z.string().refine(
     (val) => val !== '*',
     { message: 'CORS_ORIGIN cannot be "*" in production. Specify allowed origins.' }
   ),
-  // In production, JWT_SECRET must be at least 64 characters
-  JWT_SECRET: z.string().min(64, 'JWT_SECRET must be at least 64 characters in production'),
-  // In production, require Redis password if Redis is enabled
   REDIS_PASSWORD: z.string().min(1, 'REDIS_PASSWORD is required in production when Redis is enabled').optional(),
 });
 
 // Use production schema if in production, otherwise base schema
 const envSchema = isProduction ? productionEnvSchema : baseEnvSchema;
 
-type EnvConfig = z.infer<typeof envSchema>;
+type EnvConfig = z.infer<typeof envSchema> & { DATABASE_URL: string; JWT_SECRET: string };
 
 /**
  * Validates and returns environment configuration
  * Throws error if validation fails
  * Production mode enforces stricter validation
  */
+const DEV_DATABASE_URL = 'postgresql://platform_user:change_me_in_production@localhost:5432/platform_db';
+const DEV_JWT_SECRET = 'dev-jwt-secret-min-32-chars-for-local-only-do-not-use-in-production';
+
 function validateEnv(): EnvConfig {
   try {
-    const result = envSchema.parse(process.env);
+    const result = envSchema.parse(process.env) as EnvConfig;
+    
+    // Development defaults when not set (so API starts without full .env)
+    if (!isProduction) {
+      const r = result as Record<string, unknown>;
+      if (!r.DATABASE_URL) r.DATABASE_URL = DEV_DATABASE_URL;
+      if (!r.JWT_SECRET) r.JWT_SECRET = DEV_JWT_SECRET;
+    }
     
     // Additional production checks
     if (isProduction) {
-      // Ensure no development fallbacks are used
       if (result.CORS_ORIGIN === '*') {
         throw new Error('CORS_ORIGIN cannot be "*" in production');
       }
-      if (result.JWT_SECRET.length < 64) {
+      if ((result.JWT_SECRET?.length ?? 0) < 64) {
         throw new Error('JWT_SECRET must be at least 64 characters in production');
       }
       if (result.REDIS_ENABLED && !result.REDIS_PASSWORD) {
@@ -92,7 +99,7 @@ function validateEnv(): EnvConfig {
       }
     }
     
-    return result;
+    return result as EnvConfig;
   } catch (error) {
     if (error instanceof z.ZodError) {
       const missingVars = error.errors.map((err) => `${err.path.join('.')}: ${err.message}`);

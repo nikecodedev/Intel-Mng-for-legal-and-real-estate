@@ -1,11 +1,15 @@
 /**
  * API client for document viewer.
  * Viewer access requires tenant_id + RBAC; the API expects Bearer token from auth.
+ * When NEXT_PUBLIC_API_URL is unset, uses same-origin + /api/v1 (works with reverse proxy or same host).
  */
-const getApiBase = () =>
-  typeof window !== 'undefined'
-    ? (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '')
-    : '';
+const getApiBase = (): string => {
+  if (typeof window === 'undefined') return '';
+  const envUrl = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/$/, '');
+  if (envUrl) return envUrl;
+  const origin = window.location.origin;
+  return `${origin}/api/v1`;
+};
 
 /** Token for API calls. Set by auth flow (e.g. login) in sessionStorage or cookie. */
 export function getViewerToken(): string {
