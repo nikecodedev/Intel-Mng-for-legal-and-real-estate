@@ -15,7 +15,7 @@ Next.js 14 (App Router) frontend for the GEMS platform.
 
 1. Install dependencies: `npm install`
 2. Copy `.env.example` to `.env.local` and set:
-   - `NEXT_PUBLIC_API_URL` – backend API base URL (e.g. `http://localhost:3000/api/v1`)
+   - `NEXT_PUBLIC_API_URL` – backend API base URL (this project: `http://164.92.71.218/api/v1`)
 3. Run dev server: `npm run dev` (port 3001)
 
 ## Structure

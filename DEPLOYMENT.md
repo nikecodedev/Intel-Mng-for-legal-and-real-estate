@@ -70,7 +70,7 @@ Replace `YOUR_DB_PASSWORD` and `YOUR_REDIS_PASSWORD` with strong passwords; keep
 
 ```bash
 cd /var
-git clone https://github.com/YOUR_ORG/Intel-Mng-for-legal-and-real-estate.git gems
+git clone https://github.com/nikecodedev/Intel-Mng-for-legal-and-real-estate.git gems
 cd gems
 ```
 
@@ -107,7 +107,7 @@ DATABASE_URL=postgresql://platform_user:YOUR_DB_PASSWORD@localhost:5432/platform
 JWT_SECRET=your-64-character-or-longer-secret-key-for-signing-tokens-change-this
 
 # Must be your frontend URL(s), not *
-CORS_ORIGIN=https://yourdomain.com
+CORS_ORIGIN=http://164.92.71.218
 
 # Optional: if Redis has a password
 REDIS_ENABLED=true
@@ -120,7 +120,7 @@ REDIS_PASSWORD=YOUR_REDIS_PASSWORD
 # GEMINI_API_KEY=your-key-if-using-doc-processing
 ```
 
-Replace `YOUR_DB_PASSWORD`, `YOUR_REDIS_PASSWORD`, `your-64-character...`, and `https://yourdomain.com` with real values.
+Replace `YOUR_DB_PASSWORD`, `YOUR_REDIS_PASSWORD`, and `your-64-character...` with real values. Domain is set to http://164.92.71.218.
 
 ### Frontend GEMS (`apps/gems/.env.production` or `.env.local`)
 
@@ -130,16 +130,14 @@ cp .env.example .env.local
 nano .env.local
 ```
 
-Set the API URL that the **browser** will call (your domain or VPS IP):
+Set the API URL that the **browser** will call (domain for this project: http://164.92.71.218):
 
 ```env
-# Use your domain or http://164.92.71.218 if no domain yet
-NEXT_PUBLIC_API_URL=https://yourdomain.com/api/v1
-# Or for testing by IP:
+# With Nginx reverse proxy (recommended): same host, /api proxied to backend
+NEXT_PUBLIC_API_URL=http://164.92.71.218/api/v1
+# Without Nginx (direct ports):
 # NEXT_PUBLIC_API_URL=http://164.92.71.218:3000/api/v1
 ```
-
-If the API is on the same server behind Nginx, use the same host as the frontend (e.g. `https://yourdomain.com/api/v1`).
 
 ---
 
@@ -186,8 +184,8 @@ cd /var/gems/apps/gems && npm run start
 
 Check:
 
-- API: `curl http://localhost:3000/api/v1/health` (or the path your API uses)
-- GEMS: open `http://164.92.71.218:3001` in a browser
+- API: `curl http://localhost:3000/api/v1/health` (or `curl http://164.92.71.218/api/v1/health` if Nginx is up)
+- GEMS: open `http://164.92.71.218` in a browser (with Nginx) or `http://164.92.71.218:3001` (direct)
 
 ---
 
@@ -201,12 +199,12 @@ Create a site config:
 nano /etc/nginx/sites-available/gems
 ```
 
-Paste (replace `yourdomain.com` with your domain or use the VPS IP and adjust `server_name`):
+Paste (domain for this project: **164.92.71.218**):
 
 ```nginx
 server {
     listen 80;
-    server_name yourdomain.com;   # or 164.92.71.218 if no domain
+    server_name 164.92.71.218;
 
     # Frontend (Next.js)
     location / {
@@ -241,17 +239,14 @@ nginx -t
 systemctl reload nginx
 ```
 
-If using a **domain**, point its DNS A record to `164.92.71.218`, then get SSL:
+For SSL with a **domain name**, point its DNS A record to `164.92.71.218`, then run:
 
 ```bash
 certbot --nginx -d yourdomain.com
 ```
 
-After SSL, set in GEMS `.env.local`:
-
-```env
-NEXT_PUBLIC_API_URL=https://yourdomain.com/api/v1
-```
+Then set in GEMS `.env.local`: `NEXT_PUBLIC_API_URL=https://yourdomain.com/api/v1`.  
+For **IP-only** (164.92.71.218), use HTTP only; no Certbot.
 
 ---
 

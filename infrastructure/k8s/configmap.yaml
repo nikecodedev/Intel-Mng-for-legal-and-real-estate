@@ -29,8 +29,8 @@ data:
   REDIS_PORT: "6379"
   REDIS_DB: "0"
   
-  # CORS Configuration
-  CORS_ORIGIN: "*"
+  # CORS Configuration (project domain: http://164.92.71.218)
+  CORS_ORIGIN: "http://164.92.71.218"
   
   # Rate Limiting
   RATE_LIMIT_WINDOW_MS: "900000"

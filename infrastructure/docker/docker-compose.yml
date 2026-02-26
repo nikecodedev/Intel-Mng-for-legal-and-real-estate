@@ -89,7 +89,7 @@ services:
       REDIS_ENABLED: "true"
       REDIS_PASSWORD: ${REDIS_PASSWORD:-change_me_in_production}
       JWT_SECRET: ${JWT_SECRET:-change_me_in_production_min_32_chars}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000,http://localhost:3001}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://164.92.71.218}
       API_VERSION: v1
       LOG_LEVEL: ${LOG_LEVEL:-info}
     ports:
