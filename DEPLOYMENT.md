@@ -149,6 +149,7 @@ pm2 startup
 
 ```bash
 sudo cp /var/gems/infrastructure/nginx/gems.conf /etc/nginx/sites-available/gems
+sudo rm -f /etc/nginx/sites-enabled/default
 sudo ln -sf /etc/nginx/sites-available/gems /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
@@ -166,11 +167,11 @@ sudo ufw --force enable
 
 ```bash
 pm2 status
-curl -s http://localhost:3000/api/v1/health
+curl -s http://localhost:3000/health
 curl -s http://164.92.71.218/api/v1/health
 ```
 
-Then open **http://164.92.71.218** in a browser. You should see the app; login will call the API at `http://164.92.71.218/api/v1`.
+Then open **http://164.92.71.218** in a browser. You should see the GEMS app (not the Nginx default page); login will call the API at `http://164.92.71.218/api/v1`.
 
 **Later: update after a git pull**
 
@@ -182,6 +183,8 @@ cd apps/api && npm run build && cd ../..
 cd apps/gems && npm run build && cd ../..
 pm2 restart api gems
 ```
+
+**If you see the Nginx default page at http://164.92.71.218:** disable the default site and reload Nginx: `sudo rm -f /etc/nginx/sites-enabled/default && sudo systemctl reload nginx`
 
 ---
 
@@ -296,17 +299,20 @@ Check:
 
 So the app is served on port 80/443 and you can add SSL.
 
-Create a site config:
+Copy the project's config and enable it (disabling the default site so GEMS is served on port 80):
 
 ```bash
-nano /etc/nginx/sites-available/gems
+sudo cp /var/gems/infrastructure/nginx/gems.conf /etc/nginx/sites-available/gems
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo ln -sf /etc/nginx/sites-available/gems /etc/nginx/sites-enabled/
 ```
 
-Paste (domain for this project: **164.92.71.218**):
+Or create manually: `nano /etc/nginx/sites-available/gems` and paste (domain for this project: **164.92.71.218**):
 
 ```nginx
 server {
-    listen 80;
+    listen 80 default_server;
+    listen [::]:80 default_server;
     server_name 164.92.71.218;
 
     # Frontend (Next.js)
@@ -322,9 +328,9 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # Backend API
+    # Backend API (no trailing slash so full URI /api/v1/... is passed)
     location /api/ {
-        proxy_pass http://127.0.0.1:3000/;
+        proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -334,12 +340,13 @@ server {
 }
 ```
 
-Enable and reload:
+Disable default site, enable GEMS, and reload:
 
 ```bash
-ln -s /etc/nginx/sites-available/gems /etc/nginx/sites-enabled/
-nginx -t
-systemctl reload nginx
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo ln -sf /etc/nginx/sites-available/gems /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
 ```
 
 For SSL with a **domain name**, point its DNS A record to `164.92.71.218`, then run:

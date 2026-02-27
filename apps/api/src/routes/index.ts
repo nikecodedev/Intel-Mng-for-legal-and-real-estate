@@ -20,6 +20,7 @@ import superAdminRouter from './super-admin.js';
 import dashboardsRouter from './dashboards.js';
 import metricsRouter from './metrics.js';
 import auditIntegrityRouter from './audit-integrity.js';
+import healthRouter from './health.js';
 import { config } from '../config/index.js';
 
 const router = Router();
@@ -32,7 +33,8 @@ const router = Router();
 // Tenant isolation (Fonte 73, Fonte 5) - level 0, before any controller. Skips /health, /auth/login, /auth/register, /auth/refresh.
 router.use(tenantMiddleware);
 
-// Note: Health check routes are registered at app level (not here) to avoid tenant middleware
+// Health check (also at app-level /health; here so /api/v1/health works behind Nginx proxy)
+router.use('/health', healthRouter);
 
 // Authentication routes
 router.use('/auth', authRouter);
