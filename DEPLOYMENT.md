@@ -130,7 +130,18 @@ echo 'NEXT_PUBLIC_API_URL=http://164.92.71.218/api/v1' > .env.local
 # Or: nano .env.local  and paste that line
 ```
 
-**D. Install, build, and run with PM2**
+**D. Database migrations (required for login/register)**
+
+Run migrations so the DB has the correct schema (tenants, users with tenant_id, refresh_tokens, audit_logs with API columns). From repo root:
+
+```bash
+cd /var/gems
+bash scripts/run-migrations.sh
+```
+
+If you use **local PostgreSQL** (not Docker), set `POSTGRES_PASSWORD` and ensure `DATABASE_URL` in `apps/api/.env` is correct; the script uses `psql` with credentials from the environment. For Docker: `cd infrastructure/docker && docker compose exec -T postgres psql -U platform_user -d platform_db -f - < ../../apps/api/database/migrations/001_initial_schema.sql` (or use `run-migrations.sh` from the host with Docker Compose).
+
+**E. Install, build, and run with PM2**
 
 ```bash
 cd /var/gems
@@ -145,7 +156,7 @@ pm2 save
 pm2 startup
 ```
 
-**E. Nginx**
+**F. Nginx**
 
 ```bash
 sudo cp /var/gems/infrastructure/nginx/gems.conf /etc/nginx/sites-available/gems
@@ -154,7 +165,7 @@ sudo ln -sf /etc/nginx/sites-available/gems /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-**F. Firewall (if not done)**
+**G. Firewall (if not done)**
 
 ```bash
 sudo ufw allow 22
@@ -163,7 +174,7 @@ sudo ufw allow 443
 sudo ufw --force enable
 ```
 
-**G. Verify**
+**H. Verify**
 
 ```bash
 pm2 status
@@ -397,6 +408,7 @@ If you use Nginx and no longer need direct access to 3000/3001 from the internet
 - **Frontend can’t reach API:** Ensure NEXT_PUBLIC_API_URL matches the URL the browser uses (domain or IP + port). If using Nginx, use the same host and path (e.g. `/api/v1`).
 - **502 Bad Gateway:** Backend not running or wrong port. Check `pm2 status` and that API listens on 3000 and GEMS on 3001.
 - **"Application error" / ChunkLoadError / 404 on `_next/static/chunks/...`:** This happens after a new frontend build when the browser or server still uses old chunk filenames. **Fix:** (1) Restart the frontend so it serves the new build: `pm2 restart gems` (or `pm2 restart api gems` to restart both). (2) Hard-refresh the page (Ctrl+Shift+R or Cmd+Shift+R) or clear the site's cache so the browser loads the new HTML and chunk URLs.
+- **Login or register returns 500 / "An unexpected error occurred":** The DB schema is often missing tenant isolation or audit columns. **Fix:** Run migrations from repo root: `bash scripts/run-migrations.sh`. Migrations 001 (base tables + system tenant), 002 (tenant_id on users/refresh_tokens), and 018 (audit_logs columns for API) must run. Then restart the API: `pm2 restart api`.
 - **Logs:** `pm2 logs api` and `pm2 logs gems`.
 
 Never commit `.env` or `.env.local`; they contain secrets. Use a secrets manager or set env vars in PM2/Systemd if you prefer not to keep `.env` files on disk.

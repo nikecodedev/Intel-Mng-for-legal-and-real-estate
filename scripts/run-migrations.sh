@@ -54,11 +54,22 @@ else
         echo -e "${GREEN}✅ All migrations completed!${NC}"
         exit 0
     else
-        # Local PostgreSQL
+        # Local PostgreSQL (VPS or dev)
         echo -e "${YELLOW}Using local PostgreSQL${NC}"
+        API_ENV="$(dirname "$0")/../apps/api/.env"
+        if [ -f "$API_ENV" ]; then
+            set -a
+            # shellcheck source=/dev/null
+            source "$API_ENV" 2>/dev/null || true
+            set +a
+        fi
         DB_HOST="${DB_HOST:-localhost}"
         DB_USER="${POSTGRES_USER:-platform_user}"
         DB_NAME="${POSTGRES_DB:-platform_db}"
+        # PGPASSWORD from POSTGRES_PASSWORD or DATABASE_URL (extract if needed)
+        if [ -z "${PGPASSWORD}" ] && [ -n "${POSTGRES_PASSWORD}" ]; then
+            export PGPASSWORD="${POSTGRES_PASSWORD}"
+        fi
         MIGRATIONS_DIR="$(dirname "$0")/../apps/api/database/migrations"
     fi
 fi
