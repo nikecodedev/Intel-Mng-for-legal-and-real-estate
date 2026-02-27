@@ -3,9 +3,10 @@ import { asyncHandler, validateRequest, authenticate } from '../middleware/index
 import { AuthService, User } from '../services/auth.js';
 import { AuditService, AuditEventType } from '../services/audit.js';
 import { config } from '../config/index.js';
+import { db } from '../models/database.js';
 import { z } from 'zod';
 import { logger } from '../utils/logger.js';
-import { AuthenticationError } from '../utils/errors.js';
+import { AppError, AuthenticationError } from '../utils/errors.js';
 
 const router = Router();
 
@@ -155,14 +156,46 @@ router.post(
     // Determine tenant - explicit or system default
     const effectiveTenantId = tenant_id || config.tenant.defaultTenantId || SYSTEM_TENANT_ID;
 
-    // Register user in the specified tenant
-    const user = await AuthService.register(
-      effectiveTenantId,
-      email, 
-      password, 
-      first_name, 
-      last_name
-    );
+    // Ensure tenant exists (avoid 500 on FK violation). Supports tenants.id (002) or tenants.tenant_id (saas).
+    let tenantCheck: { rows: unknown[] };
+    try {
+      tenantCheck = await db.query('SELECT 1 FROM tenants WHERE id = $1', [effectiveTenantId]);
+      if (!tenantCheck.rows.length) {
+        tenantCheck = await db.query('SELECT 1 FROM tenants WHERE tenant_id = $1', [effectiveTenantId]);
+      }
+    } catch {
+      tenantCheck = { rows: [] };
+    }
+    if (!tenantCheck.rows.length) {
+      throw new AppError(
+        400,
+        'Tenant not found. Run database migrations: cd /var/gems && bash scripts/run-migrations.sh',
+        true,
+        'TENANT_NOT_FOUND'
+      );
+    }
+
+    let user: User;
+    try {
+      user = await AuthService.register(
+        effectiveTenantId,
+        email,
+        password,
+        first_name,
+        last_name
+      );
+    } catch (err) {
+      const pgCode = (err as { code?: string })?.code;
+      if (pgCode === '23503') {
+        throw new AppError(
+          400,
+          'Tenant not found. Run database migrations (scripts/run-migrations.sh).',
+          true,
+          'TENANT_NOT_FOUND'
+        );
+      }
+      throw err;
+    }
 
     // Generate tokens using user's tenant_id
     const accessToken = AuthService.generateAccessToken(user, tenantOptsFromUser(user));
