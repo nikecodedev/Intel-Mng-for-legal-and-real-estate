@@ -89,7 +89,7 @@ export class DashboardKPIService {
     );
 
     if (cached) {
-      return cached.kpi_value as CashFlowKPI;
+      return cached.kpi_value as unknown as CashFlowKPI;
     }
 
     // Calculate cash flow using models (no raw SQL exposure)
@@ -156,7 +156,7 @@ export class DashboardKPIService {
       tenantId,
       'CASH_FLOW',
       'cash_flow_summary',
-      kpi,
+      kpi as unknown as Record<string, unknown>,
       startDate && endDate ? 'CUSTOM' : 'REALTIME',
       300, // 5 minute cache
       startDate ? new Date(startDate) : undefined,
@@ -179,7 +179,7 @@ export class DashboardKPIService {
     );
 
     if (cached) {
-      return cached.kpi_value as DeadlinesKPI;
+      return cached.kpi_value as unknown as DeadlinesKPI;
     }
 
     const today = new Date();
@@ -260,7 +260,7 @@ export class DashboardKPIService {
       tenantId,
       'DEADLINES',
       'deadlines_summary',
-      kpi,
+      kpi as unknown as Record<string, unknown>,
       'REALTIME',
       60 // 1 minute cache for deadlines
     );
@@ -281,7 +281,7 @@ export class DashboardKPIService {
     );
 
     if (cached) {
-      return cached.kpi_value as ROIKPI;
+      return cached.kpi_value as unknown as ROIKPI;
     }
 
     // Get all assets with ROI using model (no raw SQL)
@@ -335,7 +335,7 @@ export class DashboardKPIService {
       tenantId,
       'ROI',
       'roi_summary',
-      kpi,
+      kpi as unknown as Record<string, unknown>,
       'REALTIME',
       300 // 5 minute cache
     );
@@ -356,7 +356,7 @@ export class DashboardKPIService {
     );
 
     if (cached) {
-      return cached.kpi_value as RiskExposureKPI;
+      return cached.kpi_value as unknown as RiskExposureKPI;
     }
 
     // Get all assets using model (no raw SQL)
@@ -420,7 +420,7 @@ export class DashboardKPIService {
       tenantId,
       'RISK_EXPOSURE',
       'risk_exposure_summary',
-      kpi,
+      kpi as unknown as Record<string, unknown>,
       'REALTIME',
       300 // 5 minute cache
     );

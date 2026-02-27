@@ -56,10 +56,10 @@ export class InvestorAuthService {
     };
 
     return jwt.sign(payload, config.jwt.secret, {
-      expiresIn: config.jwt.expiresIn,
+      expiresIn: config.jwt.expiresIn as string | number,
       issuer: 'platform-api',
       audience: 'platform-investor',
-    });
+    } as jwt.SignOptions);
   }
 
   /**
@@ -74,10 +74,10 @@ export class InvestorAuthService {
       { investorId, type: 'refresh' },
       config.jwt.secret,
       {
-        expiresIn: config.jwt.refreshExpiresIn,
+        expiresIn: config.jwt.refreshExpiresIn as string | number,
         issuer: 'platform-api',
         audience: 'platform-investor',
-      }
+      } as jwt.SignOptions
     );
 
     // Store refresh token in database
@@ -144,7 +144,7 @@ export class InvestorAuthService {
         throw new AuthenticationError('Refresh token not found or revoked');
       }
 
-      const tokenData = result.rows[0];
+      const tokenData = result.rows[0] as { expires_at: string };
       const expiresAt = new Date(tokenData.expires_at);
 
       if (expiresAt < new Date()) {

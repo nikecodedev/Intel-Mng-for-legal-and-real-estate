@@ -37,6 +37,8 @@ export interface CreateTenantInput {
   tenant_code?: string;
   domain?: string;
   subscription_plan?: SubscriptionPlan;
+  subscription_status?: SubscriptionStatus;
+  subscription_start_date?: string;
   contact_email?: string;
   contact_phone?: string;
   billing_email?: string;

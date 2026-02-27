@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware/index.js';
+import { getTenantContext } from '../utils/tenant-context.js';
 import { NotFoundError } from '../utils/errors.js';
 import { DashboardConfigModel } from '../models/dashboard.js';
 import { DashboardKPIService } from '../services/dashboard-kpis.js';
@@ -32,9 +33,8 @@ router.get(
   '/',
   authenticate,
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const tenantId = req.tenant!.id;
-    const userRole = req.user!.role || 'USER';
-    const userPermissions = req.user!.permissions || [];
+    const { tenantId, role: userRole } = getTenantContext(req);
+    const userPermissions: string[] = (req as Request & { user?: { permissions?: string[] } }).user?.permissions ?? [];
 
     const dashboards = await DashboardConfigModel.getVisibleDashboards(
       tenantId,
@@ -58,9 +58,8 @@ router.get(
   authenticate,
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
-    const tenantId = req.tenant!.id;
-    const userRole = req.user!.role || 'USER';
-    const userPermissions = req.user!.permissions || [];
+    const { tenantId, role: userRole } = getTenantContext(req);
+    const userPermissions: string[] = (req as Request & { user?: { permissions?: string[] } }).user?.permissions ?? [];
 
     const dashboard = await DashboardConfigModel.findById(id, tenantId);
     if (!dashboard) {
@@ -96,9 +95,8 @@ router.get(
   validateRequest(getKPISchema),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
-    const tenantId = req.tenant!.id;
-    const userRole = req.user!.role || 'USER';
-    const userPermissions = req.user!.permissions || [];
+    const { tenantId, role: userRole } = getTenantContext(req);
+    const userPermissions: string[] = (req as Request & { user?: { permissions?: string[] } }).user?.permissions ?? [];
 
     // Verify dashboard exists and is visible
     const dashboard = await DashboardConfigModel.findById(id, tenantId);
@@ -151,7 +149,7 @@ router.get(
   authenticate,
   requirePermission('dashboards:read'),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const tenantId = req.tenant!.id;
+    const { tenantId } = getTenantContext(req);
     const startDate = req.query.start_date as string | undefined;
     const endDate = req.query.end_date as string | undefined;
 
@@ -173,7 +171,7 @@ router.get(
   authenticate,
   requirePermission('dashboards:read'),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const tenantId = req.tenant!.id;
+    const { tenantId } = getTenantContext(req);
 
     const kpi = await DashboardKPIService.calculateDeadlines(tenantId);
 
@@ -193,7 +191,7 @@ router.get(
   authenticate,
   requirePermission('dashboards:read'),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const tenantId = req.tenant!.id;
+    const { tenantId } = getTenantContext(req);
 
     const kpi = await DashboardKPIService.calculateROI(tenantId);
 
@@ -213,7 +211,7 @@ router.get(
   authenticate,
   requirePermission('dashboards:read'),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const tenantId = req.tenant!.id;
+    const { tenantId } = getTenantContext(req);
 
     const kpi = await DashboardKPIService.calculateRiskExposure(tenantId);
 
@@ -233,7 +231,7 @@ router.get(
   authenticate,
   requirePermission('dashboards:read'),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const tenantId = req.tenant!.id;
+    const { tenantId } = getTenantContext(req);
     const kpiTypes = req.query.kpi_types
       ? (req.query.kpi_types as string).split(',').map(t => t.trim().toUpperCase())
       : undefined;

@@ -109,7 +109,7 @@ function mapVersionRow(row: Record<string, unknown>): ROICalculationVersion {
     tenant_id: row.tenant_id as string,
     auction_asset_id: row.auction_asset_id as string,
     version_number: Number(row.version_number) || 1,
-    inputs_snapshot: (row.inputs_snapshot as ROIInputs & { expected_resale_date?: string | null }) ?? {},
+    inputs_snapshot: ((row.inputs_snapshot as ROIInputs & { expected_resale_date?: string | null } | null) ?? {}) as ROIInputs & { expected_resale_date?: string | null },
     total_cost_cents: Number(row.total_cost_cents) || 0,
     net_profit_cents: Number(row.net_profit_cents) || 0,
     roi_percentage: Number(row.roi_percentage) || 0,
@@ -119,6 +119,11 @@ function mapVersionRow(row: Record<string, unknown>): ROICalculationVersion {
 }
 
 export class AuctionAssetROIModel {
+  /** Alias for getByAssetId for compatibility */
+  static async findByAssetId(auctionAssetId: string, tenantId: string): Promise<AuctionAssetROI | null> {
+    return this.getByAssetId(auctionAssetId, tenantId);
+  }
+
   static async getByAssetId(auctionAssetId: string, tenantId: string): Promise<AuctionAssetROI | null> {
     requireTenantId(tenantId, 'AuctionAssetROIModel.getByAssetId');
     const result: QueryResult<Record<string, unknown>> = await db.query(

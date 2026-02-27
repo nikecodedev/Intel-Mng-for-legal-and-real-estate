@@ -80,7 +80,7 @@ export async function validate(
     if (asset) {
       const dd = asset.due_diligence_checklist;
       const hasPending = ['occupancy', 'debts', 'legal_risks', 'zoning'].some(
-        (k) => (dd as Record<string, { status: string }>)[k]?.status === 'pending' || (dd as Record<string, { status: string }>)[k]?.status === 'risk'
+        (k) => (dd as unknown as Record<string, { status: string }>)[k]?.status === 'pending' || (dd as unknown as Record<string, { status: string }>)[k]?.status === 'risk'
       );
       if (hasPending) completeness.push(finding('INCOMPLETE_DUE_DILIGENCE', 'info'));
       if (asset.linked_document_ids.length === 0) {

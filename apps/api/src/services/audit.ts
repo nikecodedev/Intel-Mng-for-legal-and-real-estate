@@ -69,28 +69,53 @@ export enum AuditAction {
  * tenant_id is REQUIRED - no defaults allowed
  */
 export interface AuditLogEntry {
-  tenant_id: string; // REQUIRED - no optional
+  /** Tenant ID (required at runtime; use tenant_id or tenantId) */
+  tenant_id?: string;
   /** @deprecated Use tenant_id */
   tenantId?: string;
-  event_type: string;
-  event_category: AuditEventCategory;
+  event_type?: string;
+  /** @deprecated Use event_type */
+  eventType?: string;
+  event_category?: AuditEventCategory;
+  /** @deprecated Use event_category */
+  eventCategory?: AuditEventCategory;
   action: AuditAction;
   user_id?: string;
   /** @deprecated Use user_id */
   userId?: string;
   user_email?: string;
+  /** @deprecated Use user_email */
+  userEmail?: string;
   user_role?: string;
+  /** @deprecated Use user_role */
+  userRole?: string;
   resource_type?: string;
+  /** @deprecated Use resource_type */
+  resourceType?: string;
   resource_id?: string;
+  /** @deprecated Use resource_id */
+  resourceId?: string;
   target_resource_id?: string;
+  /** @deprecated Use target_resource_id */
+  targetResourceId?: string;
   resource_identifier?: string;
+  /** @deprecated Use resource_identifier */
+  resourceIdentifier?: string;
   description?: string;
   payload_evento?: Record<string, unknown>;
   details?: Record<string, unknown>;
   ip_address?: string;
+  /** @deprecated Use ip_address */
+  ipAddress?: string;
   user_agent?: string;
+  /** @deprecated Use user_agent */
+  userAgent?: string;
   request_id?: string;
+  /** @deprecated Use request_id */
+  requestId?: string;
   session_id?: string;
+  /** @deprecated Use session_id */
+  sessionId?: string;
   success?: boolean;
   error_code?: string;
   error_message?: string;
@@ -182,12 +207,12 @@ export class AuditService {
       this.validateTenantId(tenantId, 'log');
 
       // Validate other required fields
-      if (!entry.event_type || !entry.event_category || !entry.action) {
+      if (!(entry.event_type ?? entry.eventType) || !(entry.event_category ?? entry.eventCategory) || !entry.action) {
         logger.error('Invalid audit log entry - missing required fields', { 
           entry,
           missing: {
-            event_type: !entry.event_type,
-            event_category: !entry.event_category,
+            event_type: !(entry.event_type ?? entry.eventType),
+            event_category: !(entry.event_category ?? entry.eventCategory),
             action: !entry.action,
           }
         });
@@ -217,23 +242,23 @@ export class AuditService {
           `.trim(),
         [
           tenantId,
-          entry.event_type,
-          entry.event_category,
+          entry.event_type ?? entry.eventType ?? '',
+          entry.event_category ?? entry.eventCategory ?? AuditEventCategory.DATA_MODIFICATION,
           entry.action,
           entry.user_id ?? entry.userId ?? null,
-          entry.user_email ?? null,
-          entry.user_role ?? null,
-          entry.resource_type ?? null,
-          entry.resource_id ?? null,
-          entry.target_resource_id ?? null,
-          entry.resource_identifier ?? null,
+          entry.user_email ?? entry.userEmail ?? null,
+          entry.user_role ?? entry.userRole ?? null,
+          entry.resource_type ?? entry.resourceType ?? null,
+          entry.resource_id ?? entry.resourceId ?? null,
+          entry.target_resource_id ?? entry.targetResourceId ?? null,
+          entry.resource_identifier ?? entry.resourceIdentifier ?? null,
           entry.description ?? null,
           JSON.stringify(payloadEvento),
           JSON.stringify(detailsPayload),
-          entry.ip_address ?? null,
-          entry.user_agent ?? null,
-          entry.request_id ?? null,
-          entry.session_id ?? null,
+          entry.ip_address ?? entry.ipAddress ?? null,
+          entry.user_agent ?? entry.userAgent ?? null,
+          entry.request_id ?? entry.requestId ?? null,
+          entry.session_id ?? entry.sessionId ?? null,
           entry.success ?? null,
           entry.error_code ?? null,
           entry.error_message ?? null,
@@ -243,7 +268,7 @@ export class AuditService {
       );
       logger.debug('Audit log created', {
         tenant_id: tenantId,
-        event_type: entry.event_type,
+        event_type: entry.event_type ?? entry.eventType,
         resource_type: entry.resource_type,
         resource_id: entry.resource_id,
       });
@@ -258,7 +283,7 @@ export class AuditService {
         error,
         entry: {
           tenant_id: entry.tenant_id,
-          event_type: entry.event_type,
+          event_type: entry.event_type ?? entry.eventType,
           resource_type: entry.resource_type,
           resource_id: entry.resource_id,
         },

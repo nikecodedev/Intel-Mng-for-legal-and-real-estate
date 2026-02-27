@@ -35,6 +35,7 @@ export interface AuctionAsset {
   risk_score: number;
   asset_reference: string | null;
   title: string | null;
+  metadata?: Record<string, unknown>;
   created_at: Date;
   updated_at: Date;
 }

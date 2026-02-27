@@ -199,7 +199,7 @@ export class JobQueueService {
 
     const state = await job.getState();
     return {
-      id: job.id!,
+      id: String(job.id),
       state,
       progress: job.progress(),
       data: job.data,
@@ -217,7 +217,7 @@ export class JobQueueService {
     limit: number = 1000
   ): Promise<void> {
     const queue = this.getQueue(queueName);
-    await queue.clean(grace, limit);
+    await (queue.clean as (grace: number, status?: unknown, limit?: number) => Promise<unknown>)(grace, undefined, limit);
   }
 
   /**

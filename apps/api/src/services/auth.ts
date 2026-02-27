@@ -60,10 +60,10 @@ export class AuthService {
     };
 
     return jwt.sign(payload, config.jwt.secret, {
-      expiresIn: config.jwt.expiresIn,
+      expiresIn: config.jwt.expiresIn as string | number,
       issuer: 'platform-api',
       audience: 'platform-client',
-    });
+    } as jwt.SignOptions);
   }
 
   /**
@@ -74,10 +74,10 @@ export class AuthService {
       { userId, type: 'refresh' },
       config.jwt.secret,
       {
-        expiresIn: config.jwt.refreshExpiresIn,
+        expiresIn: config.jwt.refreshExpiresIn as string | number,
         issuer: 'platform-api',
         audience: 'platform-client',
-      }
+      } as jwt.SignOptions
     );
 
     // Store refresh token in database

@@ -265,17 +265,17 @@ export class AuditableUserModel {
         [data.tenant_id, data.email, data.password_hash, data.first_name || null, data.last_name || null]
       );
 
-      const user = result.rows[0];
+      const user = result.rows[0] as Record<string, unknown>;
 
       // Log audit
-      await auditCreate('user', user.id, user.email, {
-        tenant_id: user.tenant_id,
-        email: user.email,
-        first_name: user.first_name,
-        last_name: user.last_name,
+      await auditCreate('user', user.id as string, user.email as string, {
+        tenant_id: user.tenant_id as string,
+        email: user.email as string,
+        first_name: user.first_name as string | null,
+        last_name: user.last_name as string | null,
       });
 
-      return { id: user.id, email: user.email, tenant_id: user.tenant_id };
+      return { id: user.id as string, email: user.email as string, tenant_id: user.tenant_id as string };
     } finally {
       clearAuditContext();
     }
@@ -344,7 +344,7 @@ export class AuditableUserModel {
       const newValues = newResult.rows[0];
 
       // Log audit
-      await auditUpdate('user', userId, oldValues, newValues, oldValues.email);
+      await auditUpdate('user', userId, oldValues as Record<string, unknown>, newValues as Record<string, unknown>, (oldValues as Record<string, unknown>).email as string);
     } finally {
       clearAuditContext();
     }
@@ -386,7 +386,7 @@ export class AuditableUserModel {
       );
 
       // Log audit
-      await auditDelete('user', userId, deletedData, deletedData.email);
+      await auditDelete('user', userId, deletedData as Record<string, unknown>, (deletedData as Record<string, unknown>).email as string);
     } finally {
       clearAuditContext();
     }

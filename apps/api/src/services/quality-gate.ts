@@ -414,15 +414,15 @@ export class QualityGateService {
         failure_details: existingCheck.failure_details ? (existingCheck.failure_details as Record<string, unknown>) : null,
         is_overridden: Boolean(existingCheck.is_overridden),
         overridden_by: (existingCheck.overridden_by as string) ?? null,
-        overridden_at: existingCheck.overridden_at ? new Date(existingCheck.overridden_at as string) : null,
+        overridden_at: existingCheck.overridden_at != null ? (existingCheck.overridden_at instanceof Date ? existingCheck.overridden_at : new Date(String(existingCheck.overridden_at))) : null,
         override_reason: (existingCheck.override_reason as string) ?? null,
         override_approval_required: Boolean(existingCheck.override_approval_required),
         override_approved_by: (existingCheck.override_approved_by as string) ?? null,
-        checked_at: existingCheck.checked_at ? new Date(existingCheck.checked_at as string) : null,
+        checked_at: existingCheck.checked_at != null ? (existingCheck.checked_at instanceof Date ? existingCheck.checked_at : new Date(String(existingCheck.checked_at))) : null,
         checked_by: (existingCheck.checked_by as string) ?? null,
         check_duration_ms: existingCheck.check_duration_ms ? Number(existingCheck.check_duration_ms) : null,
-        created_at: new Date(existingCheck.created_at as string),
-        updated_at: new Date(existingCheck.updated_at as string),
+        created_at: existingCheck.created_at instanceof Date ? existingCheck.created_at : new Date(String(existingCheck.created_at)),
+        updated_at: existingCheck.updated_at instanceof Date ? existingCheck.updated_at : new Date(String(existingCheck.updated_at)),
       };
       
       if (check.check_status === 'PENDING') {

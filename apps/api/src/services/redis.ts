@@ -151,7 +151,7 @@ class RedisClient {
     const promises: Promise<void>[] = [];
 
     if (this.client) {
-      promises.push(this.client.quit().then(() => logger.info('Redis client closed')));
+      promises.push(this.client.quit().then(() => { logger.info('Redis client closed'); }));
     }
 
     if (this.subscriber) {

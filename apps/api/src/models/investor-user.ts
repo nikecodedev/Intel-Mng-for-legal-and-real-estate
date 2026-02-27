@@ -144,6 +144,17 @@ export class InvestorUserModel {
   }
 
   /**
+   * Find investor by id for auth (no tenant scope)
+   */
+  static async findByIdForAuth(id: string): Promise<InvestorUser | null> {
+    const result: QueryResult<InvestorUser> = await db.query<InvestorUser>(
+      `SELECT * FROM investor_users WHERE id = $1 AND deleted_at IS NULL`,
+      [id]
+    );
+    return result.rows[0] ? mapRow(result.rows[0]) : null;
+  }
+
+  /**
    * Create new investor user
    */
   static async create(input: CreateInvestorUserInput): Promise<InvestorUser> {

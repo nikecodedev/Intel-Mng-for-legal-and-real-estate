@@ -117,7 +117,7 @@ export class InvestorMatchingService {
   private static calculateBudgetScore(
     profile: InvestorPreferenceProfile,
     asset: AuctionAsset,
-    roi?: { acquisition_price_cents?: number | null }
+    roi?: { roi_percentage?: number | null; acquisition_price_cents?: number | null }
   ): number {
     // Get asset price from ROI
     const assetPrice = roi?.acquisition_price_cents || 0;
@@ -300,7 +300,7 @@ export class InvestorMatchingService {
   private static getBudgetMatchDescription(
     profile: InvestorPreferenceProfile,
     asset: AuctionAsset,
-    roi?: { acquisition_price_cents?: number | null }
+    roi?: { roi_percentage?: number | null; acquisition_price_cents?: number | null }
   ): string {
     const price = roi?.acquisition_price_cents || 0;
     if (price < (profile.min_budget_cents || 0)) return 'Below minimum budget';
@@ -360,7 +360,7 @@ export class InvestorMatchingService {
     }
 
     // Get all active auction assets
-    const { assets } = await AuctionAssetModel.list(tenantId, { limit: 1000 });
+    const assets = await AuctionAssetModel.listByTenant(tenantId, { limit: 1000 });
 
     const matches: MatchRecord[] = [];
 

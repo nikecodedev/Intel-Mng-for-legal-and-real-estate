@@ -152,13 +152,14 @@ router.get(
     const { tenantId, userId } = getTenantContext(req);
 
     if (!permission || typeof permission !== 'string') {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
           message: 'Permission parameter is required',
         },
       });
+      return;
     }
 
     // Pass tenantId to RBACService for tenant-scoped permission check

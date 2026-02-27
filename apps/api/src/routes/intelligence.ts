@@ -114,7 +114,8 @@ router.get(
 
     const validType = resourceTypes.includes(resourceType as (typeof resourceTypes)[number]);
     if (!validType) {
-      return res.status(400).json({ success: false, error: 'Invalid resource_type' });
+      res.status(400).json({ success: false, error: 'Invalid resource_type' });
+      return;
     }
 
     const result = await validateIntelligence({
