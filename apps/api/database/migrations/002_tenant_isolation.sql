@@ -40,8 +40,7 @@
 --
 -- ============================================
 
--- Start transaction
-BEGIN;
+-- Idempotent: no single transaction so "already exists" errors do not roll back the rest
 
 -- ============================================
 -- STEP 1: Create a system/default tenant (if not exists)
@@ -69,22 +68,25 @@ UPDATE users
 SET tenant_id = '00000000-0000-0000-0000-000000000001'
 WHERE tenant_id IS NULL;
 
--- Add NOT NULL constraint
-ALTER TABLE users 
-ALTER COLUMN tenant_id SET NOT NULL;
+-- Add NOT NULL constraint (idempotent)
+DO $$ BEGIN ALTER TABLE users ALTER COLUMN tenant_id SET NOT NULL; EXCEPTION WHEN others THEN NULL; END $$;
 
--- Add foreign key
-ALTER TABLE users 
-ADD CONSTRAINT fk_users_tenant 
-FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE;
+-- Add foreign key (idempotent: skip if already exists)
+DO $$ BEGIN
+  ALTER TABLE users ADD CONSTRAINT fk_users_tenant
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Drop old unique constraint on email
 ALTER TABLE users 
 DROP CONSTRAINT IF EXISTS users_email_key;
 
--- Add composite unique constraint (tenant_id, email)
-ALTER TABLE users 
-ADD CONSTRAINT uq_users_tenant_email UNIQUE (tenant_id, email);
+-- Add composite unique constraint (tenant_id, email) - idempotent
+DO $$ BEGIN
+  ALTER TABLE users ADD CONSTRAINT uq_users_tenant_email UNIQUE (tenant_id, email);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Add index for tenant queries
 CREATE INDEX IF NOT EXISTS idx_users_tenant_id 
@@ -111,10 +113,12 @@ SET tenant_id = '00000000-0000-0000-0000-000000000001'
 WHERE tenant_id IS NULL AND is_system_role = false;
 
 -- System roles remain with NULL tenant_id (global)
--- Add foreign key (allows NULL for system roles)
-ALTER TABLE roles 
-ADD CONSTRAINT fk_roles_tenant 
-FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE;
+-- Add foreign key (allows NULL for system roles) - idempotent
+DO $$ BEGIN
+  ALTER TABLE roles ADD CONSTRAINT fk_roles_tenant
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Drop old unique constraint on name
 ALTER TABLE roles 
@@ -127,10 +131,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_roles_tenant_name
 ON roles(COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'), name) 
 WHERE deleted_at IS NULL;
 
--- Add check constraint: non-system roles MUST have tenant_id
-ALTER TABLE roles 
-ADD CONSTRAINT chk_roles_tenant_required 
-CHECK (is_system_role = true OR tenant_id IS NOT NULL);
+-- Add check constraint: non-system roles MUST have tenant_id - idempotent
+DO $$ BEGIN
+  ALTER TABLE roles ADD CONSTRAINT chk_roles_tenant_required
+  CHECK (is_system_role = true OR tenant_id IS NOT NULL);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Add index for tenant queries
 CREATE INDEX IF NOT EXISTS idx_roles_tenant_id 
@@ -171,13 +177,14 @@ FROM users u
 WHERE ur.user_id = u.id AND ur.tenant_id IS NULL;
 
 -- Add NOT NULL constraint
-ALTER TABLE user_roles 
-ALTER COLUMN tenant_id SET NOT NULL;
+DO $$ BEGIN ALTER TABLE user_roles ALTER COLUMN tenant_id SET NOT NULL; EXCEPTION WHEN others THEN NULL; END $$;
 
--- Add foreign key
-ALTER TABLE user_roles 
-ADD CONSTRAINT fk_user_roles_tenant 
-FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE;
+-- Add foreign key - idempotent
+DO $$ BEGIN
+  ALTER TABLE user_roles ADD CONSTRAINT fk_user_roles_tenant
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Add index for tenant queries
 CREATE INDEX IF NOT EXISTS idx_user_roles_tenant_id 
@@ -205,10 +212,12 @@ FROM roles r
 WHERE rp.role_id = r.id AND rp.tenant_id IS NULL;
 
 -- Note: tenant_id remains NULLABLE because system roles have NULL tenant_id
--- Add foreign key (allows NULL)
-ALTER TABLE role_permissions 
-ADD CONSTRAINT fk_role_permissions_tenant 
-FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE;
+-- Add foreign key (allows NULL) - idempotent
+DO $$ BEGIN
+  ALTER TABLE role_permissions ADD CONSTRAINT fk_role_permissions_tenant
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Add index for tenant queries
 CREATE INDEX IF NOT EXISTS idx_role_permissions_tenant_id 
@@ -236,13 +245,14 @@ FROM users u
 WHERE up.user_id = u.id AND up.tenant_id IS NULL;
 
 -- Add NOT NULL constraint
-ALTER TABLE user_permissions 
-ALTER COLUMN tenant_id SET NOT NULL;
+DO $$ BEGIN ALTER TABLE user_permissions ALTER COLUMN tenant_id SET NOT NULL; EXCEPTION WHEN others THEN NULL; END $$;
 
--- Add foreign key
-ALTER TABLE user_permissions 
-ADD CONSTRAINT fk_user_permissions_tenant 
-FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE;
+-- Add foreign key - idempotent
+DO $$ BEGIN
+  ALTER TABLE user_permissions ADD CONSTRAINT fk_user_permissions_tenant
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Add index for tenant queries
 CREATE INDEX IF NOT EXISTS idx_user_permissions_tenant_id 
@@ -270,13 +280,14 @@ FROM users u
 WHERE rt.user_id = u.id AND rt.tenant_id IS NULL;
 
 -- Add NOT NULL constraint
-ALTER TABLE refresh_tokens 
-ALTER COLUMN tenant_id SET NOT NULL;
+DO $$ BEGIN ALTER TABLE refresh_tokens ALTER COLUMN tenant_id SET NOT NULL; EXCEPTION WHEN others THEN NULL; END $$;
 
--- Add foreign key
-ALTER TABLE refresh_tokens 
-ADD CONSTRAINT fk_refresh_tokens_tenant 
-FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE;
+-- Add foreign key - idempotent
+DO $$ BEGIN
+  ALTER TABLE refresh_tokens ADD CONSTRAINT fk_refresh_tokens_tenant
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Add index for tenant queries
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_tenant_id 
@@ -461,8 +472,6 @@ COMMENT ON VIEW user_active_permissions IS 'Tenant-aware view with system role i
 -- ============================================
 -- MIGRATION COMPLETE
 -- ============================================
-
-COMMIT;
 
 -- ============================================
 -- ROLLBACK SCRIPT (run separately if needed)

@@ -14,6 +14,7 @@
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- SELECT: only rows for the current tenant (when app.current_tenant_id is set)
+DROP POLICY IF EXISTS audit_logs_tenant_select ON audit_logs;
 CREATE POLICY audit_logs_tenant_select
   ON audit_logs
   FOR SELECT
@@ -24,6 +25,7 @@ CREATE POLICY audit_logs_tenant_select
   );
 
 -- INSERT: allow (application supplies tenant_id from validated context)
+DROP POLICY IF EXISTS audit_logs_tenant_insert ON audit_logs;
 CREATE POLICY audit_logs_tenant_insert
   ON audit_logs
   FOR INSERT

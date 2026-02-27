@@ -151,8 +151,9 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_refresh_tokens_token_unique ON refresh_tokens(token);
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);
+-- Partial index: only revoked_at IS NULL (CURRENT_TIMESTAMP in predicate is not immutable)
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_active ON refresh_tokens(token, expires_at)
-    WHERE revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP;
+    WHERE revoked_at IS NULL;
 
 -- ============================================
 -- AUDIT_LOG (018 adds event_type, event_category, etc. for API)

@@ -82,21 +82,21 @@ CREATE TABLE IF NOT EXISTS document_extractions (
 );
 
 -- Indexes for document_extractions
-CREATE INDEX idx_doc_extractions_tenant_id ON document_extractions(tenant_id);
-CREATE INDEX idx_doc_extractions_document_id ON document_extractions(document_id);
-CREATE INDEX idx_doc_extractions_process_number ON document_extractions(process_number) WHERE process_number IS NOT NULL;
-CREATE INDEX idx_doc_extractions_court ON document_extractions(court) WHERE court IS NOT NULL;
-CREATE INDEX idx_doc_extractions_validation_status ON document_extractions(validation_status);
-CREATE INDEX idx_doc_extractions_processed_at ON document_extractions(processed_at);
-CREATE INDEX idx_doc_extractions_overall_confidence ON document_extractions(overall_confidence);
+CREATE INDEX IF NOT EXISTS idx_doc_extractions_tenant_id ON document_extractions(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_doc_extractions_document_id ON document_extractions(document_id);
+CREATE INDEX IF NOT EXISTS idx_doc_extractions_process_number ON document_extractions(process_number) WHERE process_number IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_doc_extractions_court ON document_extractions(court) WHERE court IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_doc_extractions_validation_status ON document_extractions(validation_status);
+CREATE INDEX IF NOT EXISTS idx_doc_extractions_processed_at ON document_extractions(processed_at);
+CREATE INDEX IF NOT EXISTS idx_doc_extractions_overall_confidence ON document_extractions(overall_confidence);
 
 -- GIN indexes for JSONB fields
-CREATE INDEX idx_doc_extractions_parties ON document_extractions USING GIN(parties);
-CREATE INDEX idx_doc_extractions_monetary_values ON document_extractions USING GIN(monetary_values);
-CREATE INDEX idx_doc_extractions_field_confidences ON document_extractions USING GIN(field_confidences);
+CREATE INDEX IF NOT EXISTS idx_doc_extractions_parties ON document_extractions USING GIN(parties);
+CREATE INDEX IF NOT EXISTS idx_doc_extractions_monetary_values ON document_extractions USING GIN(monetary_values);
+CREATE INDEX IF NOT EXISTS idx_doc_extractions_field_confidences ON document_extractions USING GIN(field_confidences);
 
 -- Full text search on extracted text
-CREATE INDEX idx_doc_extractions_text_search ON document_extractions 
+CREATE INDEX IF NOT EXISTS idx_doc_extractions_text_search ON document_extractions 
     USING GIN(to_tsvector('portuguese', COALESCE(extracted_text, '')));
 
 -- ============================================
@@ -163,29 +163,30 @@ CREATE TABLE IF NOT EXISTS document_quality_flags (
 );
 
 -- Indexes for document_quality_flags
-CREATE INDEX idx_doc_quality_flags_tenant_id ON document_quality_flags(tenant_id);
-CREATE INDEX idx_doc_quality_flags_document_id ON document_quality_flags(document_id);
-CREATE INDEX idx_doc_quality_flags_flag_type ON document_quality_flags(flag_type);
-CREATE INDEX idx_doc_quality_flags_severity ON document_quality_flags(severity);
-CREATE INDEX idx_doc_quality_flags_queue_status ON document_quality_flags(queue_status);
-CREATE INDEX idx_doc_quality_flags_queued_at ON document_quality_flags(queued_at) WHERE queue_status = 'PENDING';
+CREATE INDEX IF NOT EXISTS idx_doc_quality_flags_tenant_id ON document_quality_flags(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_doc_quality_flags_document_id ON document_quality_flags(document_id);
+CREATE INDEX IF NOT EXISTS idx_doc_quality_flags_flag_type ON document_quality_flags(flag_type);
+CREATE INDEX IF NOT EXISTS idx_doc_quality_flags_severity ON document_quality_flags(severity);
+CREATE INDEX IF NOT EXISTS idx_doc_quality_flags_queue_status ON document_quality_flags(queue_status);
+CREATE INDEX IF NOT EXISTS idx_doc_quality_flags_queued_at ON document_quality_flags(queued_at) WHERE queue_status = 'PENDING';
 
 -- Composite indexes
-CREATE INDEX idx_doc_quality_flags_tenant_queue ON document_quality_flags(tenant_id, queue_status);
-CREATE INDEX idx_doc_quality_flags_tenant_severity ON document_quality_flags(tenant_id, severity);
+CREATE INDEX IF NOT EXISTS idx_doc_quality_flags_tenant_queue ON document_quality_flags(tenant_id, queue_status);
+CREATE INDEX IF NOT EXISTS idx_doc_quality_flags_tenant_severity ON document_quality_flags(tenant_id, severity);
 
 -- ============================================
 -- SANITATION_QUEUE VIEW
 -- Convenience view for documents needing review
 -- ============================================
+-- View: documents may not have created_by; use NULL if column missing
 CREATE OR REPLACE VIEW sanitation_queue AS
 SELECT 
     qf.id AS flag_id,
     qf.tenant_id,
     qf.document_id,
-    d.document_number,
-    d.title AS document_title,
-    d.file_name,
+    d.file_hash_sha256 AS document_number,
+    NULL::VARCHAR AS document_title,
+    d.storage_path AS file_name,
     d.status_cpo,
     qf.flag_type,
     qf.flag_code,
@@ -199,14 +200,12 @@ SELECT
     qf.resolution_action,
     qf.resolved_by,
     qf.resolved_at,
-    d.created_by AS uploaded_by,
-    u.email AS uploaded_by_email,
+    NULL::UUID AS uploaded_by,
+    NULL::VARCHAR AS uploaded_by_email,
     d.created_at AS document_created_at
 FROM document_quality_flags qf
 JOIN documents d ON qf.document_id = d.id AND qf.tenant_id = d.tenant_id
-LEFT JOIN users u ON d.created_by = u.id
 WHERE qf.queue_status IN ('PENDING', 'IN_REVIEW', 'ESCALATED')
-  AND d.deleted_at IS NULL
 ORDER BY 
     CASE qf.severity 
         WHEN 'ERROR' THEN 1 
@@ -320,16 +319,16 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ============================================
--- TRIGGERS
+-- TRIGGERS (idempotent)
 -- ============================================
 
--- Update updated_at on document_extractions
+DROP TRIGGER IF EXISTS update_document_extractions_updated_at ON document_extractions;
 CREATE TRIGGER update_document_extractions_updated_at
     BEFORE UPDATE ON document_extractions
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
--- Update updated_at on document_quality_flags
+DROP TRIGGER IF EXISTS update_document_quality_flags_updated_at ON document_quality_flags;
 CREATE TRIGGER update_document_quality_flags_updated_at
     BEFORE UPDATE ON document_quality_flags
     FOR EACH ROW
