@@ -15,17 +15,26 @@ const baseURL =
     ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '')
     : '';
 
+/** API base URL: from env or at runtime (browser) fallback to origin + /api/v1 so register/login work without env. */
+function getBaseURL(): string {
+  if (baseURL) return baseURL;
+  if (typeof window !== 'undefined') return `${window.location.origin}/api/v1`;
+  return '';
+}
+
 export function getApiBaseUrl(): string {
-  return baseURL;
+  return getBaseURL();
 }
 
 export const api: AxiosInstance = axios.create({
-  baseURL,
+  baseURL: '',
   timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
 });
 
 api.interceptors.request.use((config) => {
+  const base = getBaseURL();
+  if (base) config.baseURL = base;
   if (typeof window === 'undefined') return config;
   if (getCookieAuth()) {
     config.withCredentials = true;
@@ -69,7 +78,7 @@ api.interceptors.response.use(
       if (refreshToken) {
         try {
           const { data } = await axios.post<{ success: boolean; data?: { access_token: string } }>(
-            `${baseURL}/auth/refresh`,
+            `${getBaseURL()}/auth/refresh`,
             { refresh_token: refreshToken },
             { headers: { 'Content-Type': 'application/json' } }
           );
