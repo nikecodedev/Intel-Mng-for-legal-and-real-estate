@@ -20,35 +20,51 @@ export function getCookieAuth(): boolean {
 
 export function getStoredAccessToken(): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem(AUTH_ACCESS_KEY);
+  try {
+    return localStorage.getItem(AUTH_ACCESS_KEY);
+  } catch {
+    return null;
+  }
 }
 
 export function getStoredRefreshToken(): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem(AUTH_REFRESH_KEY);
+  try {
+    return localStorage.getItem(AUTH_REFRESH_KEY);
+  } catch {
+    return null;
+  }
 }
 
 export function setStoredAuth(accessToken: string, refreshToken: string | undefined, userJson: string): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(AUTH_ACCESS_KEY, accessToken);
-  if (refreshToken) localStorage.setItem(AUTH_REFRESH_KEY, refreshToken);
-  localStorage.setItem(AUTH_USER_KEY, userJson);
+  try {
+    localStorage.setItem(AUTH_ACCESS_KEY, accessToken);
+    if (refreshToken) localStorage.setItem(AUTH_REFRESH_KEY, refreshToken);
+    localStorage.setItem(AUTH_USER_KEY, userJson);
+  } catch {
+    // ignore (e.g. private browsing, quota)
+  }
 }
 
 export function clearStoredAuth(): void {
   if (typeof window === 'undefined') return;
-  localStorage.removeItem(AUTH_ACCESS_KEY);
-  localStorage.removeItem(AUTH_REFRESH_KEY);
-  localStorage.removeItem(AUTH_USER_KEY);
+  try {
+    localStorage.removeItem(AUTH_ACCESS_KEY);
+    localStorage.removeItem(AUTH_REFRESH_KEY);
+    localStorage.removeItem(AUTH_USER_KEY);
+  } catch {
+    // ignore
+  }
 }
 
 const ROLES: UserRole[] = ['OWNER', 'REVISOR', 'OPERATIONAL', 'INVESTOR'];
 
 export function getStoredUser(): User | null {
   if (typeof window === 'undefined') return null;
-  const raw = localStorage.getItem(AUTH_USER_KEY);
-  if (!raw) return null;
   try {
+    const raw = localStorage.getItem(AUTH_USER_KEY);
+    if (!raw) return null;
     const parsed = JSON.parse(raw) as unknown;
     if (parsed && typeof parsed === 'object' && 'id' in parsed && 'email' in parsed && 'tenant_id' in parsed) {
       const p = parsed as Record<string, unknown>;
@@ -64,7 +80,7 @@ export function getStoredUser(): User | null {
       };
     }
   } catch {
-    // ignore
+    // ignore (localStorage or JSON parse)
   }
   return null;
 }

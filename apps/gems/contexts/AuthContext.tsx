@@ -67,14 +67,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       fetchSession();
       return;
     }
-    const token = getStoredAccessToken();
-    const user = getStoredUser();
-    setState({
-      user,
-      accessToken: token,
-      isInitialized: true,
-      isAuthenticated: Boolean(token && user),
-    });
+    try {
+      const token = getStoredAccessToken();
+      const user = getStoredUser();
+      setState({
+        user,
+        accessToken: token,
+        isInitialized: true,
+        isAuthenticated: Boolean(token && user),
+      });
+    } catch {
+      setState((prev) => ({ ...prev, isInitialized: true, isAuthenticated: false }));
+    }
   }, [cookieAuth, fetchSession]);
 
   useEffect(() => {

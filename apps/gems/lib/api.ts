@@ -31,9 +31,11 @@ api.interceptors.request.use((config) => {
     config.withCredentials = true;
     return config;
   }
-  const token = localStorage.getItem('access_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  try {
+    const token = localStorage.getItem('access_token');
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+  } catch {
+    // ignore (e.g. private browsing)
   }
   return config;
 });
