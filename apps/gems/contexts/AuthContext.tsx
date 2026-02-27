@@ -20,6 +20,7 @@ interface AuthState {
 
 interface AuthContextValue extends AuthState {
   login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, firstName?: string, lastName?: string) => Promise<void>;
   logout: () => void;
   setUser: (user: User | null) => void;
   hasRole: (role: UserRole) => boolean;
@@ -95,13 +96,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('auth:logout', handleLogout);
   }, []);
 
-  const login = useCallback(
-    async (email: string, password: string) => {
-      const { data } = await api.post<LoginResponse>('/auth/login', { email, password });
-      if (!data?.success || !data.data?.user) {
-        throw new Error('Invalid login response');
-      }
-      const { user, tokens } = data.data;
+  const setAuthFromResponse = useCallback(
+    (data: LoginResponse['data']) => {
+      if (!data?.user) throw new Error('Invalid response');
+      const { user, tokens } = data;
       if (cookieAuth) {
         setState({
           user: user as User,
@@ -111,7 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
         return;
       }
-      if (!tokens?.access_token) throw new Error('Invalid login response');
+      if (!tokens?.access_token) throw new Error('Invalid response');
       setStoredAuth(tokens.access_token, tokens.refresh_token, JSON.stringify(user));
       setState({
         user: user as User,
@@ -121,6 +119,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
     },
     [cookieAuth]
+  );
+
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const { data } = await api.post<LoginResponse>('/auth/login', { email, password });
+      if (!data?.success || !data.data?.user) throw new Error('Invalid login response');
+      setAuthFromResponse(data.data);
+    },
+    [setAuthFromResponse]
+  );
+
+  const register = useCallback(
+    async (email: string, password: string, firstName?: string, lastName?: string) => {
+      const { data } = await api.post<LoginResponse>('/auth/register', {
+        email,
+        password,
+        first_name: firstName || undefined,
+        last_name: lastName || undefined,
+      });
+      if (!data?.success || !data.data?.user) throw new Error('Invalid sign-up response');
+      setAuthFromResponse(data.data);
+    },
+    [setAuthFromResponse]
   );
 
   const logout = useCallback(async () => {
@@ -167,12 +188,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       ...state,
       login,
+      register,
       logout,
       setUser,
       hasRole,
       hasAnyRole,
     }),
-    [state, login, logout, setUser, hasRole, hasAnyRole]
+    [state, login, register, logout, setUser, hasRole, hasAnyRole]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

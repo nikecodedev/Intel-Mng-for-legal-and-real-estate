@@ -2,6 +2,7 @@
 
 import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoginForm } from '@/components/forms/LoginForm';
@@ -35,6 +36,12 @@ function LoginContent() {
       <div className="w-full max-w-md">
         <h1 className="text-2xl font-bold text-center text-gray-900 mb-6">GEMS – Sign in</h1>
         <LoginForm onSuccess={handleSuccess} />
+        <p className="mt-4 text-center text-sm text-gray-600">
+          Don&apos;t have an account?{' '}
+          <Link href="/signup" className="font-medium text-blue-600 hover:underline">
+            Sign up
+          </Link>
+        </p>
       </div>
     </main>
   );

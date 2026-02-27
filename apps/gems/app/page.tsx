@@ -13,6 +13,12 @@ export default function HomePage() {
           Log in
         </Link>
         <Link
+          href="/signup"
+          className="px-4 py-2 border border-blue-600 text-blue-600 rounded-md hover:bg-blue-50"
+        >
+          Sign up
+        </Link>
+        <Link
           href="/dashboard"
           className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
         >
