@@ -182,6 +182,27 @@ curl -s http://localhost:3000/health
 curl -s http://164.92.71.218/api/v1/health
 ```
 
+**Verify database (login/register schema)** — from repo root:
+
+```bash
+cd /var/gems
+bash scripts/verify-database.sh
+```
+
+> If `scripts/verify-database.sh: No such file or directory`: run `git pull origin main` to fetch the latest code, then retry. Or use the manual DB check commands below.
+
+This checks: system tenant exists, `users.tenant_id`, `refresh_tokens.tenant_id`, `audit_logs.event_type`. If any check fails, run `bash scripts/run-migrations.sh` again.
+
+**Manual DB check (Docker Compose):**
+
+```bash
+cd /var/gems/infrastructure/docker
+docker compose exec postgres psql -U platform_user -d platform_db -c "SELECT id, name FROM tenants;"
+docker compose exec postgres psql -U platform_user -d platform_db -c "SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'tenant_id';"
+```
+
+**Manual DB check (local PostgreSQL):** use `psql` with the same user/db from `apps/api/.env` (e.g. `PGPASSWORD=yourpass psql -h localhost -U platform_user -d platform_db -c "SELECT 1 FROM tenants WHERE id = '00000000-0000-0000-0000-000000000001';"`).
+
 Then open **http://164.92.71.218** in a browser. You should see the GEMS app (not the Nginx default page); login will call the API at `http://164.92.71.218/api/v1`.
 
 **Later: update after a git pull**

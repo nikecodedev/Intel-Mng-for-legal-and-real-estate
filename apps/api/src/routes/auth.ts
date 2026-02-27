@@ -196,16 +196,45 @@ router.post(
         last_name
       );
     } catch (err) {
+      if (err instanceof AuthenticationError || err instanceof AppError) {
+        throw err;
+      }
       const pgCode = (err as { code?: string })?.code;
+      const pgMsg = (err as { message?: string })?.message ?? '';
       if (pgCode === '23503') {
         throw new AppError(
           400,
-          'Tenant not found. Run database migrations (scripts/run-migrations.sh).',
+          'Tenant not found. Run database migrations: bash scripts/run-migrations.sh',
           true,
           'TENANT_NOT_FOUND'
         );
       }
-      throw err;
+      if (pgCode === '23505') {
+        throw new AppError(409, 'User with this email already exists.', true, 'EMAIL_EXISTS');
+      }
+      if (pgCode === '23502') {
+        throw new AppError(
+          500,
+          'Database schema outdated. Run migrations: bash scripts/run-migrations.sh',
+          true,
+          'SCHEMA_ERROR'
+        );
+      }
+      if (pgCode === '42703') {
+        throw new AppError(
+          500,
+          'Database schema outdated. Run migrations: bash scripts/run-migrations.sh',
+          true,
+          'SCHEMA_ERROR'
+        );
+      }
+      logger.error('Register failed', { error: err, email, pgCode, pgMsg });
+      throw new AppError(
+        500,
+        'Registration failed. Run migrations and try again: bash scripts/run-migrations.sh',
+        true,
+        'REGISTER_FAILED'
+      );
     }
 
     // Generate tokens using user's tenant_id

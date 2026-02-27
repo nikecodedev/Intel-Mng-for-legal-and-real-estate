@@ -208,7 +208,15 @@ export class AuthService {
       throw new AuthenticationError('Invalid credentials');
     }
 
-    // Update last login (non-fatal: missing column or tenant_id still allows login)
+    // Require tenant_id so JWT and refresh token work correctly (DB must have migrations applied)
+    if (!user.tenant_id) {
+      logger.warn('User missing tenant_id (run migrations)', { email, userId: user.id });
+      throw new AuthenticationError(
+        'Account configuration error. Please sign up again or contact support.'
+      );
+    }
+
+    // Update last login (non-fatal: missing column still allows login)
     if (user.tenant_id) {
       try {
         await UserModel.updateLastLogin(user.id, user.tenant_id);

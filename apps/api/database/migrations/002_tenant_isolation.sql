@@ -85,7 +85,9 @@ DROP CONSTRAINT IF EXISTS users_email_key;
 -- Add composite unique constraint (tenant_id, email) - idempotent
 DO $$ BEGIN
   ALTER TABLE users ADD CONSTRAINT uq_users_tenant_email UNIQUE (tenant_id, email);
-EXCEPTION WHEN duplicate_object THEN NULL;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;        -- 42710: constraint already exists
+  WHEN SQLSTATE '42P07' THEN NULL;        -- duplicate_table: backing index already exists
 END $$;
 
 -- Add index for tenant queries
