@@ -208,8 +208,14 @@ export class AuthService {
       throw new AuthenticationError('Invalid credentials');
     }
 
-    // Update last login (use user's tenant_id from DB)
-    await UserModel.updateLastLogin(user.id, user.tenant_id);
+    // Update last login (non-fatal: missing column or tenant_id still allows login)
+    if (user.tenant_id) {
+      try {
+        await UserModel.updateLastLogin(user.id, user.tenant_id);
+      } catch (err) {
+        logger.warn('updateLastLogin failed (login continues)', { userId: user.id, error: err });
+      }
+    }
 
     logger.info('User authenticated successfully', { 
       userId: user.id, 

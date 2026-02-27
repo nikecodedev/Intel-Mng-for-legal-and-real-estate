@@ -81,12 +81,22 @@ router.post(
 
       // Generate tokens using user's tenant_id from DB (not from headers/request)
       const accessToken = AuthService.generateAccessToken(user, tenantOptsFromUser(user));
-      const refreshToken = await AuthService.generateRefreshToken(
-        user.id,
-        user.tenant_id,
-        req.get('user-agent'),
-        req.ip
-      );
+      let refreshToken: string | null = null;
+      if (user.tenant_id) {
+        try {
+          refreshToken = await AuthService.generateRefreshToken(
+            user.id,
+            user.tenant_id,
+            req.get('user-agent'),
+            req.ip
+          );
+        } catch (refreshErr) {
+          logger.warn('Refresh token creation failed (login continues with access token only)', {
+            userId: user.id,
+            error: refreshErr,
+          });
+        }
+      }
 
       // Audit: successful login (mandatory for compliance)
       await AuditService.logAuthEvent(
@@ -200,12 +210,22 @@ router.post(
 
     // Generate tokens using user's tenant_id
     const accessToken = AuthService.generateAccessToken(user, tenantOptsFromUser(user));
-    const refreshToken = await AuthService.generateRefreshToken(
-      user.id,
-      user.tenant_id,
-      req.get('user-agent'),
-      req.ip
-    );
+    let refreshToken: string | null = null;
+    if (user.tenant_id) {
+      try {
+        refreshToken = await AuthService.generateRefreshToken(
+          user.id,
+          user.tenant_id,
+          req.get('user-agent'),
+          req.ip
+        );
+      } catch (refreshErr) {
+        logger.warn('Refresh token creation failed (register continues with access token only)', {
+          userId: user.id,
+          error: refreshErr,
+        });
+      }
+    }
 
     // Audit: user registration (mandatory for compliance)
     await AuditService.logAuthEvent(

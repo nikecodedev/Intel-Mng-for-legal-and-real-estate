@@ -175,6 +175,8 @@ Then open **http://164.92.71.218** in a browser. You should see the GEMS app (no
 
 **Later: update after a git pull**
 
+After building, **restart both** API and GEMS so the new builds are served (if you only restart `api`, the frontend can show chunk 404s):
+
 ```bash
 cd /var/gems
 git pull origin main
@@ -394,6 +396,7 @@ If you use Nginx and no longer need direct access to 3000/3001 from the internet
 - **API won’t start:** Check `apps/api/.env`, DATABASE_URL and JWT_SECRET. In production, JWT_SECRET must be at least 64 characters and CORS_ORIGIN must not be `*`.
 - **Frontend can’t reach API:** Ensure NEXT_PUBLIC_API_URL matches the URL the browser uses (domain or IP + port). If using Nginx, use the same host and path (e.g. `/api/v1`).
 - **502 Bad Gateway:** Backend not running or wrong port. Check `pm2 status` and that API listens on 3000 and GEMS on 3001.
+- **"Application error" / ChunkLoadError / 404 on `_next/static/chunks/...`:** This happens after a new frontend build when the browser or server still uses old chunk filenames. **Fix:** (1) Restart the frontend so it serves the new build: `pm2 restart gems` (or `pm2 restart api gems` to restart both). (2) Hard-refresh the page (Ctrl+Shift+R or Cmd+Shift+R) or clear the site's cache so the browser loads the new HTML and chunk URLs.
 - **Logs:** `pm2 logs api` and `pm2 logs gems`.
 
 Never commit `.env` or `.env.local`; they contain secrets. Use a secrets manager or set env vars in PM2/Systemd if you prefer not to keep `.env` files on disk.
