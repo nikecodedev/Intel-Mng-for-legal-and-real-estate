@@ -83,6 +83,7 @@ router.post(
       const accessToken = AuthService.generateAccessToken(user, tenantOptsFromUser(user));
       const refreshToken = await AuthService.generateRefreshToken(
         user.id,
+        user.tenant_id,
         req.get('user-agent'),
         req.ip
       );
@@ -201,6 +202,7 @@ router.post(
     const accessToken = AuthService.generateAccessToken(user, tenantOptsFromUser(user));
     const refreshToken = await AuthService.generateRefreshToken(
       user.id,
+      user.tenant_id,
       req.get('user-agent'),
       req.ip
     );

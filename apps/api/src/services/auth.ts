@@ -67,9 +67,14 @@ export class AuthService {
   }
 
   /**
-   * Generate refresh token
+   * Generate refresh token (tenant_id required when migration 002 is applied)
    */
-  static async generateRefreshToken(userId: string, userAgent?: string, ipAddress?: string): Promise<string> {
+  static async generateRefreshToken(
+    userId: string,
+    tenantId: string,
+    userAgent?: string,
+    ipAddress?: string
+  ): Promise<string> {
     const token = jwt.sign(
       { userId, type: 'refresh' },
       config.jwt.secret,
@@ -80,15 +85,29 @@ export class AuthService {
       } as jwt.SignOptions
     );
 
-    // Store refresh token in database
+    // Store refresh token in database (tenant_id for tenant isolation - migration 002)
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
 
-    await db.query(
-      `INSERT INTO refresh_tokens (user_id, token, expires_at, user_agent, ip_address)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [userId, token, expiresAt, userAgent || null, ipAddress || null]
-    );
+    try {
+      await db.query(
+        `INSERT INTO refresh_tokens (user_id, tenant_id, token, expires_at, user_agent, ip_address)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [userId, tenantId, token, expiresAt, userAgent || null, ipAddress || null]
+      );
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code;
+      // 42703 = undefined_column (tenant_id missing, e.g. migration 002 not applied)
+      if (code === '42703') {
+        await db.query(
+          `INSERT INTO refresh_tokens (user_id, token, expires_at, user_agent, ip_address)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [userId, token, expiresAt, userAgent || null, ipAddress || null]
+        );
+      } else {
+        throw err;
+      }
+    }
 
     return token;
   }
