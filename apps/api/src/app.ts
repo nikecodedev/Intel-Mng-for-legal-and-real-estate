@@ -65,8 +65,8 @@ export function createApp(): Express {
 
   // Health check routes (before API routes, no rate limiting)
   app.use('/health', healthRouter);
-  // When Nginx proxy_pass has trailing slash, backend receives /v1/health
   app.use('/v1/health', healthRouter);
+  app.use(`/api/${config.app.apiVersion}/health`, healthRouter);
 
   // API routes
   app.use(`/api/${config.app.apiVersion}`, apiRouter);
