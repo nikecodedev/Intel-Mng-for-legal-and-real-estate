@@ -34,8 +34,9 @@ export function rateLimitRedis(config: RateLimitConfig) {
     windowMs,
     maxRequests,
     keyGenerator = (req: Request) => {
-      // Default: use IP address or user ID
-      return req.user?.id || req.ip || 'unknown';
+      // Default: use user ID (from auth or tenant context), then IP
+      const r = req as Request & { user?: { id: string }; context?: { user_id: string } };
+      return r.user?.id || r.context?.user_id || req.ip || 'unknown';
     },
     skipSuccessfulRequests = false,
     skipFailedRequests = false,

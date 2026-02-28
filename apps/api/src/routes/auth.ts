@@ -6,7 +6,7 @@ import { config } from '../config/index.js';
 import { db } from '../models/database.js';
 import { z } from 'zod';
 import { logger } from '../utils/logger.js';
-import { AppError, AuthenticationError } from '../utils/errors.js';
+import { AppError, AuthenticationError, NotFoundError } from '../utils/errors.js';
 
 const router = Router();
 
@@ -315,7 +315,7 @@ router.post(
     const user = await UserModel.findByIdForAuth(userId);
 
     if (!user || !user.is_active) {
-      throw new Error('User not found or inactive');
+      throw new AuthenticationError('Invalid or expired refresh token');
     }
 
     // Generate new access token using user's tenant_id from DB
@@ -384,7 +384,7 @@ router.get(
     const user = req.user?.user;
 
     if (!user) {
-      throw new Error('User not found');
+      throw new NotFoundError('User');
     }
 
     res.json({

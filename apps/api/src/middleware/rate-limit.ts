@@ -110,7 +110,7 @@ export function rateLimit(config: Partial<RateLimitConfig> = {}) {
  * Default key generator: IP + tenant + path
  */
 function defaultKeyGenerator(req: Request): string {
-  const tenantId = (req as any).tenant?.id || 'no-tenant';
+  const tenantId = (req as any).context?.tenant_id || 'no-tenant';
   const ip = req.ip || req.socket.remoteAddress || 'unknown';
   const path = req.path || '/';
   return `${ip}:${tenantId}:${path}`;
@@ -124,8 +124,8 @@ export function userRateLimit(maxRequests: number = 60, windowMs: number = 60 * 
     windowMs,
     maxRequests,
     keyGenerator: (req: Request) => {
-      const userId = (req as any).user?.id || 'anonymous';
-      const tenantId = (req as any).tenant?.id || 'no-tenant';
+      const userId = (req as any).user?.id || (req as any).context?.user_id || 'anonymous';
+      const tenantId = (req as any).context?.tenant_id || 'no-tenant';
       return `user:${tenantId}:${userId}`;
     },
   });
@@ -139,7 +139,7 @@ export function tenantRateLimit(maxRequests: number = 1000, windowMs: number = 6
     windowMs,
     maxRequests,
     keyGenerator: (req: Request) => {
-      const tenantId = (req as any).tenant?.id || 'no-tenant';
+      const tenantId = (req as any).context?.tenant_id || 'no-tenant';
       return `tenant:${tenantId}`;
     },
   });

@@ -425,6 +425,10 @@ If you use Nginx and no longer need direct access to 3000/3001 from the internet
 
 ## 10. Troubleshooting
 
+- **Redis NOAUTH / "NOAUTH Authentication required":** Redis is password-protected (`requirepass` in `/etc/redis/redis.conf`) but the API connects without a password. **Fix:** Add `REDIS_PASSWORD=your_redis_password` to `apps/api/.env` (same password as in redis.conf). If you don't need Redis (queues/cache), set `REDIS_ENABLED=false` in `.env` and restart the API.
+
+- **Port 3000 in use / "EADDRINUSE null:3000":** Another process is already bound to port 3000. **Fix:** (1) Find what's using it: `sudo lsof -i :3000` or `sudo ss -tlnp | grep 3000`. (2) Stop duplicates: `pm2 delete api` then `pm2 start apps/api/dist/index.js --name api -i 1` (only one instance). (3) Kill stray processes: `kill -9 <PID>` for any old Node process holding the port. (4) Ensure only the API uses 3000; GEMS should use 3001 (`next start --port 3001`).
+
 - **API won’t start:** Check `apps/api/.env`, DATABASE_URL and JWT_SECRET. In production, JWT_SECRET must be at least 64 characters and CORS_ORIGIN must not be `*`.
 - **Frontend can’t reach API:** Ensure NEXT_PUBLIC_API_URL matches the URL the browser uses (domain or IP + port). If using Nginx, use the same host and path (e.g. `/api/v1`).
 - **502 Bad Gateway:** Backend not running or wrong port. Check `pm2 status` and that API listens on 3000 and GEMS on 3001.

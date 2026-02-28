@@ -85,6 +85,21 @@ const createExpenseSchema = z.object({
   ),
 });
 
+const BANK_IMPORT_MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const bankImportSchema = z.object({
+  body: z.object({
+    file_content: z
+      .string()
+      .min(1, 'file_content is required')
+      .max(BANK_IMPORT_MAX_FILE_SIZE, `file_content exceeds maximum size of ${BANK_IMPORT_MAX_FILE_SIZE / (1024 * 1024)}MB`),
+    file_name: z.string().min(1).max(255),
+    file_type: z.enum(['OFX', 'CSV']),
+    bank_account_id: z.string().uuid(),
+    bank_name: z.string().optional(),
+    account_number: z.string().optional(),
+  }),
+});
+
 // ============================================
 // Financial Transactions Routes
 // ============================================
@@ -478,21 +493,11 @@ router.post(
   '/bank-reconciliation/import',
   authenticate,
   requirePermission('finance:import'),
+  validateRequest(bankImportSchema),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const tenantContext = getTenantContext(req);
     const userId = req.user!.id;
-
-    // In production, this would handle file upload via multer or similar
-    // For now, expecting file content in request body
     const { file_content, file_name, file_type, bank_account_id, bank_name, account_number } = req.body;
-
-    if (!file_content || !file_name || !file_type || !bank_account_id) {
-      throw new ValidationError('Missing required fields: file_content, file_name, file_type, bank_account_id');
-    }
-
-    if (file_type !== 'OFX' && file_type !== 'CSV') {
-      throw new ValidationError('file_type must be OFX or CSV');
-    }
 
     const result = await BankReconciliationService.importBankTransactions(
       tenantContext.tenantId,

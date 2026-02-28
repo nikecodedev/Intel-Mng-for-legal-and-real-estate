@@ -2,11 +2,12 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
 import * as path from 'path';
+import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware/index.js';
 import { getTenantContext } from '../utils/tenant-context.js';
 import { parsePagination } from '../utils/pagination.js';
-import { NotFoundError, ValidationError, ConflictError } from '../utils/errors.js';
+import { NotFoundError, ValidationError, ConflictError, InternalServerError } from '../utils/errors.js';
 import { DocumentModel } from '../models/document.js';
 import { DocumentExtractionModel } from '../models/document-extraction.js';
 import { DocumentQualityFlagModel } from '../models/document-quality-flag.js';
@@ -22,10 +23,18 @@ const uploadDir = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
+const ALLOWED_EXTENSIONS = new Set(['.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.tif']);
+function getSafeExtension(name: string): string {
+  const ext = path.extname(name || '').toLowerCase();
+  return ALLOWED_EXTENSIONS.has(ext) ? ext : '.bin';
+}
 const upload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, uploadDir),
-    filename: (_req, file, cb) => cb(null, `${Date.now()}-${path.basename(file.originalname || 'document')}`),
+    filename: (_req, file, cb) => {
+      const ext = getSafeExtension(file.originalname || '');
+      cb(null, `${Date.now()}-${randomUUID()}${ext}`);
+    },
   }),
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
 });
@@ -69,7 +78,13 @@ const listDocumentsSchema = z.object({
     status: z.enum(['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'ARCHIVED']).optional(),
     status_cpo: z.enum(['VERDE', 'AMARELO', 'VERMELHO']).optional(),
     document_type: z.string().optional(),
-    limit: z.string().transform(Number).optional(),
+    limit: z
+      .string()
+      .transform(Number)
+      .optional()
+      .refine((n) => n === undefined || (!Number.isNaN(n) && n >= 1 && n <= 100), {
+        message: 'limit must be between 1 and 100',
+      }),
     offset: z.string().transform(Number).optional(),
   }),
 });
@@ -88,9 +103,29 @@ const sanitationQueueSchema = z.object({
   query: z.object({
     severity: z.enum(['ERROR', 'WARNING', 'INFO']).optional(),
     flag_type: z.string().optional(),
-    limit: z.string().transform(Number).optional(),
+    limit: z
+      .string()
+      .transform(Number)
+      .optional()
+      .refine((n) => n === undefined || !Number.isNaN(n) && n >= 1 && n <= 100, {
+        message: 'limit must be between 1 and 100',
+      }),
     offset: z.string().transform(Number).optional(),
   }),
+});
+
+const extractionCorrectionsSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z
+    .record(z.string(), z.unknown())
+    .refine(
+      (obj) => Object.keys(obj).length <= 25 && JSON.stringify(obj).length <= 100000,
+      { message: 'Corrections payload too large (max 25 keys, 100KB)' }
+    ),
+});
+
+const documentIdParamSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
 });
 
 // ============================================
@@ -343,6 +378,7 @@ router.get(
   '/:id/viewer-asset',
   authenticate,
   requirePermission('documents:read'),
+  validateRequest(documentIdParamSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId, userId } = getTenantContext(req);
     const { id } = req.params;
@@ -419,6 +455,7 @@ router.get(
   '/:id/secure-view',
   authenticate,
   requirePermission('documents:read'),
+  validateRequest(documentIdParamSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId, userId } = getTenantContext(req);
     const { id } = req.params;
@@ -490,6 +527,7 @@ router.get(
   '/:id/facts',
   authenticate,
   requirePermission('documents:read'),
+  validateRequest(documentIdParamSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId } = getTenantContext(req);
     const { id } = req.params;
@@ -524,6 +562,7 @@ router.get(
   '/:id',
   authenticate,
   requirePermission('documents:read'),
+  validateRequest(documentIdParamSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId, userId } = getTenantContext(req);
     const { id } = req.params;
@@ -618,6 +657,7 @@ router.delete(
   '/:id',
   authenticate,
   requirePermission('documents:delete'),
+  validateRequest(documentIdParamSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId, userId } = getTenantContext(req);
     const { id } = req.params;
@@ -658,6 +698,7 @@ router.post(
   '/:id/reprocess',
   authenticate,
   requirePermission('documents:update'),
+  validateRequest(documentIdParamSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId, userId } = getTenantContext(req);
     const { id } = req.params;
@@ -715,6 +756,7 @@ router.post(
   '/:id/approve',
   authenticate,
   requirePermission('documents:update'),
+  validateRequest(documentIdParamSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId, userId } = getTenantContext(req);
     const { id } = req.params;
@@ -759,6 +801,7 @@ router.get(
   '/:id/extraction',
   authenticate,
   requirePermission('documents:read'),
+  validateRequest(documentIdParamSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId, userId } = getTenantContext(req);
     const { id } = req.params;
@@ -800,6 +843,7 @@ router.put(
   '/:id/extraction',
   authenticate,
   requirePermission('documents:update'),
+  validateRequest(extractionCorrectionsSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId, userId } = getTenantContext(req);
     const { id } = req.params;
@@ -930,7 +974,7 @@ router.post(
     );
 
     if (!resolved) {
-      throw new Error('Failed to resolve flag');
+      throw new InternalServerError('Failed to resolve flag');
     }
 
     // Audit log
