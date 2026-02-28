@@ -66,15 +66,24 @@ export function createApp(): Express {
   // Health check routes (before API routes, no rate limiting)
   app.use('/health', healthRouter);
   app.use('/v1/health', healthRouter);
-  // Explicit GET so /api/v1/health always works (no reliance on router path stripping)
-  app.get(`/api/${config.app.apiVersion}/health`, (_req, res) => {
+  const apiBase = `/api/${config.app.apiVersion || 'v1'}`;
+  app.get(`${apiBase}/health`, (_req, res) => {
     res.json({
+      success: true,
       status: 'healthy',
       timestamp: new Date().toISOString(),
       uptime_seconds: Math.floor(process.uptime()),
     });
   });
-  app.use(`/api/${config.app.apiVersion}/health`, healthRouter);
+  app.get('/api/v1/health', (_req, res) => {
+    res.json({
+      success: true,
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptime_seconds: Math.floor(process.uptime()),
+    });
+  });
+  app.use(`${apiBase}/health`, healthRouter);
 
   // API routes
   app.use(`/api/${config.app.apiVersion}`, apiRouter);
