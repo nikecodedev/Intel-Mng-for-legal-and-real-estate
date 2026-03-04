@@ -117,8 +117,11 @@ export function getApiErrorMessage(error: unknown): string {
   if (!isApiError(error)) return 'An error occurred';
   const data = error.response?.data;
   if (data && typeof data === 'object') {
-    const msg = (data as { error?: { message?: string }; message?: string }).error?.message
-      ?? (data as { message?: string }).message;
+    const errObj = (data as { error?: { message?: string; details?: { errors?: Array<{ path: string; message: string }> } }; message?: string }).error;
+    if (errObj?.details?.errors?.length) {
+      return errObj.details.errors.map((e) => e.message).join('. ');
+    }
+    const msg = errObj?.message ?? (data as { message?: string }).message;
     if (typeof msg === 'string') return msg;
   }
   return error.message || 'Request failed';

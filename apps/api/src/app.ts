@@ -63,27 +63,14 @@ export function createApp(): Express {
   // Global timeout middleware (prevent hanging requests)
   app.use(globalTimeout());
 
-  // Health check routes (before API routes, no rate limiting)
+  // Health check routes - MUST be registered BEFORE apiRouter so /api/v1/health is matched
   app.use('/health', healthRouter);
+  app.use('/api/v1/health', healthRouter); // explicit path so it always works
   app.use('/v1/health', healthRouter);
   const apiBase = `/api/${config.app.apiVersion || 'v1'}`;
-  app.get(`${apiBase}/health`, (_req, res) => {
-    res.json({
-      success: true,
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      uptime_seconds: Math.floor(process.uptime()),
-    });
-  });
-  app.get('/api/v1/health', (_req, res) => {
-    res.json({
-      success: true,
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      uptime_seconds: Math.floor(process.uptime()),
-    });
-  });
-  app.use(`${apiBase}/health`, healthRouter);
+  if (apiBase !== '/api/v1') {
+    app.use(`${apiBase}/health`, healthRouter);
+  }
 
   // API routes
   app.use(`/api/${config.app.apiVersion}`, apiRouter);
