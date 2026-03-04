@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { config } from '../config/index.js';
 import { UserModel, User } from '../models/user.js';
 export type { User };
-import { AuthenticationError, InternalServerError } from '../utils/errors.js';
+import { AuthenticationError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import { db } from '../models/database.js';
 
@@ -267,10 +267,22 @@ export class AuthService {
       last_name: lastName,
     });
 
-    logger.info('User registered successfully', { 
-      userId: user.id, 
+    // Auto-assign OWNER role (non-fatal: if role not seeded yet, skip)
+    try {
+      await db.query(
+        `INSERT INTO user_roles (user_id, role_id, tenant_id)
+         SELECT $1, r.id, $2 FROM roles r WHERE r.name = 'OWNER'
+         ON CONFLICT (user_id, role_id) DO NOTHING`,
+        [user.id, tenantId]
+      );
+    } catch (err) {
+      logger.warn('Auto-assign OWNER role failed (non-fatal)', { userId: user.id, error: err });
+    }
+
+    logger.info('User registered successfully', {
+      userId: user.id,
       email: user.email,
-      tenantId: user.tenant_id 
+      tenantId: user.tenant_id
     });
 
     return user;
