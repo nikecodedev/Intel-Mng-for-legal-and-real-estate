@@ -189,20 +189,25 @@ export class DashboardKPIService {
     const monthEnd = new Date(today);
     monthEnd.setMonth(monthEnd.getMonth() + 1);
 
-    // Get processes with due dates using model (no raw SQL)
-    const processesResult = await db.query<{
-      id: string;
-      title: string | null;
-      process_number: string | null;
-      due_date: Date | null;
-    }>(
-      `SELECT id, title, process_number, due_date 
-       FROM processes 
-       WHERE tenant_id = $1 AND deleted_at IS NULL AND due_date IS NOT NULL
-       LIMIT 10000`,
-      [tenantId]
-    );
-    const processes = processesResult.rows;
+    // Get processes with due dates (table may not exist in all deployments)
+    let processes: Array<{ id: string; title: string | null; process_number: string | null; due_date: Date | null }> = [];
+    try {
+      const processesResult = await db.query<{
+        id: string;
+        title: string | null;
+        process_number: string | null;
+        due_date: Date | null;
+      }>(
+        `SELECT id, title, process_number, due_date
+         FROM processes
+         WHERE tenant_id = $1 AND deleted_at IS NULL AND due_date IS NOT NULL
+         LIMIT 10000`,
+        [tenantId]
+      );
+      processes = processesResult.rows;
+    } catch {
+      // processes table may not exist yet — return zero deadlines
+    }
 
     let overdueCount = 0;
     let dueTodayCount = 0;
