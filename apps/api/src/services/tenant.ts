@@ -44,9 +44,9 @@ export async function getTenantById(tenantId: string): Promise<Tenant | null> {
     status: string;
     config_hard_gates: Record<string, unknown>;
   }>(
-    `SELECT tenant_id, name, status, config_hard_gates
+    `SELECT id AS tenant_id, name, status, config_hard_gates
      FROM tenants
-     WHERE tenant_id = $1 AND deleted_at IS NULL`,
+     WHERE id = $1`,
     [tenantId]
   );
 

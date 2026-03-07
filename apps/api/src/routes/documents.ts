@@ -36,7 +36,7 @@ const upload = multer({
       cb(null, `${Date.now()}-${randomUUID()}${ext}`);
     },
   }),
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+  limits: { fileSize: 600 * 1024 * 1024 }, // 600MB
 });
 
 // ============================================
