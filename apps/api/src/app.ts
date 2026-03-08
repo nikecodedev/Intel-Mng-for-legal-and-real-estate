@@ -61,7 +61,11 @@ export function createApp(): Express {
   app.use(globalRequestValidation());
 
   // Global timeout middleware (prevent hanging requests)
-  app.use(globalTimeout());
+  // Skip for upload routes — they use extendedTimeout at route level
+  app.use((req, res, next) => {
+    if (req.path.includes('/upload')) return next();
+    return globalTimeout()(req, res, next);
+  });
 
   // Health check routes - MUST be registered BEFORE apiRouter so /api/v1/health is matched
   app.use('/health', healthRouter);
