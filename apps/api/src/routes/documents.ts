@@ -5,6 +5,7 @@ import * as path from 'path';
 import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware/index.js';
+import { extendedTimeout } from '../middleware/timeout.js';
 import { getTenantContext } from '../utils/tenant-context.js';
 import { parsePagination } from '../utils/pagination.js';
 import { NotFoundError, ValidationError, ConflictError, InternalServerError } from '../utils/errors.js';
@@ -138,6 +139,7 @@ const documentIdParamSchema = z.object({
  */
 router.post(
   '/upload',
+  extendedTimeout(600000), // 10 minutes for large file uploads
   authenticate,
   requirePermission('documents:create'),
   upload.single('file'),

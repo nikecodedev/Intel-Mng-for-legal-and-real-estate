@@ -6,7 +6,7 @@ import { InternalServerError } from '../utils/errors.js';
  * Request timeout configuration
  */
 const DEFAULT_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS || '30000', 10); // 30 seconds default
-const MAX_TIMEOUT_MS = 300000; // 5 minutes maximum
+const MAX_TIMEOUT_MS = 900000; // 15 minutes maximum (large file uploads)
 
 /**
  * Timeout middleware

@@ -109,6 +109,11 @@ export function startServer(): void {
     });
   });
 
+  // Allow large file uploads (500MB+) without connection reset
+  server.requestTimeout = 600000;  // 10 minutes
+  server.headersTimeout = 120000;  // 2 minutes for headers
+  server.keepAliveTimeout = 120000;
+
   // Graceful shutdown
   const gracefulShutdown = async (signal: string) => {
     logger.info(`${signal} received, shutting down gracefully`);
