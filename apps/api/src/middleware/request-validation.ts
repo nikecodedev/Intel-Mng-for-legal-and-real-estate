@@ -60,6 +60,12 @@ function sanitizeInput(input: unknown): unknown {
  * Validate request size
  */
 function validateRequestSize(req: Request): void {
+  // Skip size check for multipart/form-data (file uploads) — multer enforces its own limits
+  const contentType = req.headers['content-type'] || '';
+  if (contentType.includes('multipart/form-data')) {
+    return;
+  }
+
   const contentLength = req.headers['content-length'];
   if (contentLength) {
     const size = parseInt(contentLength, 10);
