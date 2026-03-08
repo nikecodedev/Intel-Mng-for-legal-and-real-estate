@@ -8,8 +8,6 @@ import { logger } from '../utils/logger.js';
  */
 class RedisClient {
   private client: Redis | null = null;
-  private subscriber: Redis | null = null;
-  private publisher: Redis | null = null;
 
   /**
    * Initialize Redis connection
@@ -59,10 +57,6 @@ class RedisClient {
       this.client = new Redis(options);
     }
 
-    // Create separate connections for pub/sub if needed
-    this.subscriber = this.client.duplicate();
-    this.publisher = this.client.duplicate();
-
     // Event handlers
     this.client.on('connect', () => {
       logger.info('Redis client connected');
@@ -107,26 +101,6 @@ class RedisClient {
   }
 
   /**
-   * Get Redis subscriber instance
-   */
-  getSubscriber(): Redis {
-    if (!this.subscriber) {
-      throw new Error('Redis subscriber not initialized. Call initialize() first.');
-    }
-    return this.subscriber;
-  }
-
-  /**
-   * Get Redis publisher instance
-   */
-  getPublisher(): Redis {
-    if (!this.publisher) {
-      throw new Error('Redis publisher not initialized. Call initialize() first.');
-    }
-    return this.publisher;
-  }
-
-  /**
    * Test Redis connection
    */
   async testConnection(): Promise<boolean> {
@@ -148,25 +122,11 @@ class RedisClient {
    * Close Redis connections
    */
   async close(): Promise<void> {
-    const promises: Promise<void>[] = [];
-
     if (this.client) {
-      promises.push(this.client.quit().then(() => { logger.info('Redis client closed'); }));
+      await this.client.quit();
+      logger.info('Redis client closed');
+      this.client = null;
     }
-
-    if (this.subscriber) {
-      promises.push(this.subscriber.quit().then(() => { logger.info('Redis subscriber closed'); }));
-    }
-
-    if (this.publisher) {
-      promises.push(this.publisher.quit().then(() => { logger.info('Redis publisher closed'); }));
-    }
-
-    await Promise.all(promises);
-
-    this.client = null;
-    this.subscriber = null;
-    this.publisher = null;
   }
 
   /**
@@ -179,5 +139,3 @@ class RedisClient {
 
 // Export singleton instance
 export const redisClient = new RedisClient();
-
-
