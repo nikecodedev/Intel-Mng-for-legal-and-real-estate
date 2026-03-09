@@ -153,7 +153,7 @@ export async function uploadDocument(
 ): Promise<UploadResponse['data']> {
   const { data } = await api.post<UploadResponse>('/documents/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 900000, // 15 minutes for large files (500MB+)
+    timeout: 0, // no timeout — large file uploads depend on connection speed
     onUploadProgress: (e) => {
       if (e.total && e.total > 0 && onProgress) {
         onProgress(Math.round((e.loaded / e.total) * 100));

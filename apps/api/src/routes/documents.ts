@@ -139,7 +139,7 @@ const documentIdParamSchema = z.object({
  */
 router.post(
   '/upload',
-  extendedTimeout(600000), // 10 minutes for large file uploads
+  extendedTimeout(1800000), // 30 minutes for large file uploads
   authenticate,
   requirePermission('documents:create'),
   upload.single('file'),
