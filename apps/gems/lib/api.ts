@@ -70,100 +70,66 @@ api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const status = error.response?.status;
+    const requestUrl = error.config?.url || '';
 
+    // === 401: Attempt silent token refresh, only logout if refresh fails ===
     if (status === 401 && typeof window !== 'undefined') {
-      // Skip auth redirect for viewer/blob requests to avoid logout during document viewing
-      const requestUrl = error.config?.url || '';
-      const isViewerRequest = requestUrl.includes('viewer-asset') || requestUrl.includes('viewer-context') || error.config?.responseType === 'blob';
-      const isOnViewerPage = typeof window !== 'undefined' && window.location.pathname.includes('/view');
-      if (isViewerRequest || isOnViewerPage) {
+      // Never logout on auth endpoints (login/register/refresh themselves)
+      if (requestUrl.includes('/auth/')) {
         return Promise.reject(error);
       }
 
       const useCookies = getCookieAuth();
       if (useCookies) {
-        toast('error', 'Session expired. Please sign in again.');
-        clearAuthAndRedirect();
+        // Cookie auth: can't refresh client-side, just reject (let the page handle it)
         return Promise.reject(error);
       }
+
       const refreshToken = localStorage.getItem('refresh_token');
-      if (refreshToken) {
-        try {
-          // Deduplicate concurrent refresh calls: only the first 401 triggers the refresh,
-          // subsequent 401s wait for the same promise.
-          if (!isRefreshing) {
-            isRefreshing = true;
-            refreshPromise = axios
-              .post<{ success: boolean; data?: { access_token: string } }>(
-                `${getBaseURL()}/auth/refresh`,
-                { refresh_token: refreshToken },
-                { headers: { 'Content-Type': 'application/json' } }
-              )
-              .then(({ data }) => {
-                if (data?.success && data.data?.access_token) {
-                  localStorage.setItem('access_token', data.data.access_token);
-                  return data.data.access_token;
-                }
-                return null;
-              })
-              .catch(() => null)
-              .finally(() => {
-                isRefreshing = false;
-                refreshPromise = null;
-              });
-          }
-
-          const newToken = await refreshPromise;
-          if (newToken) {
-            const original = error.config;
-            if (original) {
-              original.headers.Authorization = `Bearer ${newToken}`;
-              return api(original);
-            }
-          } else {
-            toast('error', 'Session expired. Please sign in again.');
-            clearAuthAndRedirect();
-            return Promise.reject(error);
-          }
-        } catch {
-          toast('error', 'Session expired. Please sign in again.');
-          clearAuthAndRedirect();
-          return Promise.reject(error);
-        }
-      } else {
-        toast('error', 'Please sign in to continue.');
-        clearAuthAndRedirect();
+      if (!refreshToken) {
+        // No refresh token — user was never logged in or it was cleared
+        return Promise.reject(error);
       }
-    }
 
-    if (status === 403 && typeof window !== 'undefined') {
-      // Try to refresh token on 403 (role may have changed since last login)
-      const useCookies = getCookieAuth();
-      if (!useCookies) {
-        const refreshToken = localStorage.getItem('refresh_token');
-        if (refreshToken) {
-          try {
-            const { data } = await axios.post<{ success: boolean; data?: { access_token: string } }>(
+      try {
+        // Deduplicate concurrent refresh calls
+        if (!isRefreshing) {
+          isRefreshing = true;
+          refreshPromise = axios
+            .post<{ success: boolean; data?: { access_token: string } }>(
               `${getBaseURL()}/auth/refresh`,
               { refresh_token: refreshToken },
               { headers: { 'Content-Type': 'application/json' } }
-            );
-            if (data?.success && data.data?.access_token) {
-              localStorage.setItem('access_token', data.data.access_token);
-              const original = error.config;
-              if (original) {
-                original.headers.Authorization = `Bearer ${data.data.access_token}`;
-                return api(original);
+            )
+            .then(({ data }) => {
+              if (data?.success && data.data?.access_token) {
+                localStorage.setItem('access_token', data.data.access_token);
+                return data.data.access_token;
               }
-            }
-          } catch {
-            // Refresh failed, force re-login
-            clearAuthAndRedirect();
-            return Promise.reject(error);
+              return null;
+            })
+            .catch(() => null)
+            .finally(() => {
+              isRefreshing = false;
+              refreshPromise = null;
+            });
+        }
+
+        const newToken = await refreshPromise;
+        if (newToken) {
+          const original = error.config;
+          if (original) {
+            original.headers.Authorization = `Bearer ${newToken}`;
+            return api(original);
           }
         }
+      } catch {
+        // Refresh failed — just reject, don't force logout
       }
     }
+
+    // === 403: NEVER logout. Just reject the error — let the page show "access denied" ===
+    // 403 means "you're authenticated but not authorized" — NOT "session expired"
 
     return Promise.reject(error);
   }
