@@ -1,10 +1,104 @@
 'use client';
 
+import { useState } from 'react';
 import { useQuery } from 'react-query';
 import Link from 'next/link';
 import { DateDisplay, StatusBadge, BlockLoader } from '@/components/ui';
 import { formatPercent } from '@/lib/utils';
 import { fetchDocumentById, fetchDocumentFacts, type DocumentFact, type QualityFlag } from '@/lib/legal-api';
+
+const PAGE_SIZE = 10;
+
+interface MonetaryValue {
+  type?: string;
+  value: number;
+  currency?: string;
+  description?: string;
+}
+
+function MonetaryValuesTable({ values }: { values: MonetaryValue[] }) {
+  const [page, setPage] = useState(0);
+  const totalPages = Math.ceil(values.length / PAGE_SIZE);
+  const pageValues = values.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  return (
+    <div>
+      <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">#</th>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">Value</th>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">Currency</th>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">Description</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {pageValues.map((m, i) => (
+              <tr key={page * PAGE_SIZE + i} className="hover:bg-gray-50">
+                <td className="px-4 py-2 text-gray-500">{page * PAGE_SIZE + i + 1}</td>
+                <td className="px-4 py-2 font-medium text-gray-900">
+                  {typeof m.value === 'number' ? m.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : String(m.value)}
+                </td>
+                <td className="px-4 py-2 text-gray-700">{m.currency || 'BRL'}</td>
+                <td className="px-4 py-2 text-gray-700">{m.description || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {totalPages > 1 ? (
+        <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+          <span>{values.length} value(s) — page {page + 1} of {totalPages}</span>
+          <div className="flex gap-1">
+            <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="px-2 py-1 rounded border border-gray-300 disabled:opacity-30 hover:bg-gray-100">Prev</button>
+            <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="px-2 py-1 rounded border border-gray-300 disabled:opacity-30 hover:bg-gray-100">Next</button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function PartiesTable({ parties }: { parties: Array<{ name?: string; role?: string; cpf_cnpj?: string }> }) {
+  const [page, setPage] = useState(0);
+  const totalPages = Math.ceil(parties.length / PAGE_SIZE);
+  const pageParties = parties.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  return (
+    <div>
+      <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">Name</th>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">Role</th>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">CPF/CNPJ</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {pageParties.map((p, i) => (
+              <tr key={page * PAGE_SIZE + i} className="hover:bg-gray-50">
+                <td className="px-4 py-2 font-medium text-gray-900">{p.name || '—'}</td>
+                <td className="px-4 py-2 text-gray-700">{p.role || '—'}</td>
+                <td className="px-4 py-2 text-gray-700">{p.cpf_cnpj || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {totalPages > 1 ? (
+        <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+          <span>{parties.length} partie(s) — page {page + 1} of {totalPages}</span>
+          <div className="flex gap-1">
+            <button onClick={() => setPage(pp => Math.max(0, pp - 1))} disabled={page === 0} className="px-2 py-1 rounded border border-gray-300 disabled:opacity-30 hover:bg-gray-100">Prev</button>
+            <button onClick={() => setPage(pp => Math.min(totalPages - 1, pp + 1))} disabled={page >= totalPages - 1} className="px-2 py-1 rounded border border-gray-300 disabled:opacity-30 hover:bg-gray-100">Next</button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export default function LegalDocumentDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
@@ -70,18 +164,18 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
             {ext.overall_confidence != null && <><dt className="text-gray-600">Confidence</dt><dd className="font-medium">{formatPercent(Number(ext.overall_confidence), false)}</dd></>}
             {ext.processed_at != null && <><dt className="text-gray-600">Processed at</dt><dd className="font-medium"><DateDisplay value={ext.processed_at} style="long" /></dd></>}
           </dl>
-          {(ext.parties != null && (Array.isArray(ext.parties) ? ext.parties.length > 0 : Object.keys(ext.parties as object).length > 0)) && (
-            <div className="mt-3">
-              <dt className="text-gray-600 text-sm">Parties</dt>
-              <dd className="mt-1 text-sm font-medium">{JSON.stringify(ext.parties)}</dd>
+          {Array.isArray(ext.parties) && ext.parties.length > 0 ? (
+            <div className="mt-4">
+              <h4 className="text-sm font-medium text-gray-600 mb-2">Parties</h4>
+              <PartiesTable parties={ext.parties as Array<{ name?: string; role?: string; cpf_cnpj?: string }>} />
             </div>
-          )}
-          {(ext.monetary_values != null && (Array.isArray(ext.monetary_values) ? (ext.monetary_values as unknown[]).length > 0 : Object.keys(ext.monetary_values as object).length > 0)) && (
-            <div className="mt-3">
-              <dt className="text-gray-600 text-sm">Monetary values</dt>
-              <dd className="mt-1 text-sm font-medium">{JSON.stringify(ext.monetary_values)}</dd>
+          ) : null}
+          {Array.isArray(ext.monetary_values) && (ext.monetary_values as unknown[]).length > 0 ? (
+            <div className="mt-4">
+              <h4 className="text-sm font-medium text-gray-600 mb-2">Monetary values</h4>
+              <MonetaryValuesTable values={ext.monetary_values as MonetaryValue[]} />
             </div>
-          )}
+          ) : null}
         </section>
       )}
 
