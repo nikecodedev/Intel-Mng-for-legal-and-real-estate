@@ -1,11 +1,11 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { fetchViewerContext, fetchViewerAssetBlob } from '@/lib/legal-api';
 
-export default function LegalDocumentViewPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function LegalDocumentViewPage({ params }: { params: { id: string } }) {
+  const { id } = params;
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [watermark, setWatermark] = useState<{ user_email: string; user_id: string; ip_address: string; timestamp: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -14,12 +14,21 @@ export default function LegalDocumentViewPage({ params }: { params: Promise<{ id
     let objectUrl: string | null = null;
     const load = async () => {
       try {
-        const [ctx, blob] = await Promise.all([
+        const [ctxResult, blobResult] = await Promise.allSettled([
           fetchViewerContext(id),
           fetchViewerAssetBlob(id),
         ]);
-        setWatermark(ctx.watermark);
-        objectUrl = URL.createObjectURL(blob);
+
+        // The blob is required; watermark is optional
+        if (blobResult.status === 'rejected') {
+          throw blobResult.reason instanceof Error ? blobResult.reason : new Error('Failed to load document');
+        }
+
+        if (ctxResult.status === 'fulfilled') {
+          setWatermark(ctxResult.value.watermark);
+        }
+
+        objectUrl = URL.createObjectURL(blobResult.value);
         setBlobUrl(objectUrl);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load document');

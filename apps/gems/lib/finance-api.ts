@@ -67,11 +67,32 @@ export interface CreateTransactionInput {
 export function getFinanceValidationError(error: unknown): { message: string; details?: Record<string, string> } {
   const msg = getApiErrorMessage(error);
   if (!isApiError(error)) return { message: msg };
-  const data = error.response?.data as { error?: { details?: unknown } } | undefined;
-  const details = data?.error?.details;
-  if (details && typeof details === 'object' && !Array.isArray(details)) {
-    return { message: msg, details: details as Record<string, string> };
+  const data = error.response?.data as { error?: { details?: unknown; message?: string } } | undefined;
+  const rawDetails = data?.error?.details;
+
+  // Handle Zod validation errors (array of {path, message, code})
+  if (Array.isArray(rawDetails)) {
+    const flat: Record<string, string> = {};
+    for (const item of rawDetails) {
+      if (item && typeof item === 'object') {
+        const key = Array.isArray(item.path) ? item.path.join('.') || 'validation' : 'validation';
+        flat[key] = typeof item.message === 'string' ? item.message : JSON.stringify(item);
+      }
+    }
+    if (Object.keys(flat).length > 0) return { message: msg, details: flat };
   }
+
+  // Handle flat object details
+  if (rawDetails && typeof rawDetails === 'object' && !Array.isArray(rawDetails)) {
+    const flat: Record<string, string> = {};
+    for (const [k, v] of Object.entries(rawDetails as Record<string, unknown>)) {
+      if (typeof v === 'string') flat[k] = v;
+      else if (v && typeof v === 'object' && 'message' in v) flat[k] = String((v as { message: string }).message);
+      else flat[k] = JSON.stringify(v);
+    }
+    return { message: msg, details: flat };
+  }
+
   return { message: msg };
 }
 

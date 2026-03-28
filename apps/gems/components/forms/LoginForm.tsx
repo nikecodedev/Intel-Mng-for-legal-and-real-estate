@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { getApiErrorMessage } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
@@ -15,6 +16,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -23,7 +25,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
     setError(null);
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email, password, rememberMe);
       onSuccess?.();
     } catch (err) {
       setError(getApiErrorMessage(err));
@@ -52,6 +54,20 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              Remember me
+            </label>
+            <Link href="/forgot-password" className="text-sm font-medium text-blue-600 hover:underline">
+              Forgot password?
+            </Link>
+          </div>
           {error && (
             <p className="text-sm text-red-600" role="alert">
               {error}

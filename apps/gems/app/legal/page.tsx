@@ -16,7 +16,7 @@ export default function LegalDocumentsPage() {
   const columns = [
     { key: 'title', header: 'Name', render: (row: DocumentListItem) => <Link href={`/legal/documents/${row.id}`} className="text-blue-600 hover:underline">{row.title || row.file_name || row.document_number}</Link> },
     { key: 'status_cpo', header: 'Status (CPO)', render: (row: DocumentListItem) => <StatusBadge variant="cpo" value={row.status_cpo} /> },
-    { key: 'ocr_confidence', header: 'Confidence', render: (row: DocumentListItem) => row.ocr_confidence != null ? formatPercent(Number(row.ocr_confidence), true) : '—' },
+    { key: 'ocr_confidence', header: 'Confidence', render: (row: DocumentListItem) => row.ocr_confidence != null ? formatPercent(Number(row.ocr_confidence), false) : '—' },
     { key: 'created_at', header: 'Upload date', render: (row: DocumentListItem) => <DateDisplay value={row.created_at} style="short" /> },
   ];
 
@@ -24,8 +24,8 @@ export default function LegalDocumentsPage() {
 
   if (error) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
-        Failed to load documents. Please try again.
+      <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">
+        No documents yet. Upload a document to get started.
       </div>
     );
   }

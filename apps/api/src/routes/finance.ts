@@ -273,6 +273,28 @@ router.post(
       requestId: req.headers['x-request-id'] as string | undefined,
     });
 
+    // Emit workflow event for downstream automation
+    try {
+      const { runWorkflow } = await import('../services/workflow-engine.js');
+      await runWorkflow({
+        tenantId: tenantContext.tenantId,
+        eventType: 'finance.transaction.paid',
+        payload: {
+          transaction_id: transaction.id,
+          transaction_type: transaction.transaction_type,
+          transaction_category: transaction.transaction_category,
+          amount_cents: transaction.amount_cents,
+          description: transaction.description,
+        },
+        userId,
+        userEmail: req.user!.email,
+        userRole: tenantContext.role,
+        request: req,
+      });
+    } catch (wfError) {
+      logger.warn('Workflow event emission failed', { error: wfError });
+    }
+
     res.json({
       success: true,
       transaction,

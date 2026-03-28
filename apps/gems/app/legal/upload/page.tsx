@@ -16,6 +16,8 @@ export default function LegalUploadPage() {
   const uploadMutation = useMutation({
     mutationFn: async () => {
       if (!file) throw new Error('Select a file');
+      // Set global upload flag to block logout
+      if (typeof window !== 'undefined') (window as unknown as Record<string, boolean>).__gemsUploading = true;
       const form = new FormData();
       form.append('file', file);
       form.append('title', title || file.name);
@@ -23,11 +25,15 @@ export default function LegalUploadPage() {
       return uploadDocument(form, setProgress);
     },
     onSuccess: () => {
+      if (typeof window !== 'undefined') (window as unknown as Record<string, boolean>).__gemsUploading = false;
       queryClient.invalidateQueries('legal-documents');
       setFile(null);
       setTitle('');
       setProgress(0);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    },
+    onError: () => {
+      if (typeof window !== 'undefined') (window as unknown as Record<string, boolean>).__gemsUploading = false;
     },
   });
 
@@ -104,6 +110,26 @@ export default function LegalUploadPage() {
       {result && (
         <div className="rounded-lg border border-green-200 bg-green-50 p-6">
           <h2 className="text-lg font-medium text-green-900 mb-2">Upload result (CPO)</h2>
+
+          {/* Status CPO badge */}
+          {result.status_cpo && (
+            <div className="mb-3">
+              <span
+                className={`inline-block rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${
+                  result.status_cpo === 'VERDE'
+                    ? 'bg-green-200 text-green-800'
+                    : result.status_cpo === 'AMARELO'
+                    ? 'bg-yellow-200 text-yellow-800'
+                    : result.status_cpo === 'VERMELHO'
+                    ? 'bg-red-200 text-red-800'
+                    : 'bg-gray-200 text-gray-800'
+                }`}
+              >
+                {result.status_cpo}
+              </span>
+            </div>
+          )}
+
           <dl className="grid grid-cols-1 gap-2 text-sm">
             <div><dt className="text-green-700">Document number</dt><dd className="font-medium">{result.document_number}</dd></div>
             <div><dt className="text-green-700">Title</dt><dd className="font-medium">{result.title}</dd></div>
@@ -111,6 +137,31 @@ export default function LegalUploadPage() {
             <div><dt className="text-green-700">Status</dt><dd className="font-medium">{result.status}</dd></div>
             <div><dt className="text-green-700">Processing</dt><dd className="font-medium">{result.processing}</dd></div>
           </dl>
+
+          {/* DPI feedback */}
+          {(() => {
+            const dpi = (result as Record<string, unknown>).dpi_result as { passed: boolean; detected: number | null; required: number; message?: string } | undefined;
+            if (!dpi) return null;
+            return (
+              <div className="mt-4 rounded-md border p-3 text-sm" style={{
+                borderColor: dpi.passed ? '#86efac' : '#fca5a5',
+                backgroundColor: dpi.passed ? '#f0fdf4' : '#fef2f2',
+              }}>
+                <p className={dpi.passed ? 'text-green-700 font-medium' : 'text-red-700 font-medium'}>
+                  DPI: {dpi.detected ?? '—'} (minimum: {dpi.required ?? 300})
+                </p>
+                {!dpi.passed ? (
+                  <p className="mt-1 text-red-600 text-xs">
+                    DPI below minimum (300). Document marked for review.
+                  </p>
+                ) : null}
+                {dpi.message ? (
+                  <p className="mt-1 text-xs text-gray-600">{dpi.message}</p>
+                ) : null}
+              </div>
+            );
+          })()}
+
           <Link href={`/legal/documents/${result.id}`} className="mt-4 inline-block text-sm font-medium text-blue-600 hover:underline">
             View document →
           </Link>

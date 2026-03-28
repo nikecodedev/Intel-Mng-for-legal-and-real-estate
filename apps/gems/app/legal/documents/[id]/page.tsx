@@ -1,14 +1,13 @@
 'use client';
 
-import { use } from 'react';
 import { useQuery } from 'react-query';
 import Link from 'next/link';
 import { DateDisplay, StatusBadge, BlockLoader } from '@/components/ui';
 import { formatPercent } from '@/lib/utils';
 import { fetchDocumentById, fetchDocumentFacts, type DocumentFact, type QualityFlag } from '@/lib/legal-api';
 
-export default function LegalDocumentDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function LegalDocumentDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params;
   const { data, isLoading, error } = useQuery(['legal-document', id], () => fetchDocumentById(id), {
     staleTime: 60 * 1000,
   });
@@ -49,7 +48,15 @@ export default function LegalDocumentDetailPage({ params }: { params: Promise<{ 
           <dt className="text-gray-600">Number</dt><dd className="font-medium">{document.document_number}</dd>
           <dt className="text-gray-600">Type</dt><dd className="font-medium">{document.document_type}</dd>
           <dt className="text-gray-600">Status (CPO)</dt><dd className="font-medium"><StatusBadge variant="cpo" value={document.status_cpo} /></dd>
-          <dt className="text-gray-600">OCR confidence</dt><dd className="font-medium">{document.ocr_confidence != null ? formatPercent(Number(document.ocr_confidence), true) : '—'}</dd>
+          <dt className="text-gray-600">OCR confidence</dt>
+          <dd className="font-medium flex items-center gap-2">
+            {document.ocr_confidence != null ? formatPercent(Number(document.ocr_confidence), false) : '—'}
+            {quality_flags && (quality_flags as QualityFlag[]).some((f) => f.flag_type === 'OCR_VISION_FALLBACK_USED') && (
+              <span className="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">
+                OCR Fallback used (Gemini Vision)
+              </span>
+            )}
+          </dd>
           <dt className="text-gray-600">Created</dt><dd className="font-medium"><DateDisplay value={document.created_at} style="long" /></dd>
         </dl>
       </section>
@@ -60,7 +67,7 @@ export default function LegalDocumentDetailPage({ params }: { params: Promise<{ 
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             {ext.process_number != null && <><dt className="text-gray-600">Process number</dt><dd className="font-medium">{String(ext.process_number)}</dd></>}
             {ext.court != null && <><dt className="text-gray-600">Court</dt><dd className="font-medium">{String(ext.court)}</dd></>}
-            {ext.overall_confidence != null && <><dt className="text-gray-600">Confidence</dt><dd className="font-medium">{formatPercent(Number(ext.overall_confidence), true)}</dd></>}
+            {ext.overall_confidence != null && <><dt className="text-gray-600">Confidence</dt><dd className="font-medium">{formatPercent(Number(ext.overall_confidence), false)}</dd></>}
             {ext.processed_at != null && <><dt className="text-gray-600">Processed at</dt><dd className="font-medium"><DateDisplay value={ext.processed_at} style="long" /></dd></>}
           </dl>
           {(ext.parties != null && (Array.isArray(ext.parties) ? ext.parties.length > 0 : Object.keys(ext.parties as object).length > 0)) && (
@@ -78,8 +85,68 @@ export default function LegalDocumentDetailPage({ params }: { params: Promise<{ 
         </section>
       )}
 
+      {/* FPDN Structured Analysis */}
+      {(() => {
+        const fpdnFatos = facts.filter((f: DocumentFact) => f.fact_type === 'fato_juridico');
+        const fpdnProvas = facts.filter((f: DocumentFact) => f.fact_type === 'prova');
+        const fpdnDireito = facts.filter((f: DocumentFact) => f.fact_type === 'direito');
+        const fpdnNexo = facts.filter((f: DocumentFact) => f.fact_type === 'nexo_causal');
+        const hasFPDN = fpdnFatos.length > 0 || fpdnProvas.length > 0 || fpdnDireito.length > 0 || fpdnNexo.length > 0;
+
+        if (!hasFPDN) return null;
+
+        return (
+          <section className="rounded-lg border border-indigo-200 bg-indigo-50 p-6">
+            <h3 className="text-sm font-semibold text-indigo-800 mb-4">FPDN — Análise Jurídica Estruturada</h3>
+
+            {fpdnFatos.length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-xs font-bold text-indigo-700 uppercase tracking-wide mb-1">Fatos</h4>
+                <ul className="space-y-1">
+                  {fpdnFatos.map((f: DocumentFact) => (
+                    <li key={f.id} className="text-sm text-gray-900 pl-3 border-l-2 border-indigo-300">{String(f.fact_value)}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {fpdnProvas.length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-xs font-bold text-indigo-700 uppercase tracking-wide mb-1">Provas</h4>
+                <ul className="space-y-1">
+                  {fpdnProvas.map((f: DocumentFact) => (
+                    <li key={f.id} className="text-sm text-gray-900 pl-3 border-l-2 border-green-300">
+                      {String(f.fact_value)}
+                      {f.page_number != null && <span className="ml-2 text-xs text-green-700 font-medium">(página {f.page_number})</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {fpdnDireito.length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-xs font-bold text-indigo-700 uppercase tracking-wide mb-1">Direito</h4>
+                {fpdnDireito.map((f: DocumentFact) => (
+                  <p key={f.id} className="text-sm text-gray-900 pl-3 border-l-2 border-blue-300">{String(f.fact_value)}</p>
+                ))}
+              </div>
+            )}
+
+            {fpdnNexo.length > 0 && (
+              <div>
+                <h4 className="text-xs font-bold text-indigo-700 uppercase tracking-wide mb-1">Nexo Causal</h4>
+                {fpdnNexo.map((f: DocumentFact) => (
+                  <p key={f.id} className="text-sm text-gray-900 pl-3 border-l-2 border-amber-300">{String(f.fact_value)}</p>
+                ))}
+              </div>
+            )}
+          </section>
+        );
+      })()}
+
       <section className="rounded-lg border border-gray-200 bg-white p-6">
-        <h3 className="text-sm font-medium text-gray-500 mb-3">Facts</h3>
+        <h3 className="text-sm font-medium text-gray-500 mb-3">All extracted facts</h3>
         {factsLoading ? (
           <p className="text-sm text-gray-500">Loading facts…</p>
         ) : facts.length === 0 ? (

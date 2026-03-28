@@ -7,15 +7,45 @@ import { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoginForm } from '@/components/forms/LoginForm';
 
+/**
+ * Sanitize redirect URL to prevent open redirect attacks.
+ * Only allow relative paths starting with a single slash.
+ * Rejects absolute URLs, protocol-relative URLs (//), and data/javascript URIs.
+ */
+function sanitizeRedirect(url: string): string {
+  const fallback = '/dashboard';
+  if (!url || typeof url !== 'string') return fallback;
+
+  // Strip leading/trailing whitespace
+  const trimmed = url.trim();
+
+  // Must start with exactly one slash (reject "//evil.com", "\/evil.com")
+  if (!trimmed.startsWith('/') || trimmed.startsWith('//') || trimmed.startsWith('/\\')) {
+    return fallback;
+  }
+
+  // Reject any URL that contains a protocol or authority indicator
+  try {
+    const parsed = new URL(trimmed, 'http://localhost');
+    if (parsed.origin !== 'http://localhost') return fallback;
+    if (parsed.protocol !== 'http:') return fallback;
+  } catch {
+    return fallback;
+  }
+
+  return trimmed;
+}
+
 function LoginContent() {
   const { isAuthenticated, isInitialized } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect') ?? '/dashboard';
+  const rawRedirect = searchParams.get('redirect') ?? '/dashboard';
+  const redirect = sanitizeRedirect(rawRedirect);
 
   useEffect(() => {
     if (isInitialized && isAuthenticated) {
-      router.replace(redirect.startsWith('/') ? redirect : '/dashboard');
+      router.replace(redirect);
     }
   }, [isInitialized, isAuthenticated, router, redirect]);
 
@@ -28,7 +58,7 @@ function LoginContent() {
   }
 
   const handleSuccess = () => {
-    router.push(redirect.startsWith('/') ? redirect : '/dashboard');
+    router.push(redirect);
   };
 
   return (

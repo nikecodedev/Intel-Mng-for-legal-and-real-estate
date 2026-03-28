@@ -104,15 +104,9 @@ const sanitationQueueSchema = z.object({
   query: z.object({
     severity: z.enum(['ERROR', 'WARNING', 'INFO']).optional(),
     flag_type: z.string().optional(),
-    limit: z
-      .string()
-      .transform(Number)
-      .optional()
-      .refine((n) => n === undefined || !Number.isNaN(n) && n >= 1 && n <= 100, {
-        message: 'limit must be between 1 and 100',
-      }),
-    offset: z.string().transform(Number).optional(),
-  }),
+    limit: z.string().optional().default('100'),
+    offset: z.string().optional().default('0'),
+  }).passthrough(),
 });
 
 const extractionCorrectionsSchema = z.object({
@@ -168,10 +162,11 @@ router.post(
     // Calculate file hash for deduplication
     const fileHash = DocumentExtractionService.calculateFileHash(filePath);
 
-    // Check for duplicates
+    // Check for duplicates — if found, delete existing and re-upload
     const duplicate = await documentExtractionService.checkDuplicate(tenantId, fileHash);
-    if (duplicate.isDuplicate) {
-      throw new ConflictError(`Duplicate document detected. Existing document ID: ${duplicate.existingDocumentId}`);
+    if (duplicate.isDuplicate && duplicate.existingDocumentId) {
+      logger.info('Duplicate document detected, replacing', { existingId: duplicate.existingDocumentId });
+      await DocumentModel.delete(duplicate.existingDocumentId, tenantId, userId);
     }
 
     // Generate document number
@@ -372,8 +367,26 @@ router.get(
 );
 
 /**
+ * GET /documents/:id/download
+ * DLP enforcement: direct download is disabled. Use the secure viewer.
+ */
+router.get(
+  '/:id/download',
+  authenticate,
+  requirePermission('documents:read'),
+  validateRequest(documentIdParamSchema),
+  asyncHandler(async (_req: Request, res: Response) => {
+    res.status(403).json({
+      success: false,
+      message: 'Direct download is disabled. Use the secure viewer.',
+    });
+  })
+);
+
+/**
  * GET /documents/:id/viewer-asset
  * Streams document file for embedded viewer only. No direct file URL; access requires auth + tenant + RBAC.
+ * DLP: requires ?viewer=true&token=<user-id> — only the secure viewer may fetch the binary.
  * Disable caching; inline disposition. Logs ACCESS. Only serves if storage_path is set and file exists.
  */
 router.get(
@@ -384,6 +397,17 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId, userId } = getTenantContext(req);
     const { id } = req.params;
+
+    // DLP enforcement: only the secure viewer may fetch the file binary
+    const viewerFlag = req.query.viewer as string | undefined;
+    const viewerToken = req.query.token as string | undefined;
+    if (viewerFlag !== 'true' || viewerToken !== userId) {
+      res.status(403).json({
+        success: false,
+        message: 'Direct download is disabled. Use the secure viewer.',
+      });
+      return;
+    }
 
     const document = await DocumentModel.findById(id, tenantId);
     if (!document) {
@@ -552,6 +576,157 @@ router.get(
         confidence_score: f.confidence_score,
         created_at: f.created_at,
       })),
+    });
+  })
+);
+
+// ============================================
+// Sanitation Queue Routes (MUST be before /:id to avoid Express matching "sanitation-queue" as :id)
+// ============================================
+
+/**
+ * GET /documents/sanitation-queue
+ * Get documents in sanitation queue
+ */
+router.get(
+  '/sanitation-queue',
+  authenticate,
+  requirePermission('documents:list'),
+  validateRequest(sanitationQueueSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { tenantId, userId } = getTenantContext(req);
+    const { severity, flag_type } = req.query as Record<string, string>;
+    const { limit, offset } = parsePagination(req.query);
+
+    const queueItems = await DocumentQualityFlagModel.getSanitationQueue(tenantId, {
+      severity: severity as 'ERROR' | 'WARNING' | 'INFO' | undefined,
+      flag_type: flag_type as any,
+      limit,
+      offset,
+    });
+
+    const counts = await DocumentQualityFlagModel.countByStatus(tenantId);
+    const severityCounts = await DocumentQualityFlagModel.countBySeverity(tenantId);
+
+    // Audit log
+    await AuditService.logAccess(
+      tenantId,
+      'sanitation_queue',
+      null,
+      userId,
+      req.user!.email,
+      req.context?.role,
+      req,
+      { operation: 'list', count: queueItems.length }
+    );
+
+    res.json({
+      success: true,
+      data: {
+        items: queueItems,
+        summary: {
+          by_status: counts,
+          by_severity: severityCounts,
+        },
+        pagination: {
+          total: counts.PENDING + counts.IN_REVIEW + counts.ESCALATED,
+          limit,
+          offset,
+        },
+      },
+    });
+  })
+);
+
+/**
+ * POST /documents/sanitation-queue/:flagId/resolve
+ * Resolve a quality flag
+ */
+router.post(
+  '/sanitation-queue/:flagId/resolve',
+  authenticate,
+  requirePermission('documents:update'),
+  validateRequest(resolveFlagSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { tenantId, userId } = getTenantContext(req);
+    const { flagId } = req.params;
+    const { resolution_action, resolution_notes } = req.body;
+
+    const flag = await DocumentQualityFlagModel.findById(flagId, tenantId);
+    if (!flag) {
+      throw new NotFoundError('Quality flag');
+    }
+
+    const resolved = await DocumentQualityFlagModel.resolve(
+      flagId,
+      tenantId,
+      resolution_action,
+      resolution_notes || null,
+      userId
+    );
+
+    if (!resolved) {
+      throw new InternalServerError('Failed to resolve flag');
+    }
+
+    // Audit log
+    await AuditService.logDataChange(
+      tenantId,
+      AuditAction.UPDATE,
+      'document_quality_flag',
+      flagId,
+      userId,
+      req.user!.email,
+      req.context?.role,
+      req,
+      { action: 'resolve', resolution_action },
+      flag.document_id
+    );
+
+    res.json({
+      success: true,
+      message: 'Quality flag resolved',
+    });
+  })
+);
+
+/**
+ * POST /documents/sanitation-queue/:flagId/escalate
+ * Escalate a quality flag
+ */
+router.post(
+  '/sanitation-queue/:flagId/escalate',
+  authenticate,
+  requirePermission('documents:update'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { tenantId, userId } = getTenantContext(req);
+    const { flagId } = req.params;
+    const { notes } = req.body;
+
+    const flag = await DocumentQualityFlagModel.findById(flagId, tenantId);
+    if (!flag) {
+      throw new NotFoundError('Quality flag');
+    }
+
+    const escalated = await DocumentQualityFlagModel.escalate(flagId, tenantId, notes || '');
+
+    // Audit log
+    await AuditService.logDataChange(
+      tenantId,
+      AuditAction.UPDATE,
+      'document_quality_flag',
+      flagId,
+      userId,
+      req.user!.email,
+      req.context?.role,
+      req,
+      { action: 'escalate' },
+      flag.document_id
+    );
+
+    res.json({
+      success: true,
+      data: formatQualityFlagResponse(escalated!),
     });
   })
 );
@@ -886,157 +1061,6 @@ router.put(
     res.json({
       success: true,
       data: formatExtractionResponse(updated!),
-    });
-  })
-);
-
-// ============================================
-// Sanitation Queue Routes
-// ============================================
-
-/**
- * GET /documents/sanitation-queue
- * Get documents in sanitation queue
- */
-router.get(
-  '/sanitation-queue',
-  authenticate,
-  requirePermission('documents:list'),
-  validateRequest(sanitationQueueSchema),
-  asyncHandler(async (req: Request, res: Response) => {
-    const { tenantId, userId } = getTenantContext(req);
-    const { severity, flag_type } = req.query as Record<string, string>;
-    const { limit, offset } = parsePagination(req.query);
-
-    const queueItems = await DocumentQualityFlagModel.getSanitationQueue(tenantId, {
-      severity: severity as 'ERROR' | 'WARNING' | 'INFO' | undefined,
-      flag_type: flag_type as any,
-      limit,
-      offset,
-    });
-
-    const counts = await DocumentQualityFlagModel.countByStatus(tenantId);
-    const severityCounts = await DocumentQualityFlagModel.countBySeverity(tenantId);
-
-    // Audit log
-    await AuditService.logAccess(
-      tenantId,
-      'sanitation_queue',
-      null,
-      userId,
-      req.user!.email,
-      req.context?.role,
-      req,
-      { operation: 'list', count: queueItems.length }
-    );
-
-    res.json({
-      success: true,
-      data: {
-        items: queueItems,
-        summary: {
-          by_status: counts,
-          by_severity: severityCounts,
-        },
-        pagination: {
-          total: counts.PENDING + counts.IN_REVIEW + counts.ESCALATED,
-          limit,
-          offset,
-        },
-      },
-    });
-  })
-);
-
-/**
- * POST /documents/sanitation-queue/:flagId/resolve
- * Resolve a quality flag
- */
-router.post(
-  '/sanitation-queue/:flagId/resolve',
-  authenticate,
-  requirePermission('documents:update'),
-  validateRequest(resolveFlagSchema),
-  asyncHandler(async (req: Request, res: Response) => {
-    const { tenantId, userId } = getTenantContext(req);
-    const { flagId } = req.params;
-    const { resolution_action, resolution_notes } = req.body;
-
-    const flag = await DocumentQualityFlagModel.findById(flagId, tenantId);
-    if (!flag) {
-      throw new NotFoundError('Quality flag');
-    }
-
-    const resolved = await DocumentQualityFlagModel.resolve(
-      flagId,
-      tenantId,
-      resolution_action,
-      resolution_notes || null,
-      userId
-    );
-
-    if (!resolved) {
-      throw new InternalServerError('Failed to resolve flag');
-    }
-
-    // Audit log
-    await AuditService.logDataChange(
-      tenantId,
-      AuditAction.UPDATE,
-      'document_quality_flag',
-      flagId,
-      userId,
-      req.user!.email,
-      req.context?.role,
-      req,
-      { action: 'resolve', resolution_action },
-      flag.document_id
-    );
-
-    res.json({
-      success: true,
-      message: 'Quality flag resolved',
-    });
-  })
-);
-
-/**
- * POST /documents/sanitation-queue/:flagId/escalate
- * Escalate a quality flag
- */
-router.post(
-  '/sanitation-queue/:flagId/escalate',
-  authenticate,
-  requirePermission('documents:update'),
-  asyncHandler(async (req: Request, res: Response) => {
-    const { tenantId, userId } = getTenantContext(req);
-    const { flagId } = req.params;
-    const { notes } = req.body;
-
-    const flag = await DocumentQualityFlagModel.findById(flagId, tenantId);
-    if (!flag) {
-      throw new NotFoundError('Quality flag');
-    }
-
-    const escalated = await DocumentQualityFlagModel.escalate(flagId, tenantId, notes || '');
-
-    // Audit log
-    await AuditService.logDataChange(
-      tenantId,
-      AuditAction.UPDATE,
-      'document_quality_flag',
-      flagId,
-      userId,
-      req.user!.email,
-      req.context?.role,
-      req,
-      { action: 'escalate' },
-      flag.document_id
-    );
-
-    res.json({
-      success: true,
-      data: formatQualityFlagResponse(escalated!),
     });
   })
 );

@@ -106,10 +106,10 @@ export default function DashboardPage() {
           />
         ) : deadlinesQuery.data ? (
           <UpcomingDeadlines
-            total={deadlinesQuery.data.total_deadlines}
-            overdueCount={deadlinesQuery.data.overdue_count}
-            dueTodayCount={deadlinesQuery.data.due_today_count}
-            dueThisWeekCount={deadlinesQuery.data.due_this_week_count}
+            total={deadlinesQuery.data.total_deadlines ?? 0}
+            overdueCount={deadlinesQuery.data.overdue_count ?? 0}
+            dueTodayCount={deadlinesQuery.data.due_today_count ?? 0}
+            dueThisWeekCount={deadlinesQuery.data.due_this_week_count ?? 0}
             critical={deadlinesQuery.data.critical_deadlines ?? []}
           />
         ) : (

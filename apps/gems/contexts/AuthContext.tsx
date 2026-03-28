@@ -19,7 +19,7 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   register: (email: string, password: string, firstName?: string, lastName?: string) => Promise<void>;
   logout: () => void;
   setUser: (user: User | null) => void;
@@ -126,8 +126,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const login = useCallback(
-    async (email: string, password: string) => {
-      const { data } = await api.post<LoginResponse>('/auth/login', { email, password });
+    async (email: string, password: string, rememberMe?: boolean) => {
+      const { data } = await api.post<LoginResponse>('/auth/login', { email, password, remember_me: rememberMe ?? false });
       if (!data?.success || !data.data?.user) throw new Error('Invalid login response');
       setAuthFromResponse(data.data);
     },

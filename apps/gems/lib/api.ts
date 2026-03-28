@@ -49,6 +49,10 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Refresh lock: prevent multiple 401s from triggering parallel refresh calls
+let isRefreshing = false;
+let refreshPromise: Promise<string | null> | null = null;
+
 function clearAuthAndRedirect(): void {
   if (typeof window === 'undefined') return;
   try {
@@ -68,6 +72,12 @@ api.interceptors.response.use(
     const status = error.response?.status;
 
     if (status === 401 && typeof window !== 'undefined') {
+      // Skip auth redirect for blob/viewer requests to avoid logout during document viewing
+      const requestUrl = error.config?.url || '';
+      if (requestUrl.includes('viewer-asset') || error.config?.responseType === 'blob') {
+        return Promise.reject(error);
+      }
+
       const useCookies = getCookieAuth();
       if (useCookies) {
         toast('error', 'Session expired. Please sign in again.');
@@ -77,18 +87,41 @@ api.interceptors.response.use(
       const refreshToken = localStorage.getItem('refresh_token');
       if (refreshToken) {
         try {
-          const { data } = await axios.post<{ success: boolean; data?: { access_token: string } }>(
-            `${getBaseURL()}/auth/refresh`,
-            { refresh_token: refreshToken },
-            { headers: { 'Content-Type': 'application/json' } }
-          );
-          if (data?.success && data.data?.access_token) {
-            localStorage.setItem('access_token', data.data.access_token);
+          // Deduplicate concurrent refresh calls: only the first 401 triggers the refresh,
+          // subsequent 401s wait for the same promise.
+          if (!isRefreshing) {
+            isRefreshing = true;
+            refreshPromise = axios
+              .post<{ success: boolean; data?: { access_token: string } }>(
+                `${getBaseURL()}/auth/refresh`,
+                { refresh_token: refreshToken },
+                { headers: { 'Content-Type': 'application/json' } }
+              )
+              .then(({ data }) => {
+                if (data?.success && data.data?.access_token) {
+                  localStorage.setItem('access_token', data.data.access_token);
+                  return data.data.access_token;
+                }
+                return null;
+              })
+              .catch(() => null)
+              .finally(() => {
+                isRefreshing = false;
+                refreshPromise = null;
+              });
+          }
+
+          const newToken = await refreshPromise;
+          if (newToken) {
             const original = error.config;
             if (original) {
-              original.headers.Authorization = `Bearer ${data.data.access_token}`;
+              original.headers.Authorization = `Bearer ${newToken}`;
               return api(original);
             }
+          } else {
+            toast('error', 'Session expired. Please sign in again.');
+            clearAuthAndRedirect();
+            return Promise.reject(error);
           }
         } catch {
           toast('error', 'Session expired. Please sign in again.');
@@ -102,7 +135,32 @@ api.interceptors.response.use(
     }
 
     if (status === 403 && typeof window !== 'undefined') {
-      toast('error', getApiErrorMessage(error) || 'Access denied.');
+      // Try to refresh token on 403 (role may have changed since last login)
+      const useCookies = getCookieAuth();
+      if (!useCookies) {
+        const refreshToken = localStorage.getItem('refresh_token');
+        if (refreshToken) {
+          try {
+            const { data } = await axios.post<{ success: boolean; data?: { access_token: string } }>(
+              `${getBaseURL()}/auth/refresh`,
+              { refresh_token: refreshToken },
+              { headers: { 'Content-Type': 'application/json' } }
+            );
+            if (data?.success && data.data?.access_token) {
+              localStorage.setItem('access_token', data.data.access_token);
+              const original = error.config;
+              if (original) {
+                original.headers.Authorization = `Bearer ${data.data.access_token}`;
+                return api(original);
+              }
+            }
+          } catch {
+            // Refresh failed, force re-login
+            clearAuthAndRedirect();
+            return Promise.reject(error);
+          }
+        }
+      }
     }
 
     return Promise.reject(error);

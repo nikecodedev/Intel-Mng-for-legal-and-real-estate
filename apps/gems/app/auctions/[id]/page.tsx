@@ -1,6 +1,6 @@
 'use client';
 
-import { use } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import Link from 'next/link';
 import { DateDisplay, CurrencyDisplay, BlockLoader } from '@/components/ui';
@@ -8,15 +8,20 @@ import {
   fetchAuctionById,
   advanceAuctionStage,
   fetchAuctionROI,
+  fetchAuctionRisk,
+  updateDueDiligence,
+  placeBid,
   getNextStage,
   getApiErrorMessage,
   type AuctionAsset,
   type RiskLevel,
+  type DueDiligenceStatus,
+  type DueDiligenceChecklist,
 } from '@/lib/auction-api';
 import { RiskIndicator } from '@/components/auctions/RiskIndicator';
 
-export default function AuctionDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function AuctionDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params;
   const queryClient = useQueryClient();
 
   const { data: asset, isLoading: assetLoading, error: assetError } = useQuery(
@@ -38,6 +43,55 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
     },
   });
 
+  // --- Risk query (dedicated endpoint) ---
+  const { data: riskData } = useQuery(
+    ['auction-risk', id],
+    () => fetchAuctionRisk(id),
+    { staleTime: 30 * 1000, retry: false }
+  );
+
+  // --- Bid state & mutation ---
+  const [bidAmountStr, setBidAmountStr] = useState('');
+  const [bidSuccess, setBidSuccess] = useState<string | null>(null);
+
+  const bidMutation = useMutation({
+    mutationFn: () => {
+      const cents = Math.round(parseFloat(bidAmountStr) * 100);
+      if (Number.isNaN(cents) || cents <= 0) throw new Error('Enter a valid bid amount');
+      return placeBid(id, { amount_cents: cents });
+    },
+    onSuccess: (data) => {
+      setBidSuccess(`Bid placed successfully (ID: ${data.bid_id.slice(0, 8)})`);
+      setBidAmountStr('');
+      queryClient.invalidateQueries(['auction', id]);
+      queryClient.invalidateQueries(['auction-risk', id]);
+    },
+  });
+
+  // --- Due diligence state & mutation ---
+  const existingChecklist = (asset?.due_diligence_checklist ?? {}) as Partial<DueDiligenceChecklist>;
+  const [ddOccupancy, setDdOccupancy] = useState<DueDiligenceStatus>(existingChecklist.occupancy ?? 'pending');
+  const [ddDebts, setDdDebts] = useState<DueDiligenceStatus>(existingChecklist.debts ?? 'pending');
+  const [ddLegalRisks, setDdLegalRisks] = useState<DueDiligenceStatus>(existingChecklist.legal_risks ?? 'pending');
+  const [ddZoning, setDdZoning] = useState<DueDiligenceStatus>(existingChecklist.zoning ?? 'pending');
+  const [ddSuccess, setDdSuccess] = useState(false);
+
+  const ddMutation = useMutation({
+    mutationFn: () =>
+      updateDueDiligence(id, {
+        occupancy: ddOccupancy,
+        debts: ddDebts,
+        legal_risks: ddLegalRisks,
+        zoning: ddZoning,
+      }),
+    onSuccess: () => {
+      setDdSuccess(true);
+      queryClient.invalidateQueries(['auction', id]);
+      queryClient.invalidateQueries(['auction-risk', id]);
+      setTimeout(() => setDdSuccess(false), 3000);
+    },
+  });
+
   const nextStage = asset ? getNextStage(asset.current_stage) : null;
   const canAdvance = nextStage != null && !advanceMutation.isLoading;
 
@@ -46,12 +100,43 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
   if (assetError || !asset) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
-        Auction not found or you don’t have access.
+        Auction not found or you do not have access.
       </div>
     );
   }
 
   const a = asset as AuctionAsset;
+
+  // Derive effective risk values (prefer dedicated risk endpoint, fall back to asset)
+  const effectiveRiskScore = riskData?.risk_score ?? a.risk_score ?? 0;
+  const effectiveRiskLevel: RiskLevel = riskData?.risk_level ?? (a.risk_level as RiskLevel) ?? 'LOW';
+  const biddingBlocked = riskData?.bidding_disabled ?? a.bidding_disabled ?? effectiveRiskScore >= 70;
+
+  // Color helpers
+  function riskColorClass(level: RiskLevel): string {
+    switch (level) {
+      case 'HIGH':
+        return 'text-red-600';
+      case 'MEDIUM':
+        return 'text-yellow-600';
+      case 'LOW':
+      default:
+        return 'text-green-600';
+    }
+  }
+  function riskBgClass(level: RiskLevel): string {
+    switch (level) {
+      case 'HIGH':
+        return 'bg-red-100 border-red-300';
+      case 'MEDIUM':
+        return 'bg-yellow-50 border-yellow-300';
+      case 'LOW':
+      default:
+        return 'bg-green-50 border-green-300';
+    }
+  }
+
+  const DD_OPTIONS: DueDiligenceStatus[] = ['ok', 'pending', 'risk'];
 
   return (
     <div className="space-y-6">
@@ -90,15 +175,124 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
         )}
       </section>
 
-      {/* Risk score (backend values only) */}
+      {/* Risk score — prominent color-coded display */}
+      <section className={`rounded-lg border p-6 ${riskBgClass(effectiveRiskLevel)}`}>
+        <h3 className="text-sm font-medium text-gray-500 mb-2">MPGA Risk Assessment</h3>
+        <div className="flex items-center gap-4">
+          <RiskIndicator
+            riskLevel={effectiveRiskLevel}
+            riskScore={effectiveRiskScore}
+            showScore
+          />
+          <div>
+            <span className={`text-3xl font-bold ${riskColorClass(effectiveRiskLevel)}`}>
+              {effectiveRiskScore}%
+            </span>
+            <span className={`ml-2 text-lg font-semibold ${riskColorClass(effectiveRiskLevel)}`}>
+              {effectiveRiskLevel}
+            </span>
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-gray-500">Score 0-100. Hard Gate blocks bidding at 70+.</p>
+      </section>
+
+      {/* Place Bid — Hard Gate MPGA risk blocking */}
       <section className="rounded-lg border border-gray-200 bg-white p-6">
-        <h3 className="text-sm font-medium text-gray-500 mb-2">Risk</h3>
-        <RiskIndicator
-          riskLevel={(a.risk_level as RiskLevel) || 'LOW'}
-          riskScore={a.risk_score}
-          showScore
-        />
-        <p className="mt-1 text-xs text-gray-500">From backend. Score 0–100.</p>
+        <h3 className="text-sm font-medium text-gray-500 mb-3">Place Bid</h3>
+
+        {biddingBlocked && (
+          <div className="mb-4 rounded-md border border-red-300 bg-red-50 p-3">
+            <p className="text-sm font-medium text-red-700">
+              Bidding blocked — Risk score is HIGH ({effectiveRiskScore}%). MPGA Hard Gate requires resolution before bidding.
+            </p>
+          </div>
+        )}
+
+        <div className="flex items-end gap-3">
+          <div className="flex-1">
+            <label htmlFor="bid-amount" className="block text-sm font-medium text-gray-700 mb-1">
+              Bid amount (currency units)
+            </label>
+            <input
+              id="bid-amount"
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="e.g. 150000.00"
+              value={bidAmountStr}
+              onChange={(e) => {
+                setBidAmountStr(e.target.value);
+                setBidSuccess(null);
+              }}
+              disabled={biddingBlocked}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => bidMutation.mutate()}
+            disabled={biddingBlocked || bidMutation.isLoading || !bidAmountStr}
+            className="rounded-md bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {bidMutation.isLoading ? 'Placing...' : 'Place Bid'}
+          </button>
+        </div>
+
+        {bidMutation.isError && (
+          <p className="mt-2 text-sm text-red-600" role="alert">
+            {getApiErrorMessage(bidMutation.error)}
+          </p>
+        )}
+        {bidSuccess && (
+          <p className="mt-2 text-sm text-green-600">{bidSuccess}</p>
+        )}
+      </section>
+
+      {/* Due Diligence Checklist */}
+      <section className="rounded-lg border border-gray-200 bg-white p-6">
+        <h3 className="text-sm font-medium text-gray-500 mb-4">Due Diligence Checklist</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {([
+            { label: 'Occupancy', value: ddOccupancy, setter: setDdOccupancy },
+            { label: 'Debts', value: ddDebts, setter: setDdDebts },
+            { label: 'Legal Risks', value: ddLegalRisks, setter: setDdLegalRisks },
+            { label: 'Zoning', value: ddZoning, setter: setDdZoning },
+          ] as const).map(({ label, value, setter }) => (
+            <div key={label}>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+              <select
+                value={value}
+                onChange={(e) => setter(e.target.value as DueDiligenceStatus)}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              >
+                {DD_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => ddMutation.mutate()}
+            disabled={ddMutation.isLoading}
+            className="rounded-md bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {ddMutation.isLoading ? 'Updating...' : 'Update Due Diligence'}
+          </button>
+          {ddMutation.isError && (
+            <p className="mt-2 text-sm text-red-600" role="alert">
+              {getApiErrorMessage(ddMutation.error)}
+            </p>
+          )}
+          {ddSuccess && (
+            <p className="mt-2 text-sm text-green-600">Due diligence updated successfully.</p>
+          )}
+        </div>
       </section>
 
       {/* ROI summary */}
@@ -125,11 +319,11 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
       {/* Linked documents */}
       <section className="rounded-lg border border-gray-200 bg-white p-6">
         <h3 className="text-sm font-medium text-gray-500 mb-3">Linked documents</h3>
-        {!a.linked_document_ids?.length ? (
+        {!(a.linked_document_ids || []).length ? (
           <p className="text-sm text-gray-500">No linked documents.</p>
         ) : (
           <ul className="space-y-1">
-            {a.linked_document_ids.map((docId: string) => (
+            {(a.linked_document_ids || []).map((docId: string) => (
               <li key={docId}>
                 <Link
                   href={`/legal/documents/${docId}`}

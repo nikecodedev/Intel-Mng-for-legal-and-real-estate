@@ -241,8 +241,8 @@ router.get(
       latest_payload: Record<string, unknown>;
       latest_created_at: Date;
     }>(
-      `SELECT 
-        COUNT(*) as total_entries,
+      `SELECT
+        (SELECT COUNT(*) FROM audit_logs WHERE tenant_id = $1) as total_entries,
         current_hash as latest_hash,
         previous_hash as latest_previous_hash,
         payload_evento as latest_payload,

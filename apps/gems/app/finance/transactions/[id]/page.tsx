@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import Link from 'next/link';
 import { StatusBadge, DateDisplay, CurrencyDisplay, BlockLoader } from '@/components/ui';
@@ -12,8 +12,8 @@ import {
 } from '@/lib/finance-api';
 import { uploadDocument } from '@/lib/legal-api';
 
-export default function TransactionDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function TransactionDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params;
   const queryClient = useQueryClient();
   const [showMarkPaid, setShowMarkPaid] = useState(false);
   const [paidDate, setPaidDate] = useState(new Date().toISOString().slice(0, 10));

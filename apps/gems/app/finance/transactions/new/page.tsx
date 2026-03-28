@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from 'react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -17,7 +17,7 @@ export default function NewTransactionPage() {
     transaction_type: 'PAYABLE',
     amount: '',
     amount_cents: 0,
-    transaction_date: new Date().toISOString().slice(0, 10),
+    transaction_date: new Date().toLocaleDateString('en-CA'),
     description: '',
     process_id: '',
     real_estate_asset_id: '',
@@ -31,10 +31,12 @@ export default function NewTransactionPage() {
   const { data: assetsData } = useQuery('real-estate-assets', () => fetchAssets({ limit: 200 }), { staleTime: 60 * 1000 });
   const assets = assetsData?.assets ?? [];
 
+  const [clientError, setClientError] = useState<string | null>(null);
+
   const mutation = useMutation({
     mutationFn: () => {
       const amountCents = Math.round(parseFloat(form.amount || '0') * 100);
-      if (!Number.isFinite(amountCents) || amountCents <= 0) throw new Error('Invalid amount');
+      if (!Number.isFinite(amountCents) || amountCents <= 0) throw new Error('Please enter a valid amount greater than zero.');
       const payload: CreateTransactionInput = {
         transaction_type: form.transaction_type,
         amount_cents: amountCents,
@@ -57,10 +59,26 @@ export default function NewTransactionPage() {
     },
   });
 
+  // Bug 15: Reset mutation error state when form mounts
+  useEffect(() => {
+    return () => { mutation.reset(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const validationError = mutation.isError ? getFinanceValidationError(mutation.error) : null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setClientError(null);
+    mutation.reset();
+
+    // Bug 13: Client-side entity link validation
+    const hasLink = !!(form.process_id?.trim() || form.real_estate_asset_id || form.client_id?.trim());
+    if (!hasLink) {
+      setClientError('At least one link (Case, Asset, or Client) is required.');
+      return;
+    }
+
     mutation.mutate();
   };
 
@@ -74,13 +92,18 @@ export default function NewTransactionPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="rounded-lg border border-gray-200 bg-white p-6 space-y-4">
+        {clientError && (
+          <div className="rounded-md bg-red-50 p-4 text-red-800 text-sm" role="alert">
+            <p className="font-medium">{clientError}</p>
+          </div>
+        )}
         {validationError && (
           <div className="rounded-md bg-red-50 p-4 text-red-800 text-sm" role="alert">
             <p className="font-medium">{validationError.message}</p>
             {validationError.details && (
               <ul className="mt-2 list-disc list-inside">
                 {Object.entries(validationError.details).map(([key, val]) => (
-                  <li key={key}>{key}: {val}</li>
+                  <li key={key}>{key}: {String(val)}</li>
                 ))}
               </ul>
             )}
@@ -138,7 +161,7 @@ export default function NewTransactionPage() {
         </div>
 
         <div className="border-t pt-4">
-          <p className="text-sm text-gray-600 mb-2">Link to (at least one required — backend validated)</p>
+          <p className="text-sm text-gray-600 mb-2">Link to (at least one required)</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Case (process ID)</label>

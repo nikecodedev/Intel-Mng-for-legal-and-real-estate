@@ -7,6 +7,9 @@ export interface ROIInputs {
   taxes_itbi_cents: number;
   legal_costs_cents: number;
   renovation_estimate_cents: number;
+  opex_monthly_cents: number;
+  registry_fees_cents: number;
+  insurance_cents: number;
   expected_resale_value_cents: number;
   expected_resale_date?: string | null; // ISO date YYYY-MM-DD
 }
@@ -26,6 +29,9 @@ export interface AuctionAssetROI {
   taxes_itbi_cents: number;
   legal_costs_cents: number;
   renovation_estimate_cents: number;
+  opex_monthly_cents: number;
+  registry_fees_cents: number;
+  insurance_cents: number;
   expected_resale_value_cents: number;
   expected_resale_date: string | null;
   total_cost_cents: number;
@@ -57,7 +63,7 @@ function requireTenantId(tenantId: string | undefined | null, operation: string)
 
 /**
  * Compute ROI outputs from inputs.
- * total_cost = acquisition + taxes + legal + renovation
+ * total_cost = acquisition + taxes + legal + renovation + opex_monthly + registry_fees + insurance
  * net_profit = expected_resale - total_cost
  * roi_percentage = (net_profit / total_cost) * 100 when total_cost > 0
  * break_even_date = expected_resale_date when provided, else null
@@ -67,7 +73,10 @@ export function calculateROI(inputs: ROIInputs): ROIOutputs {
     inputs.acquisition_price_cents +
     inputs.taxes_itbi_cents +
     inputs.legal_costs_cents +
-    inputs.renovation_estimate_cents;
+    inputs.renovation_estimate_cents +
+    (inputs.opex_monthly_cents || 0) +
+    (inputs.registry_fees_cents || 0) +
+    (inputs.insurance_cents || 0);
   const net_profit_cents = inputs.expected_resale_value_cents - total_cost_cents;
   const roi_percentage =
     total_cost_cents > 0 ? (net_profit_cents / total_cost_cents) * 100 : 0;
@@ -92,6 +101,9 @@ function mapROIRow(row: Record<string, unknown>): AuctionAssetROI {
     taxes_itbi_cents: Number(row.taxes_itbi_cents) || 0,
     legal_costs_cents: Number(row.legal_costs_cents) || 0,
     renovation_estimate_cents: Number(row.renovation_estimate_cents) || 0,
+    opex_monthly_cents: Number(row.opex_monthly_cents) || 0,
+    registry_fees_cents: Number(row.registry_fees_cents) || 0,
+    insurance_cents: Number(row.insurance_cents) || 0,
     expected_resale_value_cents: Number(row.expected_resale_value_cents) || 0,
     expected_resale_date: row.expected_resale_date != null ? String(row.expected_resale_date) : null,
     total_cost_cents: Number(row.total_cost_cents) || 0,
@@ -152,6 +164,9 @@ export class AuctionAssetROIModel {
       taxes_itbi_cents: inputs.taxes_itbi_cents ?? existing?.taxes_itbi_cents ?? 0,
       legal_costs_cents: inputs.legal_costs_cents ?? existing?.legal_costs_cents ?? 0,
       renovation_estimate_cents: inputs.renovation_estimate_cents ?? existing?.renovation_estimate_cents ?? 0,
+      opex_monthly_cents: inputs.opex_monthly_cents ?? existing?.opex_monthly_cents ?? 0,
+      registry_fees_cents: inputs.registry_fees_cents ?? existing?.registry_fees_cents ?? 0,
+      insurance_cents: inputs.insurance_cents ?? existing?.insurance_cents ?? 0,
       expected_resale_value_cents: inputs.expected_resale_value_cents ?? existing?.expected_resale_value_cents ?? 0,
       expected_resale_date: inputs.expected_resale_date !== undefined ? inputs.expected_resale_date : existing?.expected_resale_date ?? null,
     };
@@ -163,15 +178,19 @@ export class AuctionAssetROIModel {
       await db.query(
         `UPDATE auction_asset_roi SET
           acquisition_price_cents = $1, taxes_itbi_cents = $2, legal_costs_cents = $3,
-          renovation_estimate_cents = $4, expected_resale_value_cents = $5, expected_resale_date = $6,
-          total_cost_cents = $7, net_profit_cents = $8, roi_percentage = $9, break_even_date = $10,
-          version_number = $11, updated_at = CURRENT_TIMESTAMP
-         WHERE auction_asset_id = $12 AND tenant_id = $13`,
+          renovation_estimate_cents = $4, opex_monthly_cents = $5, registry_fees_cents = $6,
+          insurance_cents = $7, expected_resale_value_cents = $8, expected_resale_date = $9,
+          total_cost_cents = $10, net_profit_cents = $11, roi_percentage = $12, break_even_date = $13,
+          version_number = $14, updated_at = CURRENT_TIMESTAMP
+         WHERE auction_asset_id = $15 AND tenant_id = $16`,
         [
           merged.acquisition_price_cents,
           merged.taxes_itbi_cents,
           merged.legal_costs_cents,
           merged.renovation_estimate_cents,
+          merged.opex_monthly_cents,
+          merged.registry_fees_cents,
+          merged.insurance_cents,
           merged.expected_resale_value_cents,
           merged.expected_resale_date ?? null,
           outputs.total_cost_cents,
@@ -188,10 +207,11 @@ export class AuctionAssetROIModel {
         `INSERT INTO auction_asset_roi (
           tenant_id, auction_asset_id,
           acquisition_price_cents, taxes_itbi_cents, legal_costs_cents,
-          renovation_estimate_cents, expected_resale_value_cents, expected_resale_date,
+          renovation_estimate_cents, opex_monthly_cents, registry_fees_cents, insurance_cents,
+          expected_resale_value_cents, expected_resale_date,
           total_cost_cents, net_profit_cents, roi_percentage, break_even_date,
           version_number
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
         [
           tenantId,
           auctionAssetId,
@@ -199,6 +219,9 @@ export class AuctionAssetROIModel {
           merged.taxes_itbi_cents,
           merged.legal_costs_cents,
           merged.renovation_estimate_cents,
+          merged.opex_monthly_cents,
+          merged.registry_fees_cents,
+          merged.insurance_cents,
           merged.expected_resale_value_cents,
           merged.expected_resale_date ?? null,
           outputs.total_cost_cents,

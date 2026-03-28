@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
 import { asyncHandler, validateRequest, authenticate } from '../middleware/index.js';
 import { AuthService, User } from '../services/auth.js';
 import { AuditService, AuditEventType } from '../services/audit.js';
@@ -17,22 +18,21 @@ const SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000001';
  * Generate token options from user's tenant_id
  * For login/register, user.tenant_id comes from DB
  */
-function tenantOptsFromUser(user: User): { tenantId: string; role: 'OWNER' | 'REVISOR' | 'OPERATIONAL' } {
-  return { 
-    tenantId: user.tenant_id, 
-    role: 'OPERATIONAL' 
-  };
+async function tenantOptsFromUser(user: User): Promise<{ tenantId: string; role: 'OWNER' | 'REVISOR' | 'OPERATIONAL' }> {
+  // Look up the user's actual role from the database
+  try {
+    const result = await db.query(
+      `SELECT r.name FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = $1 LIMIT 1`,
+      [user.id]
+    );
+    const roleName = (result.rows[0] as { name?: string } | undefined)?.name;
+    const validRoles = ['OWNER', 'REVISOR', 'OPERATIONAL'] as const;
+    const role = validRoles.includes(roleName as any) ? (roleName as 'OWNER' | 'REVISOR' | 'OPERATIONAL') : 'OPERATIONAL';
+    return { tenantId: user.tenant_id, role };
+  } catch {
+    return { tenantId: user.tenant_id, role: 'OPERATIONAL' };
+  }
 }
-
-/**
- * Login schema
- */
-const loginSchema = z.object({
-  body: z.object({
-    email: z.string().email('Invalid email address'),
-    password: z.string().min(8, 'Password must be at least 8 characters'),
-  }),
-});
 
 /**
  * Register schema
@@ -62,6 +62,40 @@ const refreshTokenSchema = z.object({
 });
 
 /**
+ * Password reset request schema
+ */
+const passwordResetRequestSchema = z.object({
+  body: z.object({
+    email: z.string().email('Invalid email address'),
+  }),
+});
+
+/**
+ * Password reset schema
+ */
+const passwordResetSchema = z.object({
+  body: z.object({
+    token: z.string().min(1, 'Reset token is required'),
+    new_password: z.string()
+      .min(8, 'Password must be at least 8 characters')
+      .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+      .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+      .regex(/[0-9]/, 'Password must contain at least one number'),
+  }),
+});
+
+/**
+ * Login with remember_me schema (extends base login)
+ */
+const loginWithRememberSchema = z.object({
+  body: z.object({
+    email: z.string().email('Invalid email address'),
+    password: z.string().min(8, 'Password must be at least 8 characters'),
+    remember_me: z.boolean().optional().default(false),
+  }),
+});
+
+/**
  * POST /auth/login
  * Authenticate user and return JWT tokens
  * 
@@ -71,16 +105,19 @@ const refreshTokenSchema = z.object({
  */
 router.post(
   '/login',
-  validateRequest(loginSchema),
+  validateRequest(loginWithRememberSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const { email, password } = req.body;
+    const { email, password, remember_me } = req.body;
 
     try {
       // Authenticate user - returns user with tenant_id from DB
       const user = await AuthService.authenticate(email, password);
 
       // Generate tokens using user's tenant_id from DB (not from headers/request)
-      const accessToken = AuthService.generateAccessToken(user, tenantOptsFromUser(user));
+      // If remember_me is true, use 30-day access token; otherwise default 15m
+      const accessToken = remember_me
+        ? AuthService.generateAccessToken(user, await tenantOptsFromUser(user), '30d')
+        : AuthService.generateAccessToken(user, await tenantOptsFromUser(user));
       let refreshToken: string | null = null;
       if (user.tenant_id) {
         try {
@@ -88,7 +125,8 @@ router.post(
             user.id,
             user.tenant_id,
             req.get('user-agent'),
-            req.ip
+            req.ip,
+            remember_me ? 30 : 7
           );
         } catch (refreshErr) {
           logger.warn('Refresh token creation failed (login continues with access token only)', {
@@ -238,7 +276,7 @@ router.post(
     }
 
     // Generate tokens using user's tenant_id
-    const accessToken = AuthService.generateAccessToken(user, tenantOptsFromUser(user));
+    const accessToken = AuthService.generateAccessToken(user, await tenantOptsFromUser(user));
     let refreshToken: string | null = null;
     if (user.tenant_id) {
       try {
@@ -319,7 +357,7 @@ router.post(
     }
 
     // Generate new access token using user's tenant_id from DB
-    const accessToken = AuthService.generateAccessToken(user, tenantOptsFromUser(user));
+    const accessToken = AuthService.generateAccessToken(user, await tenantOptsFromUser(user));
 
     logger.info('Token refreshed', { 
       userId: user.id,
@@ -402,6 +440,107 @@ router.get(
   })
 );
 
+/**
+ * POST /auth/forgot-password
+ * Request a password reset token.
+ * Since email service is not configured, the token is returned in the response
+ * (for admin use) and also logged. In production, this would send an email.
+ */
+router.post(
+  '/forgot-password',
+  validateRequest(passwordResetRequestSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { email } = req.body;
+
+    // Always return success to avoid email enumeration
+    const user = await db.query(
+      'SELECT id, tenant_id FROM users WHERE email = $1 AND is_active = true LIMIT 1',
+      [email]
+    );
+
+    if (user.rows.length === 0) {
+      // Don't reveal whether email exists
+      res.json({
+        success: true,
+        message: 'If an account with that email exists, a password reset link has been sent.',
+      });
+      return;
+    }
+
+    const row = user.rows[0] as { id: string; tenant_id: string };
+    const userId = row.id;
+    const tenantId = row.tenant_id;
+
+    // Generate a short-lived reset token (1 hour)
+    const resetToken = jwt.sign(
+      { userId, type: 'password_reset' },
+      config.jwt.secret,
+      { expiresIn: '1h', issuer: 'platform-api', audience: 'platform-client' } as jwt.SignOptions
+    );
+
+    logger.info('Password reset token generated', { email, userId, tenantId });
+
+    // In production, send email with reset link. For now, return token directly.
+    res.json({
+      success: true,
+      message: 'If an account with that email exists, a password reset link has been sent.',
+      data: {
+        reset_token: resetToken,
+      },
+    });
+  })
+);
+
+/**
+ * POST /auth/reset-password
+ * Reset password using a valid reset token
+ */
+router.post(
+  '/reset-password',
+  validateRequest(passwordResetSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { token, new_password } = req.body;
+
+    // Verify reset token
+    let decoded: { userId: string; type: string };
+    try {
+      decoded = jwt.verify(token, config.jwt.secret, {
+        issuer: 'platform-api',
+        audience: 'platform-client',
+      }) as { userId: string; type: string };
+    } catch {
+      throw new AuthenticationError('Invalid or expired reset token');
+    }
+
+    if (decoded.type !== 'password_reset') {
+      throw new AuthenticationError('Invalid token type');
+    }
+
+    // Hash new password and update
+    const passwordHash = await AuthService.hashPassword(new_password);
+    const result = await db.query(
+      'UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND is_active = true RETURNING id, email',
+      [passwordHash, decoded.userId]
+    );
+
+    if (result.rows.length === 0) {
+      throw new NotFoundError('User');
+    }
+
+    // Revoke all existing refresh tokens for this user (security: force re-login)
+    await db.query(
+      'UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND revoked_at IS NULL',
+      [decoded.userId]
+    );
+
+    const resetRow = result.rows[0] as { id: string; email: string };
+    logger.info('Password reset successful', { userId: decoded.userId, email: resetRow.email });
+
+    res.json({
+      success: true,
+      message: 'Password has been reset successfully. Please log in with your new password.',
+    });
+  })
+);
+
 export default router;
-
-

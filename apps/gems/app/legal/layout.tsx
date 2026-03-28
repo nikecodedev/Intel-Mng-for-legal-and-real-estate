@@ -8,6 +8,7 @@ const legalNav = [
   { href: '/legal', label: 'Documents' },
   { href: '/legal/upload', label: 'Upload' },
   { href: '/legal/sanitation', label: 'Sanitation queue' },
+  { href: '/legal/review', label: 'Review' },
 ];
 
 export default function LegalLayout({ children }: { children: React.ReactNode }) {

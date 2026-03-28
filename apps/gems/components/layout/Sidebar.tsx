@@ -19,6 +19,8 @@ const navItems: NavItem[] = [
   { href: '/real-estate', label: 'Real Estate' },
   { href: '/finance', label: 'Finance' },
   { href: '/crm', label: 'CRM' },
+  { href: '/workflow', label: 'Workflow', roles: ['OWNER', 'OPERATIONAL'] },
+  { href: '/compliance', label: 'Compliance', roles: ['OWNER'] },
   { href: '/investor', label: 'Investor', roles: ['INVESTOR'] },
   { href: '/admin', label: 'Admin', roles: ['OWNER'] },
   { href: '/super-admin', label: 'Super Admin', roles: ['OWNER'] },
@@ -29,8 +31,12 @@ export function Sidebar() {
   const { user, hasAnyRole } = useAuth();
 
   const visibleItems = navItems.filter((item) => {
+    // Items without role restrictions are always visible
     if (!item.roles || item.roles.length === 0) return true;
-    return user?.role && hasAnyRole(item.roles);
+    // When user has no role defined, still show non-restricted items (handled above)
+    // but hide role-restricted items to avoid empty sidebar
+    if (!user?.role) return false;
+    return hasAnyRole(item.roles);
   });
 
   return (

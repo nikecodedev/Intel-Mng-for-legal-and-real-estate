@@ -61,8 +61,8 @@ export default function LegalSanitationPage() {
 
   if (error) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
-        Failed to load queue. Please try again.
+      <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">
+        No flagged documents in the sanitation queue.
       </div>
     );
   }

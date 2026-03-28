@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import Link from 'next/link';
 import { StatusBadge, DateDisplay, BlockLoader } from '@/components/ui';
@@ -13,8 +13,8 @@ import {
   type Tenant,
 } from '@/lib/super-admin-api';
 
-export default function SuperAdminTenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function SuperAdminTenantDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params;
   const queryClient = useQueryClient();
   const [showSuspend, setShowSuspend] = useState(false);
   const [suspendReason, setSuspendReason] = useState('');

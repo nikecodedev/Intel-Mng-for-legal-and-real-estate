@@ -388,7 +388,7 @@ export class DocumentQualityFlagModel {
     const result: QueryResult<DocumentQualityFlag> = await db.query<DocumentQualityFlag>(
       `UPDATE document_quality_flags 
        SET queue_status = 'ESCALATED',
-           flag_details = flag_details || jsonb_build_object('escalation_notes', $1, 'escalated_at', CURRENT_TIMESTAMP),
+           flag_details = COALESCE(flag_details, '{}'::jsonb) || jsonb_build_object('escalation_notes', $1::text, 'escalated_at', now()::text),
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $2 AND tenant_id = $3
        RETURNING *`,

@@ -5,6 +5,7 @@
 
 import { AuditService, AuditAction, AuditEventCategory } from './audit.js';
 import { WorkflowTriggerModel, WorkflowTaskModel, WorkflowNotificationModel, type WorkflowTrigger } from '../models/workflow-trigger.js';
+import { db } from '../models/database.js';
 import type { Request } from 'express';
 
 export type WorkflowActionResult =
@@ -143,6 +144,22 @@ async function executeAction(
           summary: `notification_created:${created.id}`,
           notificationId: created.id,
         };
+      }
+      case 'update_state': {
+        const entityType = (trigger.action_config?.entity_type as string) ?? (ctx.payload?.related_entity_type as string);
+        const entityId = (ctx.payload?.related_entity_id as string) ?? (trigger.action_config?.entity_id as string);
+        const newState = (trigger.action_config?.new_state as string);
+        if (!entityType || !entityId || !newState) {
+          return { success: false, summary: 'update_state:missing_config' };
+        }
+        if (entityType === 'real_estate_asset') {
+          await db.query(
+            `UPDATE real_estate_assets SET current_state = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id = $3`,
+            [newState, entityId, ctx.tenantId]
+          );
+          return { success: true, summary: `state_updated:${entityType}:${entityId}:${newState}` };
+        }
+        return { success: false, summary: `update_state:unsupported_entity:${entityType}` };
       }
       case 'block_transition':
         return {

@@ -29,6 +29,8 @@ const SKIP_PATHS = [
   '/auth/login',
   '/auth/register',
   '/auth/refresh',
+  '/auth/forgot-password',
+  '/auth/reset-password',
   '/investor/auth/login',
   '/investor/auth/refresh',
 ];

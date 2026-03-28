@@ -21,6 +21,11 @@ export function Header() {
   const router = useRouter();
 
   const handleLogout = () => {
+    // Block logout if an upload is in progress
+    if (typeof window !== 'undefined' && (window as unknown as Record<string, boolean>).__gemsUploading) {
+      alert('An upload is currently in progress. Please wait for it to finish before logging out.');
+      return;
+    }
     logout();
     router.push('/login');
   };

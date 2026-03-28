@@ -49,7 +49,8 @@ export class AuthService {
    */
   static generateAccessToken(
     user: User,
-    opts?: { tenantId: string; role: 'OWNER' | 'REVISOR' | 'OPERATIONAL' }
+    opts?: { tenantId: string; role: 'OWNER' | 'REVISOR' | 'OPERATIONAL' },
+    expiresInOverride?: string
   ): string {
     const payload: JWTPayload = {
       userId: user.id,
@@ -60,7 +61,7 @@ export class AuthService {
     };
 
     return jwt.sign(payload, config.jwt.secret, {
-      expiresIn: config.jwt.expiresIn as string | number,
+      expiresIn: (expiresInOverride || config.jwt.expiresIn) as string | number,
       issuer: 'platform-api',
       audience: 'platform-client',
     } as jwt.SignOptions);
@@ -73,13 +74,14 @@ export class AuthService {
     userId: string,
     tenantId: string,
     userAgent?: string,
-    ipAddress?: string
+    ipAddress?: string,
+    expirationDays: number = 7
   ): Promise<string> {
     const token = jwt.sign(
       { userId, type: 'refresh' },
       config.jwt.secret,
       {
-        expiresIn: config.jwt.refreshExpiresIn as string | number,
+        expiresIn: `${expirationDays}d`,
         issuer: 'platform-api',
         audience: 'platform-client',
       } as jwt.SignOptions
@@ -87,7 +89,7 @@ export class AuthService {
 
     // Store refresh token in database (tenant_id for tenant isolation - migration 002)
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+    expiresAt.setDate(expiresAt.getDate() + expirationDays);
 
     try {
       await db.query(

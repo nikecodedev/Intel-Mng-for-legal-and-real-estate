@@ -2,12 +2,18 @@ import { db } from './database.js';
 import { QueryResult } from 'pg';
 import { TenantRequiredError } from '../utils/errors.js';
 
+export type ReviewStatus = 'PENDING' | 'IN_REVIEW' | 'APPROVED' | 'REJECTED';
+
 export interface GeneratedDocument {
   id: string;
   tenant_id: string;
   content: string;
   generated_by: string;
   source_fact_ids: string[];
+  review_status: ReviewStatus;
+  reviewed_by: string | null;
+  approved_at: Date | null;
+  rejection_reason: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -33,6 +39,10 @@ function mapRow(row: any): GeneratedDocument {
     content: row.content as string,
     generated_by: row.generated_by as string,
     source_fact_ids: Array.isArray(sourceIds) ? (sourceIds as string[]) : [],
+    review_status: (row.review_status as ReviewStatus) ?? 'PENDING',
+    reviewed_by: (row.reviewed_by as string) ?? null,
+    approved_at: row.approved_at ? new Date(row.approved_at as string) : null,
+    rejection_reason: (row.rejection_reason as string) ?? null,
     created_at: new Date(row.created_at as string),
     updated_at: new Date(row.updated_at as string),
   };
@@ -76,5 +86,52 @@ export class GeneratedDocumentModel {
       [tenantId, limit, offset]
     );
     return result.rows.map(mapRow);
+  }
+
+  /**
+   * Submit document for review
+   */
+  static async submitForReview(id: string, tenantId: string): Promise<GeneratedDocument> {
+    requireTenantId(tenantId, 'GeneratedDocumentModel.submitForReview');
+    const result: QueryResult<Record<string, unknown>> = await db.query(
+      `UPDATE generated_documents SET review_status = 'IN_REVIEW', updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND tenant_id = $2
+       RETURNING *`,
+      [id, tenantId]
+    );
+    if (result.rows.length === 0) throw new TenantRequiredError('Document not found');
+    return mapRow(result.rows[0]);
+  }
+
+  /**
+   * Approve a generated document
+   */
+  static async approve(id: string, tenantId: string, reviewerId: string): Promise<GeneratedDocument> {
+    requireTenantId(tenantId, 'GeneratedDocumentModel.approve');
+    const result: QueryResult<Record<string, unknown>> = await db.query(
+      `UPDATE generated_documents
+       SET review_status = 'APPROVED', reviewed_by = $3, approved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND tenant_id = $2
+       RETURNING *`,
+      [id, tenantId, reviewerId]
+    );
+    if (result.rows.length === 0) throw new TenantRequiredError('Document not found');
+    return mapRow(result.rows[0]);
+  }
+
+  /**
+   * Reject a generated document
+   */
+  static async reject(id: string, tenantId: string, reviewerId: string, reason: string): Promise<GeneratedDocument> {
+    requireTenantId(tenantId, 'GeneratedDocumentModel.reject');
+    const result: QueryResult<Record<string, unknown>> = await db.query(
+      `UPDATE generated_documents
+       SET review_status = 'REJECTED', reviewed_by = $3, rejection_reason = $4, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND tenant_id = $2
+       RETURNING *`,
+      [id, tenantId, reviewerId, reason]
+    );
+    if (result.rows.length === 0) throw new TenantRequiredError('Document not found');
+    return mapRow(result.rows[0]);
   }
 }

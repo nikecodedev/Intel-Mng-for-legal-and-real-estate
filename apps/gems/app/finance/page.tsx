@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from 'react-query';
 import Link from 'next/link';
 import { DataTable } from '@/components/tables/DataTable';
@@ -26,7 +26,7 @@ export default function FinanceTransactionsPage() {
   });
   const assets = assetsData?.assets ?? [];
 
-  const filters = {
+  const filters = useMemo(() => ({
     process_id: processId.trim() || undefined,
     real_estate_asset_id: assetId || undefined,
     start_date: startDate || undefined,
@@ -35,10 +35,15 @@ export default function FinanceTransactionsPage() {
     transaction_type: transactionType || undefined,
     limit: 100,
     offset: 0,
-  };
+  }), [processId, assetId, startDate, endDate, paymentStatus, transactionType]);
+
+  const queryKey = useMemo(
+    () => ['finance-transactions', processId.trim(), assetId, startDate, endDate, paymentStatus, transactionType],
+    [processId, assetId, startDate, endDate, paymentStatus, transactionType]
+  );
 
   const { data, isLoading, error } = useQuery(
-    ['finance-transactions', filters],
+    queryKey,
     () => fetchTransactions(filters),
     { staleTime: 30 * 1000 }
   );
@@ -153,8 +158,8 @@ export default function FinanceTransactionsPage() {
 
       {isLoading && <BlockLoader message="Loading transactions…" />}
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
-          Failed to load transactions. Please try again.
+        <div className="rounded-lg border border-red-200 bg-red-50 p-8 text-center text-red-700">
+          Failed to load transactions. Please try again later.
         </div>
       ) : null}
       {!isLoading && !error && (

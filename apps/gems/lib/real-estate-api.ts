@@ -39,6 +39,12 @@ export interface RealEstateAsset {
   is_vacant?: boolean;
   notes: string | null;
   tags: string[];
+  regularization_cost?: number | null;
+  renovation_cost?: number | null;
+  maintenance_cost?: number | null;
+  taxes?: number | null;
+  legal_costs?: number | null;
+  other_costs?: number | null;
   created_at: string;
   updated_at: string;
 }

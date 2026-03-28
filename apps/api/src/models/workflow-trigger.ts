@@ -2,7 +2,7 @@ import { db } from './database.js';
 import { QueryResult } from 'pg';
 import { TenantRequiredError, NotFoundError } from '../utils/errors.js';
 
-export type WorkflowActionType = 'create_task' | 'send_notification' | 'block_transition';
+export type WorkflowActionType = 'create_task' | 'send_notification' | 'block_transition' | 'update_state';
 
 export interface WorkflowTrigger {
   id: string;
@@ -112,6 +112,34 @@ export class WorkflowTriggerModel {
   }
 }
 
+export interface WorkflowTask {
+  id: string;
+  tenant_id: string;
+  task_type: string;
+  title: string;
+  description: string | null;
+  status: string;
+  related_entity_type: string | null;
+  related_entity_id: string | null;
+  trigger_id: string | null;
+  created_at: Date;
+}
+
+function mapTaskRow(row: any): WorkflowTask {
+  return {
+    id: row.id as string,
+    tenant_id: row.tenant_id as string,
+    task_type: row.task_type as string,
+    title: row.title as string,
+    description: (row.description as string) ?? null,
+    status: row.status as string,
+    related_entity_type: (row.related_entity_type as string) ?? null,
+    related_entity_id: (row.related_entity_id as string) ?? null,
+    trigger_id: (row.trigger_id as string) ?? null,
+    created_at: new Date(row.created_at as string),
+  };
+}
+
 export class WorkflowTaskModel {
   static async create(
     tenantId: string,
@@ -139,6 +167,45 @@ export class WorkflowTaskModel {
       ]
     );
     return { id: result.rows[0].id as string };
+  }
+
+  static async listByTenant(
+    tenantId: string,
+    options: { status?: string; limit?: number; offset?: number } = {}
+  ): Promise<WorkflowTask[]> {
+    requireTenantId(tenantId, 'WorkflowTaskModel.listByTenant');
+    let query = `SELECT * FROM workflow_tasks WHERE tenant_id = $1`;
+    const params: unknown[] = [tenantId];
+    let idx = 2;
+    if (options.status) {
+      query += ` AND status = $${idx++}`;
+      params.push(options.status);
+    }
+    query += ` ORDER BY created_at DESC`;
+    const limit = Math.min(options.limit ?? 100, 200);
+    const offset = options.offset ?? 0;
+    query += ` LIMIT $${idx} OFFSET $${idx + 1}`;
+    params.push(limit, offset);
+    const result: QueryResult<Record<string, unknown>> = await db.query(query, params);
+    return result.rows.map(mapTaskRow);
+  }
+
+  static async findById(id: string, tenantId: string): Promise<WorkflowTask | null> {
+    requireTenantId(tenantId, 'WorkflowTaskModel.findById');
+    const result: QueryResult<Record<string, unknown>> = await db.query(
+      `SELECT * FROM workflow_tasks WHERE id = $1 AND tenant_id = $2`,
+      [id, tenantId]
+    );
+    return result.rows[0] ? mapTaskRow(result.rows[0]) : null;
+  }
+
+  static async updateStatus(id: string, tenantId: string, status: string): Promise<WorkflowTask | null> {
+    requireTenantId(tenantId, 'WorkflowTaskModel.updateStatus');
+    const result: QueryResult<Record<string, unknown>> = await db.query(
+      `UPDATE workflow_tasks SET status = $1 WHERE id = $2 AND tenant_id = $3 RETURNING *`,
+      [status, id, tenantId]
+    );
+    return result.rows[0] ? mapTaskRow(result.rows[0]) : null;
   }
 }
 

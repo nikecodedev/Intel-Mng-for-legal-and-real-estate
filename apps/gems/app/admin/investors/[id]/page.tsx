@@ -1,6 +1,5 @@
 'use client';
 
-import { use } from 'react';
 import { useQuery } from 'react-query';
 import Link from 'next/link';
 import { DateDisplay, BlockLoader } from '@/components/ui';
@@ -17,8 +16,8 @@ function matchScoreColor(score: number) {
   return 'text-gray-700 bg-gray-100';
 }
 
-export default function AdminInvestorDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function AdminInvestorDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params;
 
   const { data: investor, isLoading: invLoading, error: invError } = useQuery(
     ['crm-investor', id],

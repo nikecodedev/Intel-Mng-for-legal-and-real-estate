@@ -38,6 +38,15 @@ export function getStoredRefreshToken(): string | null {
 
 export function setStoredAuth(accessToken: string, refreshToken: string | undefined, userJson: string): void {
   if (typeof window === 'undefined') return;
+  // Warn if tenant_id is missing (debugging aid) but still store auth
+  try {
+    const parsed = JSON.parse(userJson);
+    if (!parsed?.tenant_id) {
+      console.warn('[auth] Warning: tenant_id is missing from user payload');
+    }
+  } catch {
+    console.warn('[auth] Warning: invalid user JSON');
+  }
   try {
     localStorage.setItem(AUTH_ACCESS_KEY, accessToken);
     if (refreshToken) localStorage.setItem(AUTH_REFRESH_KEY, refreshToken);
@@ -74,7 +83,7 @@ export function getStoredUser(): User | null {
         email: String(p.email),
         first_name: p.first_name != null ? String(p.first_name) : null,
         last_name: p.last_name != null ? String(p.last_name) : null,
-        tenant_id: String(p.tenant_id),
+        tenant_id: p.tenant_id != null ? String(p.tenant_id) : '',
         role,
         tenant_name: p.tenant_name != null ? String(p.tenant_name) : null,
       };

@@ -110,6 +110,38 @@ export function fetchAuctionROI(id: string): Promise<ROIData> {
   });
 }
 
+export type DueDiligenceStatus = 'ok' | 'pending' | 'risk';
+
+export interface DueDiligenceChecklist {
+  occupancy: DueDiligenceStatus;
+  debts: DueDiligenceStatus;
+  legal_risks: DueDiligenceStatus;
+  zoning: DueDiligenceStatus;
+}
+
+export interface BidPayload {
+  amount_cents: number;
+}
+
+export interface BidResponse {
+  success: boolean;
+  data: { bid_id: string; amount_cents: number; status: string };
+}
+
+export function updateDueDiligence(id: string, checklist: DueDiligenceChecklist): Promise<AuctionAsset> {
+  return api.put<AuctionAssetResponse>(`/auctions/assets/${id}/due-diligence`, checklist).then((r) => {
+    if (!r.data?.success || !r.data?.data) throw new Error('Invalid response');
+    return r.data.data;
+  });
+}
+
+export function placeBid(id: string, payload: BidPayload): Promise<BidResponse['data']> {
+  return api.post<BidResponse>(`/auctions/assets/${id}/bid`, payload).then((r) => {
+    if (!r.data?.success || !r.data?.data) throw new Error('Invalid response');
+    return r.data.data;
+  });
+}
+
 /** Next MPGA stage (F0->F1->...->F9). Returns null if already at F9. */
 export function getNextStage(current: string): string | null {
   if (current === 'F9') return null;

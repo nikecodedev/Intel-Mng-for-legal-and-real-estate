@@ -5,7 +5,7 @@ import { getTenantContext } from '../utils/tenant-context.js';
 import { parsePagination } from '../utils/pagination.js';
 import { NotFoundError, AuthorizationError } from '../utils/errors.js';
 import { AuditService, AuditAction, AuditEventCategory } from '../services/audit.js';
-import { WorkflowTriggerModel, type WorkflowActionType } from '../models/workflow-trigger.js';
+import { WorkflowTriggerModel, WorkflowTaskModel, type WorkflowActionType } from '../models/workflow-trigger.js';
 import { runWorkflow } from '../services/workflow-engine.js';
 
 const router = Router();
@@ -15,7 +15,7 @@ const createTriggerSchema = z.object({
     name: z.string().max(255).optional(),
     event_type: z.string().min(1).max(100),
     condition: z.record(z.unknown()),
-    action_type: z.enum(['create_task', 'send_notification', 'block_transition']),
+    action_type: z.enum(['create_task', 'send_notification', 'block_transition', 'update_state']),
     action_config: z.record(z.unknown()).optional(),
   }),
 });
@@ -243,6 +243,85 @@ router.post(
         allowed: true,
         triggered: result.triggered,
       },
+    });
+  })
+);
+
+// ─── Workflow Tasks ───
+
+const updateTaskStatusSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    status: z.enum(['pending', 'in_progress', 'completed', 'cancelled']),
+  }),
+});
+
+/**
+ * GET /workflow/tasks
+ * List workflow tasks for tenant. Optional filter by status.
+ */
+router.get(
+  '/tasks',
+  authenticate,
+  requirePermission('workflow:read'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { tenantId } = getTenantContext(req);
+    const status = req.query.status as string | undefined;
+    const { limit, offset } = parsePagination(req.query);
+
+    const tasks = await WorkflowTaskModel.listByTenant(tenantId, { status, limit, offset });
+
+    res.json({
+      success: true,
+      data: {
+        tasks,
+        pagination: { limit, offset },
+      },
+    });
+  })
+);
+
+/**
+ * PATCH /workflow/tasks/:id
+ * Update task status.
+ */
+router.patch(
+  '/tasks/:id',
+  authenticate,
+  requirePermission('workflow:update'),
+  validateRequest(updateTaskStatusSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { tenantId, userId } = getTenantContext(req);
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const task = await WorkflowTaskModel.updateStatus(id, tenantId, status);
+    if (!task) throw new NotFoundError('Workflow task');
+
+    await AuditService.log({
+      tenant_id: tenantId,
+      event_type: 'workflow_task.update',
+      event_category: AuditEventCategory.DATA_MODIFICATION,
+      action: AuditAction.UPDATE,
+      user_id: userId,
+      user_email: req.user!.email,
+      user_role: req.context?.role,
+      resource_type: 'workflow_task',
+      resource_id: id,
+      description: `Workflow task status updated to ${status}`,
+      details: { status },
+      ip_address: req.ip ?? req.socket?.remoteAddress,
+      user_agent: req.get('user-agent'),
+      request_id: req.headers['x-request-id'] as string | undefined,
+      session_id: req.headers['x-session-id'] as string | undefined,
+      success: true,
+      compliance_flags: ['workflow'],
+      retention_category: 'workflow',
+    });
+
+    res.json({
+      success: true,
+      data: task,
     });
   })
 );

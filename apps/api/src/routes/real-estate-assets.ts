@@ -4,6 +4,7 @@ import { asyncHandler, authenticate, requirePermission, validateRequest } from '
 import { getTenantContext } from '../utils/tenant-context.js';
 import { NotFoundError, ValidationError, InvalidTransitionError } from '../utils/errors.js';
 import { RealEstateAssetModel, AssetState, getValidNextStates } from '../models/real-estate-asset.js';
+import { db } from '../models/database.js';
 import { AssetCostModel, CostType, PaymentStatus } from '../models/asset-cost.js';
 import { VacancyMonitoringService } from '../services/vacancy-monitoring.js';
 import { AssetCostCalculationService } from '../services/asset-cost-calculation.js';
@@ -256,6 +257,34 @@ router.post(
     const currentAsset = await RealEstateAssetModel.findById(id, tenantContext.tenantId);
     if (!currentAsset) {
       throw new NotFoundError('Real estate asset');
+    }
+
+    // Block SOLD/RENTED without required checklist completion
+    const targetState = req.body.to_state as AssetState;
+    if (targetState === 'SOLD' || targetState === 'RENTED') {
+      const requiredPriorStates: AssetState[] = ['REGULARIZATION', 'RENOVATION'];
+      const stateHistory = await db.query<{ to_state: string }>(
+        `SELECT DISTINCT to_state FROM asset_state_transitions
+         WHERE tenant_id = $1 AND real_estate_asset_id = $2 AND is_valid = true`,
+        [tenantContext.tenantId, id]
+      );
+      const visitedStates = new Set(stateHistory.rows.map((r: { to_state: string }) => r.to_state));
+      // Also count the current state as visited
+      visitedStates.add(currentAsset.current_state);
+
+      const missingStates = requiredPriorStates.filter((s) => !visitedStates.has(s));
+      if (missingStates.length > 0) {
+        throw new ValidationError(
+          `Cannot transition to ${targetState}: asset must pass through ${missingStates.join(', ')} first`
+        );
+      }
+
+      // Verify acquisition cost is recorded
+      if (!currentAsset.acquisition_price_cents) {
+        throw new ValidationError(
+          `Cannot transition to ${targetState}: acquisition_price_cents must be filled`
+        );
+      }
     }
 
     // Transition state

@@ -8,6 +8,8 @@ export function formatDate(
 ): string {
   if (iso == null || iso === '') return '—';
   try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '—';
     const style = options.style ?? 'short';
     const opts: Intl.DateTimeFormatOptions =
       style === 'short'
@@ -15,9 +17,9 @@ export function formatDate(
         : style === 'medium'
           ? { dateStyle: 'medium' }
           : { dateStyle: 'long', timeStyle: 'short' };
-    return new Date(iso).toLocaleDateString(undefined, { ...opts, ...options });
+    return d.toLocaleDateString(undefined, { ...opts, ...options });
   } catch {
-    return String(iso);
+    return '—';
   }
 }
 

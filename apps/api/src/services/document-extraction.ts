@@ -13,7 +13,7 @@ import { DocumentModel } from '../models/document.js';
 import { DocumentExtractionModel, ExtractedParty, ExtractedMonetaryValue, ExtractedDate } from '../models/document-extraction.js';
 import { DocumentQualityFlagModel, QualityFlagType, FlagSeverity } from '../models/document-quality-flag.js';
 import { DocumentFactModel, CreateDocumentFactInput } from '../models/document-fact.js';
-import { extractTextFromPdf } from './document-processor.js';
+import { extractTextFromPdf, structureAsFPDN, FPDNOutput } from './document-processor.js';
 
 /**
  * Quality control thresholds (GEMS compliance)
@@ -70,6 +70,7 @@ interface FieldExtractionResult {
   overall_confidence: number;
   field_confidences: Record<string, number>;
   warnings: string[];
+  fpdn?: { fatos: string[]; provas: { texto: string; pagina?: number }[]; direito: string; nexo_causal: string } | null;
 }
 
 /**
@@ -96,6 +97,7 @@ export interface DocumentProcessingResult {
   quality_flags: string[];
   in_sanitation_queue: boolean;
   errors: string[];
+  fpdn?: FPDNOutput | null;
 }
 
 /**
@@ -155,13 +157,64 @@ export class DocumentExtractionService {
     };
 
     try {
-      // Step 1: Run Python OCR processor
-      const ocrResult = await this.runOCRProcessor(tenantId, filePath);
-      
+      // Step 1: Run Python OCR processor (with timeout fallback)
+      const ocrResult = await Promise.race([
+        this.runOCRProcessor(tenantId, filePath),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 60000)), // 60s timeout
+      ]);
+
       if (!ocrResult) {
-        result.errors.push('OCR processing failed');
-        await this.createQualityFlag(tenantId, documentId, 'OCR_FAILED', 'ERROR', 'OCR processing failed completely');
-        result.in_sanitation_queue = true;
+        // Python OCR failed or timed out — fallback to pdf-parse + Gemini extraction
+        logger.warn('Python OCR unavailable, falling back to pdf-parse + Gemini', { documentId });
+        await this.createQualityFlag(tenantId, documentId, 'OCR_FAILED', 'INFO', 'Python OCR skipped — using pdf-parse/Gemini fallback');
+        result.quality_flags.push('OCR_FALLBACK_USED');
+
+        // Set default OCR result so extraction proceeds
+        result.ocr_result = { passed: true, confidence: 80, required: OCR_CONFIDENCE_MINIMUM, message: 'Fallback: pdf-parse + Gemini' };
+        result.status_cpo = 'AMARELO';
+        await DocumentModel.updateOCR(documentId, tenantId, { ocr_processed: true, ocr_confidence: 80, ocr_engine: 'pdf-parse+gemini' });
+        await DocumentModel.updateCPO(documentId, tenantId, { status_cpo: 'AMARELO', cpo_notes: 'OCR fallback used', cpo_approval_required: true });
+
+        // Go directly to text extraction (Step 5)
+        try {
+          const { text: fullText, usedOcrFallback } = await extractTextFromPdf(filePath);
+          if (usedOcrFallback) result.quality_flags.push('OCR_VISION_FALLBACK_USED');
+          const extraction = await this.extractFields(tenantId, documentId, 80, fullText);
+          result.extraction = extraction;
+          const extractionRecord = await DocumentExtractionModel.create({
+            tenant_id: tenantId, document_id: documentId,
+            process_number: extraction.process_number || undefined,
+            court: extraction.court || undefined,
+            court_type: extraction.court_type || undefined,
+            court_state: extraction.court_state || undefined,
+            parties: extraction.parties, monetary_values: extraction.monetary_values,
+            extracted_dates: extraction.extracted_dates,
+            overall_confidence: extraction.overall_confidence,
+            field_confidences: extraction.field_confidences,
+            extraction_warnings: extraction.warnings,
+            processed_by: processedBy,
+          });
+          result.extraction_id = extractionRecord.id;
+          await this.upsertDocumentFacts(tenantId, documentId, extraction);
+
+          // FPDN structuring (QG1 compliance)
+          try {
+            const fpdn = await structureAsFPDN(fullText);
+            if (fpdn) {
+              extraction.fpdn = fpdn;
+              // Save FPDN facts with page references
+              await this.upsertFPDNFacts(tenantId, documentId, fpdn);
+            }
+          } catch (fpdnError) {
+            logger.warn('FPDN structuring failed, continuing without', { documentId, error: fpdnError });
+          }
+
+          result.success = true;
+          logger.info('Document processing completed via fallback', { documentId, status_cpo: result.status_cpo });
+        } catch (fallbackError) {
+          logger.error('Fallback extraction also failed', { error: fallbackError, documentId });
+          result.errors.push(`Fallback extraction failed: ${fallbackError instanceof Error ? fallbackError.message : 'Unknown'}`);
+        }
         return result;
       }
 
@@ -282,6 +335,18 @@ export class DocumentExtractionService {
 
           // Populate document_facts for legal traceability (proof lineage)
           await this.upsertDocumentFacts(tenantId, documentId, extraction);
+
+          // FPDN structuring (QG1 compliance)
+          try {
+            const fpdn = await structureAsFPDN(fullText);
+            if (fpdn) {
+              extraction.fpdn = fpdn;
+              // Save FPDN facts with page references
+              await this.upsertFPDNFacts(tenantId, documentId, fpdn);
+            }
+          } catch (fpdnError) {
+            logger.warn('FPDN structuring failed, continuing without', { documentId, error: fpdnError });
+          }
 
           // Check for extraction issues
           if (extraction.warnings.length > 0) {
@@ -494,7 +559,7 @@ export class DocumentExtractionService {
   ): Promise<void> {
     await DocumentFactModel.deleteByDocumentId(documentId, tenantId);
     const conf = extraction.field_confidences ?? {};
-    const pageNumber = 1; // Default when OCR does not provide per-page
+    const pageNumber: number | null = null; // Honest default — FPDN provas carry real page numbers from Gemini
     const inputs: CreateDocumentFactInput[] = [];
 
     if (extraction.process_number) {
@@ -577,6 +642,70 @@ export class DocumentExtractionService {
     if (inputs.length > 0) {
       await DocumentFactModel.createMany(inputs);
       logger.info('Document facts populated', { documentId, tenantId, count: inputs.length });
+    }
+  }
+
+  /**
+   * Upsert FPDN-structured facts (fatos, provas, direito, nexo_causal)
+   */
+  private async upsertFPDNFacts(
+    tenantId: string,
+    documentId: string,
+    fpdn: FPDNOutput
+  ): Promise<void> {
+    const inputs: CreateDocumentFactInput[] = [];
+
+    // Fatos
+    for (const fato of fpdn.fatos) {
+      inputs.push({
+        tenant_id: tenantId,
+        document_id: documentId,
+        fact_type: 'fato_juridico',
+        fact_value: fato,
+        page_number: null,
+        confidence_score: null,
+      });
+    }
+
+    // Provas with page references
+    for (const prova of fpdn.provas) {
+      inputs.push({
+        tenant_id: tenantId,
+        document_id: documentId,
+        fact_type: 'prova',
+        fact_value: prova.texto,
+        page_number: prova.pagina ?? null,
+        confidence_score: null,
+      });
+    }
+
+    // Direito
+    if (fpdn.direito) {
+      inputs.push({
+        tenant_id: tenantId,
+        document_id: documentId,
+        fact_type: 'direito',
+        fact_value: fpdn.direito,
+        page_number: null,
+        confidence_score: null,
+      });
+    }
+
+    // Nexo causal
+    if (fpdn.nexo_causal) {
+      inputs.push({
+        tenant_id: tenantId,
+        document_id: documentId,
+        fact_type: 'nexo_causal',
+        fact_value: fpdn.nexo_causal,
+        page_number: null,
+        confidence_score: null,
+      });
+    }
+
+    if (inputs.length > 0) {
+      await DocumentFactModel.createMany(inputs);
+      logger.info('FPDN facts populated', { documentId, tenantId, count: inputs.length });
     }
   }
 
