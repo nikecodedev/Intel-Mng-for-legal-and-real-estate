@@ -19,8 +19,8 @@ function SignupContent() {
 
   if (!isInitialized) {
     return (
-      <main className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-500">Loading...</p>
+      <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900">
+        <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
       </main>
     );
   }
@@ -30,16 +30,29 @@ function SignupContent() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-4 bg-gray-100">
-      <div className="w-full max-w-md">
-        <h1 className="text-2xl font-bold text-center text-gray-900 mb-2">GEMS – Sign up</h1>
-        <p className="text-center text-gray-600 text-sm mb-6">
-          Create an account to access the platform.
-        </p>
-        <RegisterForm onSuccess={handleSuccess} />
-        <p className="mt-4 text-center text-sm text-gray-600">
+    <main className="relative min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 overflow-hidden">
+      {/* Decorative elements */}
+      <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-blue-500/10 blur-3xl" />
+      <div className="absolute bottom-[-20%] left-[-10%] w-[400px] h-[400px] rounded-full bg-indigo-500/10 blur-3xl" />
+
+      <div className="relative w-full max-w-md">
+        {/* Logo */}
+        <div className="flex flex-col items-center mb-8">
+          <div className="w-14 h-14 rounded-2xl bg-blue-600 flex items-center justify-center mb-4 shadow-lg shadow-blue-600/30">
+            <span className="text-white text-2xl font-bold">G</span>
+          </div>
+          <h1 className="text-2xl font-bold text-white">Create your account</h1>
+          <p className="text-slate-400 text-sm mt-1">Join GEMS — Legal & Real Estate Platform</p>
+        </div>
+
+        {/* Card */}
+        <div className="rounded-2xl bg-white/[0.07] backdrop-blur-xl border border-white/10 p-8 shadow-2xl">
+          <RegisterForm onSuccess={handleSuccess} />
+        </div>
+
+        <p className="mt-6 text-center text-sm text-slate-400">
           Already have an account?{' '}
-          <Link href="/login" className="font-medium text-blue-600 hover:underline">
+          <Link href="/login" className="font-semibold text-blue-400 hover:text-blue-300 transition-colors">
             Sign in
           </Link>
         </p>
@@ -52,8 +65,8 @@ export default function SignupPage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen flex items-center justify-center">
-          <p className="text-gray-500">Loading...</p>
+        <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900">
+          <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
         </main>
       }
     >
