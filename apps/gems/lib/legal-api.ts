@@ -176,8 +176,15 @@ export async function fetchViewerContext(documentId: string, factId?: string | n
 
 /** Fetch viewer asset as blob with auth (for embedded viewer; no download URL). */
 export async function fetchViewerAssetBlob(documentId: string): Promise<Blob> {
+  // DLP: must pass viewer=true and token=userId to access the file
+  let userId = '';
+  try {
+    const raw = localStorage.getItem('user');
+    if (raw) userId = JSON.parse(raw)?.id || '';
+  } catch { /* ignore */ }
   const res = await api.get<Blob>(`/documents/${documentId}/viewer-asset`, {
     responseType: 'blob',
+    params: { viewer: 'true', token: userId },
   });
   return res.data;
 }
