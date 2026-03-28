@@ -185,6 +185,7 @@ export async function fetchViewerAssetBlob(documentId: string): Promise<Blob> {
   const res = await api.get<Blob>(`/documents/${documentId}/viewer-asset`, {
     responseType: 'blob',
     params: { viewer: 'true', token: userId },
+    timeout: 600000, // 10 min for large PDFs (500MB+)
   });
   return res.data;
 }
