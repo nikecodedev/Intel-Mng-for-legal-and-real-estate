@@ -8,10 +8,14 @@ interface StatCardProps {
 
 export function StatCard({ label, value, error }: StatCardProps) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
-      <p className="text-sm font-medium text-gray-500">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-gray-900">
-        {error ? 0 : value}
+    <div className="stat-card border-l-4 border-l-blue-500/60">
+      <p className="stat-label">{label}</p>
+      <p className="stat-value mt-2">
+        {error ? (
+          <span className="text-gray-400">0</span>
+        ) : (
+          value
+        )}
       </p>
     </div>
   );

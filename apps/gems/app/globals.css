@@ -1,3 +1,165 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --color-primary: 37 99 235;
+    --color-primary-dark: 29 78 216;
+    --color-accent: 99 102 241;
+    --color-success: 22 163 74;
+    --color-warning: 234 179 8;
+    --color-danger: 220 38 38;
+    --sidebar-width: 16rem;
+  }
+
+  body {
+    @apply text-gray-800 bg-slate-50;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Better focus styles */
+  :focus-visible {
+    @apply outline-none ring-2 ring-blue-500 ring-offset-2;
+  }
+}
+
+@layer components {
+  /* Card styles */
+  .card {
+    @apply rounded-xl border border-gray-200/80 bg-white shadow-sm transition-shadow hover:shadow-md;
+  }
+
+  .card-header {
+    @apply border-b border-gray-100 px-5 py-4;
+  }
+
+  .card-body {
+    @apply px-5 py-4;
+  }
+
+  /* Page heading */
+  .page-title {
+    @apply text-2xl font-bold tracking-tight text-gray-900;
+  }
+
+  .page-subtitle {
+    @apply text-sm text-gray-500 mt-1;
+  }
+
+  /* Table styles */
+  .data-table {
+    @apply min-w-full divide-y divide-gray-200/80;
+  }
+
+  .data-table thead {
+    @apply bg-gray-50/80;
+  }
+
+  .data-table th {
+    @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500;
+  }
+
+  .data-table td {
+    @apply px-4 py-3.5 text-sm text-gray-700;
+  }
+
+  .data-table tbody tr {
+    @apply border-b border-gray-100 transition-colors hover:bg-blue-50/40;
+  }
+
+  /* Badge styles */
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  }
+
+  .badge-green {
+    @apply bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20;
+  }
+
+  .badge-yellow {
+    @apply bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20;
+  }
+
+  .badge-red {
+    @apply bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20;
+  }
+
+  .badge-blue {
+    @apply bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20;
+  }
+
+  .badge-gray {
+    @apply bg-gray-50 text-gray-600 ring-1 ring-inset ring-gray-500/20;
+  }
+
+  /* Button styles */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 shadow-sm;
+  }
+
+  .btn-secondary {
+    @apply btn bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 focus:ring-gray-500;
+  }
+
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+  }
+
+  .btn-ghost {
+    @apply btn bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900;
+  }
+
+  /* Input styles */
+  .input {
+    @apply block w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 shadow-sm transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none;
+  }
+
+  .input-error {
+    @apply border-red-300 focus:border-red-500 focus:ring-red-500/20;
+  }
+
+  .label {
+    @apply block text-sm font-medium text-gray-700 mb-1.5;
+  }
+
+  /* Stat card */
+  .stat-card {
+    @apply card px-5 py-4;
+  }
+
+  .stat-card .stat-value {
+    @apply text-3xl font-bold tracking-tight text-gray-900;
+  }
+
+  .stat-card .stat-label {
+    @apply text-sm font-medium text-gray-500 mt-0.5;
+  }
+
+  /* Section divider */
+  .section-title {
+    @apply text-base font-semibold text-gray-900 mb-3;
+  }
+
+  /* Empty state */
+  .empty-state {
+    @apply flex flex-col items-center justify-center py-12 text-center;
+  }
+
+  .empty-state-icon {
+    @apply w-12 h-12 text-gray-300 mb-3;
+  }
+
+  .empty-state-text {
+    @apply text-sm text-gray-500;
+  }
+}

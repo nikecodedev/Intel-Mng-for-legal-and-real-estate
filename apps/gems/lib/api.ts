@@ -72,9 +72,11 @@ api.interceptors.response.use(
     const status = error.response?.status;
 
     if (status === 401 && typeof window !== 'undefined') {
-      // Skip auth redirect for blob/viewer requests to avoid logout during document viewing
+      // Skip auth redirect for viewer/blob requests to avoid logout during document viewing
       const requestUrl = error.config?.url || '';
-      if (requestUrl.includes('viewer-asset') || error.config?.responseType === 'blob') {
+      const isViewerRequest = requestUrl.includes('viewer-asset') || requestUrl.includes('viewer-context') || error.config?.responseType === 'blob';
+      const isOnViewerPage = typeof window !== 'undefined' && window.location.pathname.includes('/view');
+      if (isViewerRequest || isOnViewerPage) {
         return Promise.reject(error);
       }
 

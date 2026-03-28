@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import type { UserRole } from '@/lib/types';
 import { Header } from './Header';
@@ -13,15 +14,19 @@ interface DashboardLayoutProps {
 }
 
 export function DashboardLayout({ title, children, allowedRoles }: DashboardLayoutProps) {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   return (
     <ProtectedRoute allowedRoles={allowedRoles}>
-      <div className="min-h-screen flex">
-        <Sidebar />
+      <div className="min-h-screen flex bg-slate-50">
+        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <div className="flex-1 flex flex-col min-w-0">
-          <Header />
-          <main className="flex-1 p-6 bg-gray-50">
-            <h1 className="text-xl font-semibold text-gray-900 mb-4">{title}</h1>
-            {children}
+          <Header onMenuToggle={() => setSidebarOpen((prev) => !prev)} />
+          <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-7xl">
+              <h1 className="page-title mb-6">{title}</h1>
+              {children}
+            </div>
           </main>
         </div>
       </div>

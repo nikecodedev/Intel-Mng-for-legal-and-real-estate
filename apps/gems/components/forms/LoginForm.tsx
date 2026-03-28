@@ -4,9 +4,6 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { getApiErrorMessage } from '@/lib/api';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Card, CardContent } from '@/components/ui/Card';
 
 interface LoginFormProps {
   onSuccess?: () => void;
@@ -35,49 +32,70 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
   };
 
   return (
-    <Card>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            label="Email"
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <div>
+        <label htmlFor="login-email" className="block text-sm font-medium text-slate-300 mb-1.5">
+          Email
+        </label>
+        <input
+          id="login-email"
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          placeholder="you@company.com"
+          className="block w-full rounded-lg border border-white/10 bg-white/5 px-3.5 py-2.5 text-sm text-white placeholder-slate-500 shadow-sm transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
+        />
+      </div>
+      <div>
+        <label htmlFor="login-password" className="block text-sm font-medium text-slate-300 mb-1.5">
+          Password
+        </label>
+        <input
+          id="login-password"
+          type="password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          placeholder="Enter your password"
+          className="block w-full rounded-lg border border-white/10 bg-white/5 px-3.5 py-2.5 text-sm text-white placeholder-slate-500 shadow-sm transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
+        />
+      </div>
+      <div className="flex items-center justify-between">
+        <label className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={rememberMe}
+            onChange={(e) => setRememberMe(e.target.checked)}
+            className="rounded border-white/20 bg-white/5 text-blue-600 focus:ring-blue-500"
           />
-          <Input
-            label="Password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-          <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              Remember me
-            </label>
-            <Link href="/forgot-password" className="text-sm font-medium text-blue-600 hover:underline">
-              Forgot password?
-            </Link>
-          </div>
-          {error && (
-            <p className="text-sm text-red-600" role="alert">
-              {error}
-            </p>
-          )}
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Signing in…' : 'Sign in'}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+          Remember me
+        </label>
+        <Link href="/forgot-password" className="text-sm font-medium text-blue-400 hover:text-blue-300 transition-colors">
+          Forgot password?
+        </Link>
+      </div>
+      {error && (
+        <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3" role="alert">
+          <p className="text-sm text-red-400">{error}</p>
+        </div>
+      )}
+      <button
+        type="submit"
+        disabled={loading}
+        className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-150 hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {loading ? (
+          <span className="flex items-center justify-center gap-2">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+            Signing in...
+          </span>
+        ) : (
+          'Sign in'
+        )}
+      </button>
+    </form>
   );
 }

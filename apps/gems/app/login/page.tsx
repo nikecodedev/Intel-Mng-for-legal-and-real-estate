@@ -51,8 +51,11 @@ function LoginContent() {
 
   if (!isInitialized) {
     return (
-      <main className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-500">Loading...</p>
+      <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900">
+        <div className="flex items-center gap-2">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+          <p className="text-sm text-white/60">Loading...</p>
+        </div>
       </main>
     );
   }
@@ -62,13 +65,31 @@ function LoginContent() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-4 bg-gray-100">
-      <div className="w-full max-w-md">
-        <h1 className="text-2xl font-bold text-center text-gray-900 mb-6">GEMS – Sign in</h1>
-        <LoginForm onSuccess={handleSuccess} />
-        <p className="mt-4 text-center text-sm text-gray-600">
+    <main className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 relative overflow-hidden">
+      {/* Subtle background decoration */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 h-80 w-80 rounded-full bg-blue-500/10 blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 h-80 w-80 rounded-full bg-indigo-500/10 blur-3xl" />
+      </div>
+
+      <div className="relative w-full max-w-md">
+        {/* Logo and branding */}
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 shadow-lg shadow-blue-600/30">
+            <span className="text-2xl font-bold text-white">G</span>
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-white">Welcome back</h1>
+          <p className="mt-1 text-sm text-slate-400">Sign in to your GEMS account</p>
+        </div>
+
+        {/* Login form card */}
+        <div className="rounded-2xl border border-white/10 bg-white/[0.07] p-6 shadow-2xl backdrop-blur-xl sm:p-8">
+          <LoginForm onSuccess={handleSuccess} />
+        </div>
+
+        <p className="mt-6 text-center text-sm text-slate-400">
           Don&apos;t have an account?{' '}
-          <Link href="/signup" className="font-medium text-blue-600 hover:underline">
+          <Link href="/signup" className="font-medium text-blue-400 hover:text-blue-300 transition-colors">
             Sign up
           </Link>
         </p>
@@ -80,8 +101,11 @@ function LoginContent() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <main className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-500">Loading...</p>
+      <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900">
+        <div className="flex items-center gap-2">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+          <p className="text-sm text-white/60">Loading...</p>
+        </div>
       </main>
     }>
       <LoginContent />

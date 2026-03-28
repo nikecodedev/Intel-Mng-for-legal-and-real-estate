@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery } from 'react-query';
+import { useAuth } from '@/contexts/AuthContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { StatCardSkeleton } from '@/components/ui/Skeleton';
@@ -15,6 +16,8 @@ import {
 } from '@/lib/dashboard-api';
 
 export default function DashboardPage() {
+  const { user } = useAuth();
+
   const documentsQuery = useQuery('dashboard-documents', fetchDocumentsTotal, {
     staleTime: 60 * 1000,
     retry: 1,
@@ -40,9 +43,30 @@ export default function DashboardPage() {
     retry: 1,
   });
 
+  const greeting = (() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  })();
+
+  const displayName = (() => {
+    const first = user?.first_name?.trim();
+    if (first) return first;
+    return null;
+  })();
+
   return (
     <DashboardLayout title="Dashboard">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Welcome section */}
+      <div className="mb-8">
+        <p className="text-lg text-gray-600">
+          {greeting}{displayName ? `, ${displayName}` : ''}. Here is your overview.
+        </p>
+      </div>
+
+      {/* Stats grid */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {documentsQuery.isLoading ? (
           <StatCardSkeleton />
         ) : (
@@ -56,7 +80,7 @@ export default function DashboardPage() {
           <StatCardSkeleton />
         ) : (
           <StatCard
-            label="Documents pending sanitation"
+            label="Pending sanitation"
             value={sanitationQuery.data ?? 0}
             error={sanitationQuery.isError}
           />
@@ -74,7 +98,7 @@ export default function DashboardPage() {
           <StatCardSkeleton />
         ) : (
           <StatCard
-            label="Assets in renovation"
+            label="In renovation"
             value={renovationQuery.data ?? 0}
             error={renovationQuery.isError}
           />
@@ -83,16 +107,17 @@ export default function DashboardPage() {
           <StatCardSkeleton />
         ) : (
           <StatCard
-            label="Pending financial approvals"
+            label="Financial approvals"
             value={payablesQuery.data ?? 0}
             error={payablesQuery.isError}
           />
         )}
       </div>
 
-      <div className="mt-6">
+      {/* Deadlines section */}
+      <div className="mt-8">
         {deadlinesQuery.isLoading ? (
-          <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <div className="card p-6">
             <StatCardSkeleton />
           </div>
         ) : deadlinesQuery.isError ? (

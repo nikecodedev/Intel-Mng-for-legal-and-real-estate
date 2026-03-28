@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 
 function formatUserDisplay(user: { email: string; first_name?: string | null; last_name?: string | null }): string {
@@ -16,9 +16,29 @@ function formatTenantDisplay(tenantName: string | null | undefined, tenantId: st
   return 'Tenant';
 }
 
-export function Header() {
+function getPageTitle(pathname: string): string {
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments.length === 0) return 'Home';
+  const titles: Record<string, string> = {
+    dashboard: 'Dashboard',
+    legal: 'Legal',
+    auctions: 'Auctions',
+    'real-estate': 'Real Estate',
+    finance: 'Finance',
+    crm: 'CRM',
+    workflow: 'Workflow',
+    compliance: 'Compliance',
+    investor: 'Investor',
+    admin: 'Admin',
+    'super-admin': 'Super Admin',
+  };
+  return titles[segments[0]] ?? segments[0].charAt(0).toUpperCase() + segments[0].slice(1);
+}
+
+export function Header({ onMenuToggle }: { onMenuToggle?: () => void }) {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   const handleLogout = () => {
     // Block logout if an upload is in progress
@@ -30,25 +50,57 @@ export function Header() {
     router.push('/login');
   };
 
+  const userInitials = (() => {
+    if (!user) return '?';
+    const first = user.first_name?.trim()?.[0] ?? '';
+    const last = user.last_name?.trim()?.[0] ?? '';
+    if (first || last) return (first + last).toUpperCase();
+    return user.email[0].toUpperCase();
+  })();
+
   return (
-    <header className="h-14 border-b border-gray-200 bg-white flex items-center justify-between px-4 shrink-0">
-      <div className="min-w-0" />
-      <div className="flex items-center gap-4 min-w-0">
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-gray-200/80 bg-white/80 px-4 backdrop-blur-md sm:px-6">
+      <div className="flex items-center gap-3 min-w-0">
+        {/* Mobile menu button */}
+        <button
+          type="button"
+          onClick={onMenuToggle}
+          className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 lg:hidden"
+          aria-label="Toggle menu"
+        >
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold tracking-tight text-gray-900">
+            {getPageTitle(pathname)}
+          </h1>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 min-w-0">
         {user && (
           <>
-            <div className="hidden sm:block text-sm text-gray-500 truncate max-w-[140px]" title={formatTenantDisplay(user.tenant_name, user.tenant_id)}>
-              {formatTenantDisplay(user.tenant_name, user.tenant_id)}
+            <div className="hidden items-center gap-2 sm:flex">
+              <span className="text-xs font-medium text-gray-400 bg-gray-100 rounded-full px-2.5 py-1" title={formatTenantDisplay(user.tenant_name, user.tenant_id)}>
+                {formatTenantDisplay(user.tenant_name, user.tenant_id)}
+              </span>
             </div>
-            <span className="hidden sm:block w-px h-4 bg-gray-200 shrink-0" aria-hidden />
-            <div className="text-sm text-gray-700 truncate max-w-[180px]" title={user.email}>
-              {formatUserDisplay(user)}
+            <div className="hidden items-center gap-2.5 sm:flex">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white">
+                {userInitials}
+              </div>
+              <span className="text-sm font-medium text-gray-700 truncate max-w-[150px]" title={user.email}>
+                {formatUserDisplay(user)}
+              </span>
             </div>
           </>
         )}
         <button
           type="button"
           onClick={handleLogout}
-          className="shrink-0 text-sm text-gray-600 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100"
+          className="shrink-0 rounded-lg px-3 py-2 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
         >
           Log out
         </button>
