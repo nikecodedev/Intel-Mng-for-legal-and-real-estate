@@ -279,6 +279,23 @@ router.post(
         );
       }
 
+      // Check regularization checklist completion
+      const checklistResult = await db.query<{ total: string; completed: string }>(
+        `SELECT
+          COUNT(*) as total,
+          COUNT(*) FILTER (WHERE is_completed = true) as completed
+         FROM regularization_checklists
+         WHERE tenant_id = $1 AND real_estate_asset_id = $2`,
+        [tenantContext.tenantId, id]
+      );
+      const checklist = checklistResult.rows[0];
+      if (checklist.total === '0') {
+        throw new ValidationError('Cannot transition to SOLD/RENTED: no regularization checklist items found. Create checklist items first.');
+      }
+      if (checklist.completed !== checklist.total) {
+        throw new ValidationError(`Cannot transition to SOLD/RENTED: regularization checklist is ${checklist.completed}/${checklist.total} complete. All items must be completed.`);
+      }
+
       // Verify acquisition cost is recorded
       if (!currentAsset.acquisition_price_cents) {
         throw new ValidationError(

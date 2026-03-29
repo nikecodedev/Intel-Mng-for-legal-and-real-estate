@@ -67,9 +67,10 @@ export default function LegalDocumentViewPage({ params }: { params: { id: string
       <div className="relative flex-1 min-h-0 rounded-lg border border-gray-200 bg-gray-100 overflow-hidden">
         {blobUrl && (
           <iframe
-            src={blobUrl}
+            src={`${blobUrl}#toolbar=0&navpanes=0`}
             title="Document"
             className="absolute inset-0 w-full h-full border-0"
+            sandbox="allow-same-origin"
           />
         )}
         {!blobUrl && (

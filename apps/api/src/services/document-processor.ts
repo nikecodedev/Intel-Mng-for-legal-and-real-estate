@@ -143,7 +143,7 @@ const FPDN_SYSTEM_PROMPT = `Você é um assistente jurídico. Sua tarefa é anal
 1. "fatos": array de strings. Cada elemento é um fato relevante extraído do documento.
 2. "provas": array de objetos. Cada objeto deve ter:
    - "texto": string (trecho ou descrição da prova)
-   - "pagina": number (número da página de referência, quando aplicável)
+   - "pagina": number (número da página de referência — OBRIGATÓRIO, deve sempre indicar a página exata)
 3. "direito": string. Citações de lei, artigos e fundamentação jurídica aplicável.
 4. "nexo_causal": string. Exposição do nexo causal entre fatos, provas e direito.
 
@@ -189,7 +189,7 @@ export async function structureAsFPDN(documentText: string): Promise<FPDNOutput 
       const o = typeof p === 'object' && p !== null ? (p as Record<string, unknown>) : {};
       return {
         texto: String(o.texto ?? o.text ?? ''),
-        pagina: typeof o.pagina === 'number' ? o.pagina : undefined,
+        pagina: typeof o.pagina === 'number' ? o.pagina : 1,
       };
     });
     const direito = String(parsed.direito ?? '');

@@ -63,6 +63,9 @@ const roiInputsSchema = z.object({
     taxes_itbi_cents: z.number().int().min(0).optional(),
     legal_costs_cents: z.number().int().min(0).optional(),
     renovation_estimate_cents: z.number().int().min(0).optional(),
+    opex_monthly_cents: z.number().int().min(0).optional(),
+    registry_fees_cents: z.number().int().min(0).optional(),
+    insurance_cents: z.number().int().min(0).optional(),
     expected_resale_value_cents: z.number().int().min(0).optional(),
     expected_resale_date: z.string().nullable().optional(),
   }),
@@ -389,6 +392,9 @@ router.put(
       taxes_itbi_cents?: number;
       legal_costs_cents?: number;
       renovation_estimate_cents?: number;
+      opex_monthly_cents?: number;
+      registry_fees_cents?: number;
+      insurance_cents?: number;
       expected_resale_value_cents?: number;
       expected_resale_date?: string | null;
     } = {};
@@ -396,6 +402,9 @@ router.put(
     if (typeof body.taxes_itbi_cents === 'number') inputs.taxes_itbi_cents = body.taxes_itbi_cents;
     if (typeof body.legal_costs_cents === 'number') inputs.legal_costs_cents = body.legal_costs_cents;
     if (typeof body.renovation_estimate_cents === 'number') inputs.renovation_estimate_cents = body.renovation_estimate_cents;
+    if (typeof body.opex_monthly_cents === 'number') inputs.opex_monthly_cents = body.opex_monthly_cents;
+    if (typeof body.registry_fees_cents === 'number') inputs.registry_fees_cents = body.registry_fees_cents;
+    if (typeof body.insurance_cents === 'number') inputs.insurance_cents = body.insurance_cents;
     if (typeof body.expected_resale_value_cents === 'number') inputs.expected_resale_value_cents = body.expected_resale_value_cents;
     if (body.expected_resale_date !== undefined) inputs.expected_resale_date = body.expected_resale_date == null ? null : String(body.expected_resale_date);
 
