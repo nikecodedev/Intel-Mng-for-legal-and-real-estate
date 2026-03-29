@@ -14,12 +14,12 @@ export type AssetState = (typeof ASSET_STATES)[number];
  * Enforced at API level to block invalid transitions
  */
 const VALID_TRANSITIONS: Record<AssetState, AssetState[]> = {
-  ACQUIRED: ['REGULARIZATION', 'SOLD'], // Can skip to SOLD if sold before processing
-  REGULARIZATION: ['RENOVATION', 'SOLD'], // Can skip to SOLD
-  RENOVATION: ['READY', 'SOLD'], // Can skip to SOLD
-  READY: ['SOLD', 'RENTED'],
-  SOLD: [], // Terminal state
-  RENTED: ['READY', 'SOLD'], // Can return to READY or be sold
+  ACQUIRED: ['REGULARIZATION'],          // Must go through regularization first
+  REGULARIZATION: ['RENOVATION'],         // Must go through renovation
+  RENOVATION: ['READY'],                  // Must be marked as ready
+  READY: ['SOLD', 'RENTED'],             // Only READY assets can be sold/rented
+  SOLD: [],                               // Terminal state
+  RENTED: ['READY', 'SOLD'],             // Can return to READY or be sold
 };
 
 /**
