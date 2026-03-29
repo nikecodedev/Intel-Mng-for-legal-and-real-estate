@@ -266,6 +266,9 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
             {(quality_flags as QualityFlag[]).map((f) => (
               <li key={f.id} className="text-sm">
                 <span className="font-medium">{f.flag_type}</span> ({f.severity}): {f.flag_message}
+                {f.severity === 'ERROR' && (
+                  <span className="ml-2 inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">BLOCKING</span>
+                )}
                 <span className="text-amber-700 ml-2">— {f.queue_status}</span>
               </li>
             ))}

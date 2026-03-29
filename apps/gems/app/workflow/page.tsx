@@ -151,6 +151,11 @@ export default function WorkflowTasksPage() {
                             : ''}
                         </span>
                       )}
+                      {(task.task_type === 'expense_approval' || task.related_entity_type === 'expense') && (
+                        <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                          Expense Approval
+                        </span>
+                      )}
                       <span>
                         Created{' '}
                         {new Date(task.created_at).toLocaleDateString()}
