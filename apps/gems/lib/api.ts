@@ -124,7 +124,13 @@ api.interceptors.response.use(
           }
         }
       } catch {
-        // Refresh failed — just reject, don't force logout
+        // Refresh failed — clear auth and redirect
+        try {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user');
+        } catch {}
+        if (typeof window !== 'undefined') window.location.href = '/login';
       }
     }
 

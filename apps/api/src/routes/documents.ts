@@ -400,7 +400,7 @@ router.get(
 
     // DLP enforcement: only the secure viewer may fetch the file binary
     const viewerFlag = req.query.viewer as string | undefined;
-    const viewerToken = req.query.token as string | undefined;
+    const viewerToken = (req.headers['x-viewer-token'] || req.query.token) as string | undefined;
     if (viewerFlag !== 'true' || viewerToken !== userId) {
       res.status(403).json({
         success: false,

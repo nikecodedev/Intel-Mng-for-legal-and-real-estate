@@ -157,6 +157,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
     clearStoredAuth();
+    // Clear all cached data to prevent cross-tenant leaks
+    try { window.dispatchEvent(new Event('auth:clear-cache')); } catch {}
     setState((prev) => ({
       ...prev,
       user: null,

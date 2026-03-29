@@ -42,10 +42,14 @@ export function setStoredAuth(accessToken: string, refreshToken: string | undefi
   try {
     const parsed = JSON.parse(userJson);
     if (!parsed?.tenant_id) {
-      console.warn('[auth] Warning: tenant_id is missing from user payload');
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[auth] tenant_id missing');
+      }
     }
   } catch {
-    console.warn('[auth] Warning: invalid user JSON');
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[auth] invalid user JSON');
+    }
   }
   try {
     localStorage.setItem(AUTH_ACCESS_KEY, accessToken);

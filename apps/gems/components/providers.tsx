@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from 'react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -18,6 +18,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
       })
   );
+
+  useEffect(() => {
+    const handleClearCache = () => {
+      queryClient.clear();
+    };
+    window.addEventListener('auth:clear-cache', handleClearCache);
+    return () => window.removeEventListener('auth:clear-cache', handleClearCache);
+  }, [queryClient]);
 
   return (
     <ErrorBoundary>

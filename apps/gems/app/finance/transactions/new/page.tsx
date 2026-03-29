@@ -35,7 +35,7 @@ export default function NewTransactionPage() {
 
   const mutation = useMutation({
     mutationFn: () => {
-      const amountCents = Math.round(parseFloat(form.amount || '0') * 100);
+      const amountCents = Math.round(Number((parseFloat(form.amount || '0')).toFixed(2)) * 100);
       if (!Number.isFinite(amountCents) || amountCents <= 0) throw new Error('Please enter a valid amount greater than zero.');
       const payload: CreateTransactionInput = {
         transaction_type: form.transaction_type,
@@ -59,7 +59,7 @@ export default function NewTransactionPage() {
     },
   });
 
-  // Bug 15: Reset mutation error state when form mounts
+  // Reset mutation error state when form mounts
   useEffect(() => {
     return () => { mutation.reset(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -72,7 +72,16 @@ export default function NewTransactionPage() {
     setClientError(null);
     mutation.reset();
 
-    // Bug 13: Client-side entity link validation
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (form.process_id?.trim() && !UUID_RE.test(form.process_id.trim())) {
+      setClientError('Process ID must be a valid UUID format');
+      return;
+    }
+    if (form.client_id?.trim() && !UUID_RE.test(form.client_id.trim())) {
+      setClientError('Client ID must be a valid UUID format');
+      return;
+    }
+
     const hasLink = !!(form.process_id?.trim() || form.real_estate_asset_id || form.client_id?.trim());
     if (!hasLink) {
       setClientError('At least one link (Case, Asset, or Client) is required.');

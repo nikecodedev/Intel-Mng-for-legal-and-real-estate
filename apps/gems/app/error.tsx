@@ -23,11 +23,7 @@ export default function Error({
         <p className="text-sm text-gray-600 mb-4">
           An unexpected error occurred. You can try again or go back to the home page.
         </p>
-        {error?.message && (
-          <pre className="mb-4 p-3 rounded bg-gray-100 text-xs text-red-700 overflow-auto max-h-32">
-            {error.message}
-          </pre>
-        )}
+        <p className="text-sm text-gray-600">An unexpected error occurred. Please try again.</p>
         <div className="flex gap-3">
           <button
             type="button"
