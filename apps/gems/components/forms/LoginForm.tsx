@@ -17,17 +17,25 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // AbortController to cancel in-flight request on unmount (#20)
+  const abortRef = { current: null as AbortController | null };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
+    abortRef.current = new AbortController();
     try {
       await login(email, password, rememberMe);
       onSuccess?.();
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      if (!abortRef.current?.signal.aborted) {
+        setError(getApiErrorMessage(err));
+      }
     } finally {
-      setLoading(false);
+      if (!abortRef.current?.signal.aborted) {
+        setLoading(false);
+      }
     }
   };
 
