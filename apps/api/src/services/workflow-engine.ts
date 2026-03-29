@@ -12,41 +12,72 @@ export type WorkflowActionResult =
   | { allowed: true }
   | { allowed: false; blockedBy: string; message: string };
 
-/** Deterministic condition: op + field + optional value. Evaluated against event payload. */
+/**
+ * Evaluate a trigger condition against event payload.
+ * Supports two formats:
+ * 1. Legacy: { op: 'eq', field: 'x', value: 'y' }
+ * 2. Nested: { "field_name": { "op": value } } e.g. { "risk_score": { "gte": 70 } }
+ */
 export function evaluateCondition(condition: Record<string, unknown>, payload: Record<string, unknown>): boolean {
-  const op = condition.op as string | undefined;
-  const field = condition.field as string | undefined;
-  if (!op || !field) return false;
+  // Format 1: { op, field, value }
+  if (typeof condition.op === 'string' && typeof condition.field === 'string') {
+    return evalOp(condition.op, payload[condition.field], condition.value);
+  }
 
-  const raw = payload[field];
-  const value = condition.value;
+  // Format 2: { "field": { "op": value } } — all fields must match
+  for (const [field, rule] of Object.entries(condition)) {
+    if (rule == null || typeof rule !== 'object') continue;
+    const ruleObj = rule as Record<string, unknown>;
+    const payloadValue = payload[field];
+    let fieldMatched = false;
+    for (const [op, value] of Object.entries(ruleObj)) {
+      if (evalOp(op, payloadValue, value)) {
+        fieldMatched = true;
+      } else {
+        return false; // any op failure = condition fails
+      }
+    }
+    if (!fieldMatched) return false;
+  }
 
+  return true;
+}
+
+function evalOp(op: string, raw: unknown, value: unknown): boolean {
   switch (op) {
     case 'eq':
-      return raw === value;
+      return raw === value || String(raw) === String(value);
     case 'not_eq':
-      return raw !== value;
+      return raw !== value && String(raw) !== String(value);
+    case 'gt': {
+      const a = Number(raw), b = Number(value);
+      return !isNaN(a) && !isNaN(b) && a > b;
+    }
+    case 'gte': {
+      const a = Number(raw), b = Number(value);
+      return !isNaN(a) && !isNaN(b) && a >= b;
+    }
+    case 'lt': {
+      const a = Number(raw), b = Number(value);
+      return !isNaN(a) && !isNaN(b) && a < b;
+    }
+    case 'lte': {
+      const a = Number(raw), b = Number(value);
+      return !isNaN(a) && !isNaN(b) && a <= b;
+    }
     case 'present':
       return raw != null && raw !== '';
     case 'not_present':
       return raw == null || raw === '';
-    case 'days_until_lte': {
-      if (raw == null) return false;
-      const dateStr = typeof raw === 'string' ? raw : String(raw);
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return false;
-      const days = Math.ceil((d.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
-      const maxDays = typeof value === 'number' ? value : parseInt(String(value), 10);
-      return !isNaN(maxDays) && days <= maxDays;
-    }
+    case 'days_until_lte':
     case 'days_until_lt': {
       if (raw == null) return false;
-      const dateStr = typeof raw === 'string' ? raw : String(raw);
-      const d = new Date(dateStr);
+      const d = new Date(String(raw));
       if (isNaN(d.getTime())) return false;
       const days = Math.ceil((d.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
       const maxDays = typeof value === 'number' ? value : parseInt(String(value), 10);
-      return !isNaN(maxDays) && days < maxDays;
+      if (isNaN(maxDays)) return false;
+      return op === 'days_until_lte' ? days <= maxDays : days < maxDays;
     }
     default:
       return false;
