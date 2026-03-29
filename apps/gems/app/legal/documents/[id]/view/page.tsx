@@ -64,13 +64,21 @@ export default function LegalDocumentViewPage({ params }: { params: { id: string
         </Link>
         <span className="text-xs text-gray-500">Secure viewer — no download</span>
       </div>
-      <div className="relative flex-1 min-h-0 rounded-lg border border-gray-200 bg-gray-100 overflow-hidden">
+      <div
+        className="relative flex-1 min-h-0 rounded-lg border border-gray-200 bg-gray-100 overflow-hidden"
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        {/* Cover PDF toolbar to prevent download */}
+        <div className="absolute top-0 left-0 right-0 h-10 bg-gray-100 z-10 flex items-center justify-center">
+          <span className="text-xs text-gray-500 font-medium">GEMS Secure Viewer — Download disabled</span>
+        </div>
         {blobUrl && (
           <iframe
-            src={`${blobUrl}#toolbar=0&navpanes=0`}
+            src={`${blobUrl}#toolbar=0&navpages=0&scrollbar=1`}
             title="Document"
             className="absolute inset-0 w-full h-full border-0"
-            sandbox="allow-same-origin"
+            style={{ top: '40px', height: 'calc(100% - 40px)' }}
+            sandbox="allow-same-origin allow-scripts"
           />
         )}
         {!blobUrl && (
@@ -78,12 +86,18 @@ export default function LegalDocumentViewPage({ params }: { params: { id: string
             Loading document…
           </div>
         )}
-        {/* Frontend-only watermark overlay (backend secures the file) */}
-        <div
-          className="absolute bottom-0 left-0 right-0 py-2 px-4 bg-black/70 text-white/90 text-xs text-center pointer-events-none select-none"
-          aria-hidden
-        >
-          {watermarkText || 'Loading…'}
+        {/* Watermark overlay - positioned OVER the PDF */}
+        <div className="absolute inset-0 z-20 pointer-events-none select-none overflow-hidden" aria-hidden>
+          {/* Diagonal watermark text repeated */}
+          <div className="absolute inset-0 flex items-center justify-center opacity-10 rotate-[-30deg] scale-150">
+            <p className="text-4xl font-bold text-gray-900 whitespace-nowrap">
+              CONFIDENCIAL — {watermarkText}
+            </p>
+          </div>
+          {/* Bottom info bar */}
+          <div className="absolute bottom-0 left-0 right-0 py-1.5 px-4 bg-black/60 text-white/80 text-xs text-center">
+            {watermarkText || 'Loading…'}
+          </div>
         </div>
       </div>
     </div>
