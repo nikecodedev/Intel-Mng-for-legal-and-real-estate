@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS financial_transactions (
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     
     -- Transaction identification
-    transaction_number VARCHAR(255) UNIQUE NOT NULL, -- e.g., "TXN-2024-001"
+    transaction_number VARCHAR(255) NOT NULL, -- e.g., "TXN-2024-001"
     transaction_type VARCHAR(50) NOT NULL, -- 'PAYABLE', 'RECEIVABLE', 'EXPENSE', 'INCOME', 'TRANSFER'
     transaction_category VARCHAR(100), -- e.g., "legal_fees", "maintenance", "rent", "sale"
     
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS financial_transactions (
     
     -- MANDATORY LINK - No orphan transactions allowed
     -- Must link to ONE of: process_id (case), real_estate_asset_id, OR client_id
-    process_id UUID REFERENCES processes(id) ON DELETE SET NULL, -- Link to case/process
+    process_id UUID, -- Link to case/process (FK deferred: processes table may not exist yet)
     real_estate_asset_id UUID REFERENCES real_estate_assets(id) ON DELETE SET NULL, -- Link to asset
     client_id UUID, -- Link to client (future: REFERENCES clients(id))
     
@@ -92,7 +92,10 @@ CREATE TABLE IF NOT EXISTS financial_transactions (
     CONSTRAINT valid_payment_status CHECK (
         payment_status IN ('PENDING', 'PAID', 'PARTIAL', 'CANCELLED', 'OVERDUE')
     ),
-    CONSTRAINT valid_due_date CHECK (due_date IS NULL OR due_date >= transaction_date)
+    CONSTRAINT valid_due_date CHECK (due_date IS NULL OR due_date >= transaction_date),
+
+    -- Tenant-scoped uniqueness
+    UNIQUE(tenant_id, transaction_number)
 );
 
 CREATE INDEX idx_financial_transactions_tenant_id ON financial_transactions(tenant_id) WHERE deleted_at IS NULL;
@@ -314,10 +317,10 @@ CREATE TABLE IF NOT EXISTS expense_capture (
     description TEXT NOT NULL,
     
     -- MANDATORY LINK - No orphan expenses
-    process_id UUID REFERENCES processes(id) ON DELETE SET NULL,
+    process_id UUID, -- Link to case/process (FK deferred: processes table may not exist yet)
     real_estate_asset_id UUID REFERENCES real_estate_assets(id) ON DELETE SET NULL,
     client_id UUID,
-    
+
     -- Constraint: At least one link required
     CONSTRAINT no_orphan_expense CHECK (
         (process_id IS NOT NULL)::int + 

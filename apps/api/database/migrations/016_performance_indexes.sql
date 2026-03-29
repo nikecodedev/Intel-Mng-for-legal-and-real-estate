@@ -100,3 +100,107 @@ ANALYZE process_participants;
 ANALYZE refresh_tokens;
 ANALYZE documents;
 ANALYZE audit_logs;
+
+-- ============================================
+-- Business Rule Triggers
+-- ============================================
+
+-- 1. Bid Risk Gate: block bids when risk_score >= 70
+CREATE OR REPLACE FUNCTION check_bid_risk_gate()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.risk_score IS NOT NULL AND NEW.risk_score >= 70 THEN
+        RAISE EXCEPTION 'Bid blocked: risk_score % is >= 70. Manual override required.', NEW.risk_score;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_bid_risk_gate
+    BEFORE INSERT OR UPDATE ON auction_assets
+    FOR EACH ROW EXECUTE FUNCTION check_bid_risk_gate();
+
+-- 2. Real Estate State Transitions: block SOLD without passing through REGULARIZATION
+CREATE OR REPLACE FUNCTION check_real_estate_state_transition()
+RETURNS TRIGGER AS $$
+DECLARE
+    has_regularization BOOLEAN;
+BEGIN
+    -- Only check when state changes to SOLD
+    IF NEW.current_state = 'SOLD' AND (OLD.current_state IS NULL OR OLD.current_state != 'SOLD') THEN
+        -- Verify the asset went through REGULARIZATION at some point
+        SELECT EXISTS(
+            SELECT 1 FROM asset_state_transitions
+            WHERE real_estate_asset_id = NEW.id
+              AND to_state = 'REGULARIZATION'
+              AND is_valid = true
+        ) INTO has_regularization;
+
+        IF NOT has_regularization AND OLD.current_state != 'REGULARIZATION' THEN
+            RAISE EXCEPTION 'Cannot transition to SOLD: asset % has not completed REGULARIZATION stage.', NEW.asset_code;
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_real_estate_state_transition
+    BEFORE UPDATE ON real_estate_assets
+    FOR EACH ROW EXECUTE FUNCTION check_real_estate_state_transition();
+
+-- 3. Auto risk score recalculation trigger (sets risk_score based on bid data)
+CREATE OR REPLACE FUNCTION auto_recalculate_risk_score()
+RETURNS TRIGGER AS $$
+DECLARE
+    calculated_risk INTEGER;
+BEGIN
+    -- Simple risk heuristic: combine appraisal gap + debt ratio into 0-100 score
+    calculated_risk := 0;
+
+    -- If minimum_bid exceeds appraisal value, increase risk
+    IF NEW.minimum_bid_cents IS NOT NULL AND NEW.appraisal_value_cents IS NOT NULL
+       AND NEW.appraisal_value_cents > 0 THEN
+        calculated_risk := calculated_risk +
+            LEAST(50, GREATEST(0,
+                ((NEW.minimum_bid_cents - NEW.appraisal_value_cents)::float
+                 / NEW.appraisal_value_cents * 100)::integer
+            ));
+    END IF;
+
+    -- If there are outstanding debts, add to risk
+    IF NEW.total_debt_cents IS NOT NULL AND NEW.appraisal_value_cents IS NOT NULL
+       AND NEW.appraisal_value_cents > 0 THEN
+        calculated_risk := calculated_risk +
+            LEAST(50, GREATEST(0,
+                (NEW.total_debt_cents::float / NEW.appraisal_value_cents * 100)::integer
+            ));
+    END IF;
+
+    NEW.risk_score := LEAST(100, calculated_risk);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_auto_risk_score
+    BEFORE INSERT OR UPDATE ON auction_assets
+    FOR EACH ROW EXECUTE FUNCTION auto_recalculate_risk_score();
+
+-- 4. Advisory lock in SHA-256 hash function for gate_decisions integrity chain
+--    Prevents concurrent inserts from producing duplicate or out-of-order hashes
+CREATE OR REPLACE FUNCTION calculate_gate_decision_hash(
+    p_previous_hash VARCHAR(64),
+    p_decision_data JSONB,
+    p_created_at TIMESTAMP WITH TIME ZONE
+) RETURNS VARCHAR(64) AS $$
+DECLARE
+    hash_input TEXT;
+BEGIN
+    -- Acquire advisory lock scoped to gate_decisions hash chain (lock id = 913013)
+    PERFORM pg_advisory_xact_lock(913013);
+
+    hash_input := COALESCE(p_previous_hash, '') || '|' ||
+                  COALESCE(p_decision_data::TEXT, '') || '|' ||
+                  COALESCE(p_created_at::TEXT, '');
+    RETURN encode(digest(hash_input, 'sha256'), 'hex');
+END;
+$$ LANGUAGE plpgsql;

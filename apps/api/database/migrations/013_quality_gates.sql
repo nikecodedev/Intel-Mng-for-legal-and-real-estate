@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS quality_gates (
     CONSTRAINT valid_failure_action CHECK (
         failure_action IN ('BLOCK', 'WARN', 'REQUIRE_OVERRIDE')
     ),
-    CONSTRAINT unique_gate_code_per_tenant UNIQUE(tenant_id, gate_code) WHERE deleted_at IS NULL
+    CONSTRAINT unique_gate_code_per_tenant UNIQUE(tenant_id, gate_code)
 );
 
 CREATE INDEX idx_quality_gates_tenant_id ON quality_gates(tenant_id) WHERE deleted_at IS NULL;
@@ -181,8 +181,8 @@ CREATE TABLE IF NOT EXISTS gate_decisions (
     CONSTRAINT valid_decision_result CHECK (
         decision_result IN ('PASS', 'FAIL', 'OVERRIDE', 'BLOCKED', 'WARNING')
     ),
-    CONSTRAINT current_hash_format CHECK (current_hash ~ '^[a-f0-9]{64}$'),
-    CONSTRAINT previous_hash_format CHECK (previous_hash ~ '^[a-f0-9]{64}$')
+    CONSTRAINT current_hash_format CHECK (current_decision_hash ~ '^[a-f0-9]{64}$'),
+    CONSTRAINT previous_hash_format CHECK (previous_decision_hash ~ '^[a-f0-9]{64}$')
 );
 
 CREATE INDEX idx_gate_decisions_tenant_id ON gate_decisions(tenant_id);
@@ -190,8 +190,8 @@ CREATE INDEX idx_gate_decisions_gate_check_id ON gate_decisions(gate_check_id);
 CREATE INDEX idx_gate_decisions_gate_id ON gate_decisions(quality_gate_id);
 CREATE INDEX idx_gate_decisions_resource ON gate_decisions(resource_type, resource_id);
 CREATE INDEX idx_gate_decisions_created_at ON gate_decisions(created_at DESC);
-CREATE INDEX idx_gate_decisions_hash ON gate_decisions(current_hash);
-CREATE INDEX idx_gate_decisions_previous_hash ON gate_decisions(previous_hash);
+CREATE INDEX idx_gate_decisions_hash ON gate_decisions(current_decision_hash);
+CREATE INDEX idx_gate_decisions_previous_hash ON gate_decisions(previous_decision_hash);
 CREATE INDEX idx_gate_decisions_workflow_blocked ON gate_decisions(tenant_id, workflow_blocked) WHERE workflow_blocked = true;
 
 COMMENT ON TABLE gate_decisions IS 'IMMUTABLE integrity log for all gate decisions - cannot be modified or deleted';

@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS real_estate_assets (
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     
     -- Asset identification
-    asset_code VARCHAR(255) UNIQUE NOT NULL, -- Unique identifier (e.g., "REA-001")
+    asset_code VARCHAR(255) NOT NULL, -- Unique per tenant (e.g., "REA-001")
     property_address TEXT NOT NULL,
     property_type VARCHAR(100), -- e.g., "apartment", "house", "commercial", "land"
     property_size_sqm DECIMAL(10, 2), -- Property size in square meters
@@ -69,7 +69,10 @@ CREATE TABLE IF NOT EXISTS real_estate_assets (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
     deleted_at TIMESTAMP WITH TIME ZONE,
-    deleted_by UUID REFERENCES users(id)
+    deleted_by UUID REFERENCES users(id),
+
+    -- Tenant-scoped uniqueness
+    UNIQUE(tenant_id, asset_code)
 );
 
 CREATE INDEX idx_real_estate_assets_tenant_id ON real_estate_assets(tenant_id) WHERE deleted_at IS NULL;
