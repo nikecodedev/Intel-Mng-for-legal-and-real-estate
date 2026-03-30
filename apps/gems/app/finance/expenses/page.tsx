@@ -43,52 +43,60 @@ export default function ExpenseCaptureFormPage() {
     };
   }, []);
 
+  const [scannedDocId, setScannedDocId] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
+
+  // Step 1: Upload receipt + OCR → pre-fill form
+  const handleScanReceipt = async () => {
+    if (!receiptFile) return;
+    setScanning(true);
+    setOcrStatus('Uploading receipt...');
+    try {
+      const form = new FormData();
+      form.append('file', receiptFile);
+      form.append('title', `Receipt - ${description || 'Expense'}`);
+      form.append('document_type', 'OTHER');
+      const uploadRes = await api.post('/documents/upload', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 120000,
+      });
+      const docId = uploadRes.data?.data?.id;
+      if (docId) {
+        setScannedDocId(docId);
+        setOcrStatus('Extracting data from receipt (OCR)...');
+        // Wait for OCR processing
+        await new Promise(r => setTimeout(r, 4000));
+        const factsRes = await api.get(`/documents/${docId}/facts`);
+        const facts = factsRes.data?.data ?? factsRes.data ?? [];
+        if (Array.isArray(facts) && facts.length > 0) {
+          const extracted = extractFromFacts(facts);
+          // Pre-fill form with extracted data
+          if (extracted.amount) setAmount(extracted.amount);
+          setOcrStatus(`OCR pre-filled: ${extracted.amount ? `R$ ${extracted.amount}` : 'no value'}, ${extracted.date || 'no date'}`);
+        } else {
+          setOcrStatus('Receipt uploaded. No values extracted — fill manually.');
+        }
+      }
+    } catch (e) {
+      setOcrStatus(`Upload failed: ${e instanceof Error ? e.message : 'error'}`);
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  // Step 2: Submit expense (with or without scanned receipt)
   const mutation = useMutation({
     mutationFn: async () => {
       const amountCents = Math.round(Number(parseFloat(amount || '0').toFixed(2)) * 100);
       if (amountCents <= 0) throw new Error('Enter a valid amount');
 
-      let proofDocId: string | undefined;
-      if (receiptFile) {
-        setOcrStatus('Uploading receipt...');
-        const form = new FormData();
-        form.append('file', receiptFile);
-        form.append('title', `Receipt - ${description || 'Expense'}`);
-        form.append('document_type', 'OTHER');
-        const uploadRes = await api.post('/documents/upload', form, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          timeout: 120000,
-        });
-        proofDocId = uploadRes.data?.data?.id;
-
-        // OCR: try to extract amount/date from uploaded receipt
-        if (proofDocId) {
-          setOcrStatus('Extracting data from receipt (OCR)...');
-          try {
-            // Wait a moment for OCR processing
-            await new Promise(r => setTimeout(r, 3000));
-            const factsRes = await api.get(`/documents/${proofDocId}/facts`);
-            const facts = factsRes.data?.data ?? factsRes.data ?? [];
-            if (Array.isArray(facts) && facts.length > 0) {
-              const extracted = extractFromFacts(facts);
-              setOcrStatus(`OCR extracted: ${extracted.amount ? `R$ ${extracted.amount}` : 'no value'}, ${extracted.date || 'no date'}`);
-            } else {
-              setOcrStatus('OCR: no data extracted from receipt');
-            }
-          } catch {
-            setOcrStatus('OCR extraction skipped');
-          }
-        }
-      }
-
-      setOcrStatus('Saving expense...');
       return api.post('/finance/expenses', {
         amount_cents: amountCents,
         currency: 'BRL',
         description: description.trim(),
         vendor_name: vendor.trim() || undefined,
         captured_via: 'MOBILE',
-        proof_document_id: proofDocId,
+        proof_document_id: scannedDocId || undefined,
         transaction_date: new Date().toLocaleDateString('en-CA'),
       });
     },
@@ -146,7 +154,20 @@ export default function ExpenseCaptureFormPage() {
             onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
             className="block w-full text-sm text-gray-500 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-blue-700"
           />
-          <p className="mt-1 text-xs text-gray-400">Photo will be processed by OCR to extract value and date automatically.</p>
+          <p className="mt-1 text-xs text-gray-400">Take a photo or select a file. Click "Scan Receipt" to extract value automatically.</p>
+          {receiptFile && !scannedDocId ? (
+            <button
+              type="button"
+              onClick={handleScanReceipt}
+              disabled={scanning}
+              className="mt-2 rounded bg-amber-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-600 disabled:opacity-50"
+            >
+              {scanning ? 'Scanning...' : 'Scan Receipt (OCR)'}
+            </button>
+          ) : null}
+          {scannedDocId ? (
+            <p className="mt-1 text-xs text-green-600">Receipt uploaded and scanned.</p>
+          ) : null}
         </div>
 
         {ocrStatus ? <p className="text-sm text-blue-600">{ocrStatus}</p> : null}
