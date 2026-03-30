@@ -188,22 +188,24 @@ router.post(
     const { id } = req.params;
     const { to_stage } = req.body;
 
-    // HG-3: Before allowing transition to F9, verify linked real estate checklist is 100% complete
+    // HG-3: Before allowing transition to F9, verify due diligence checklist is 100% "ok"
     if (to_stage === 'F9') {
-      const assetLink = await db.query(
-        'SELECT id FROM real_estate_assets WHERE auction_asset_id = $1 AND tenant_id = $2',
+      const assetResult = await db.query<{ due_diligence_checklist: Record<string, { status: string }> }>(
+        'SELECT due_diligence_checklist FROM auction_assets WHERE id = $1 AND tenant_id = $2',
         [id, tenantId]
       );
-      if (assetLink.rows.length > 0) {
-        const realEstateAssetId = (assetLink.rows[0] as { id: string }).id;
-        const checkResult = await db.query<{ total: string; done: string }>(
-          `SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE is_completed = true) as done
-           FROM regularization_checklists WHERE real_estate_asset_id = $1 AND tenant_id = $2`,
-          [realEstateAssetId, tenantId]
-        );
-        const { total, done } = checkResult.rows[0] || { total: '0', done: '0' };
-        if (total !== '0' && done !== total) {
-          throw new ValidationError(`Cannot advance to F9: regularization checklist is ${done}/${total} complete`);
+      const checklist = assetResult.rows[0]?.due_diligence_checklist;
+      if (checklist) {
+        const categories = ['occupancy', 'debts', 'legal_risks', 'zoning'];
+        const pending: string[] = [];
+        for (const cat of categories) {
+          const item = checklist[cat];
+          if (!item || item.status !== 'ok') {
+            pending.push(`${cat}: ${item?.status || 'missing'}`);
+          }
+        }
+        if (pending.length > 0) {
+          throw new ValidationError(`Cannot advance to F9 (Vendido/Concluído): due diligence checklist incomplete — ${pending.join(', ')}. All items must be "ok".`);
         }
       }
     }
