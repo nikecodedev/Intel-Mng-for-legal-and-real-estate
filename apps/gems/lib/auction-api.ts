@@ -136,7 +136,7 @@ export function updateDueDiligence(id: string, checklist: DueDiligenceChecklist)
 }
 
 export function placeBid(id: string, payload: BidPayload): Promise<BidResponse['data']> {
-  return api.post<BidResponse>(`/auctions/assets/${id}/bid`, payload).then((r) => {
+  return api.post<BidResponse>(`/auctions/assets/${id}/bids`, payload).then((r) => {
     if (!r.data?.success || !r.data?.data) throw new Error('Invalid response');
     return r.data.data;
   });
