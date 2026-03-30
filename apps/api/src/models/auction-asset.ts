@@ -205,6 +205,23 @@ export class AuctionAssetModel {
         toStage
       );
     }
+
+    // HG-3: Block F9 unless all due_diligence_checklist items are "ok"
+    if (toStage === 'F9') {
+      const checklist = asset.due_diligence_checklist as Record<string, { status?: string }> | null;
+      if (checklist) {
+        const categories = ['occupancy', 'debts', 'legal_risks', 'zoning'];
+        const pending = categories.filter(c => checklist[c]?.status !== 'ok');
+        if (pending.length > 0) {
+          throw new InvalidTransitionError(
+            `Checklist de due diligence incompleto: ${pending.map(c => `${c}: ${checklist[c]?.status || 'missing'}`).join(', ')}. Todos os itens devem estar "ok" antes de avançar para F9.`,
+            current,
+            toStage
+          );
+        }
+      }
+    }
+
     const result: QueryResult<Record<string, unknown>> = await db.query(
       `UPDATE auction_assets SET current_stage = $1, updated_at = CURRENT_TIMESTAMP
        WHERE id = $2 AND tenant_id = $3
