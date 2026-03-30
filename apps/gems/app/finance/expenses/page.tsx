@@ -45,7 +45,15 @@ export default function ExpenseCaptureFormPage() {
       setAmount('');
       setDescription('');
       setVendor('');
+      // Zero Footprint: clear file reference and revoke any object URLs
       setReceiptFile(null);
+      // Reset file input to release browser reference to the file
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+      // Clear any cached blobs/URLs from memory
+      if (typeof window !== 'undefined' && 'caches' in window) {
+        try { caches.delete('expense-receipts').catch(() => {}); } catch {}
+      }
       queryClient.invalidateQueries('finance-transactions');
     },
   });
