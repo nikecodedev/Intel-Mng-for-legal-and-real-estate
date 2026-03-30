@@ -288,4 +288,41 @@ router.get(
   })
 );
 
+/**
+ * GET /audit-integrity/violations
+ * List proactive hash chain violations detected at INSERT time
+ */
+router.get(
+  '/violations',
+  authenticate,
+  requirePermission('audit:read'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { tenantId } = getTenantContext(req);
+    const result = await db.query<{
+      id: string;
+      violation_type: string;
+      severity: string;
+      details: Record<string, unknown>;
+      detected_at: Date;
+      resolved_at: Date | null;
+    }>(
+      `SELECT id, violation_type, severity, details, detected_at, resolved_at
+       FROM compliance_violations
+       WHERE tenant_id = $1
+       ORDER BY detected_at DESC
+       LIMIT 100`,
+      [tenantId]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        violations: result.rows,
+        total: result.rows.length,
+        has_unresolved: result.rows.some(r => r.resolved_at === null),
+      },
+    });
+  })
+);
+
 export default router;
