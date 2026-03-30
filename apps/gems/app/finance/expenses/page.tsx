@@ -154,7 +154,7 @@ export default function ExpenseCaptureFormPage() {
             onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
             className="block w-full text-sm text-gray-500 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-blue-700"
           />
-          <p className="mt-1 text-xs text-gray-400">Take a photo or select a file. Click "Scan Receipt" to extract value automatically.</p>
+          <p className="mt-1 text-xs text-gray-400">Take a photo or select a file. Click Scan Receipt to extract value automatically.</p>
           {receiptFile && !scannedDocId ? (
             <button
               type="button"
