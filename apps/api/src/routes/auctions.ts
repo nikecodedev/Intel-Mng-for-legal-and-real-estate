@@ -195,8 +195,8 @@ router.post(
         [id, tenantId]
       );
       if (assetLink.rows.length > 0) {
-        const realEstateAssetId = assetLink.rows[0].id;
-        const checkResult = await db.query(
+        const realEstateAssetId = (assetLink.rows[0] as { id: string }).id;
+        const checkResult = await db.query<{ total: string; done: string }>(
           `SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE is_completed = true) as done
            FROM regularization_checklists WHERE real_estate_asset_id = $1 AND tenant_id = $2`,
           [realEstateAssetId, tenantId]
