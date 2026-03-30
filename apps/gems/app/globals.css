@@ -163,3 +163,16 @@
     @apply text-sm text-gray-500;
   }
 }
+
+/* HG-6: Prevent printing of secure document viewer */
+@media print {
+  body * {
+    display: none !important;
+  }
+  body::after {
+    content: "Printing is disabled for document security.";
+    display: block;
+    padding: 2rem;
+    font-size: 1.5rem;
+  }
+}

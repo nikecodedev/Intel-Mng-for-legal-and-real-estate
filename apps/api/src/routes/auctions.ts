@@ -13,6 +13,7 @@ import {
 } from '../models/auction-asset.js';
 import { AuctionAssetROIModel } from '../models/auction-asset-roi.js';
 import { validate as validateIntelligence } from '../services/intelligence.js';
+import { db } from '../models/database.js';
 
 const router = Router();
 
@@ -186,6 +187,26 @@ router.post(
     const { tenantId, userId } = getTenantContext(req);
     const { id } = req.params;
     const { to_stage } = req.body;
+
+    // HG-3: Before allowing transition to F9, verify linked real estate checklist is 100% complete
+    if (to_stage === 'F9') {
+      const assetLink = await db.query(
+        'SELECT id FROM real_estate_assets WHERE auction_asset_id = $1 AND tenant_id = $2',
+        [id, tenantId]
+      );
+      if (assetLink.rows.length > 0) {
+        const realEstateAssetId = assetLink.rows[0].id;
+        const checkResult = await db.query(
+          `SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE is_completed = true) as done
+           FROM regularization_checklists WHERE real_estate_asset_id = $1 AND tenant_id = $2`,
+          [realEstateAssetId, tenantId]
+        );
+        const { total, done } = checkResult.rows[0] || { total: '0', done: '0' };
+        if (total !== '0' && done !== total) {
+          throw new ValidationError(`Cannot advance to F9: regularization checklist is ${done}/${total} complete`);
+        }
+      }
+    }
 
     const { asset, previous_stage } = await AuctionAssetModel.transitionStage(id, tenantId, to_stage);
 

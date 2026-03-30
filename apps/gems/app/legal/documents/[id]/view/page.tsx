@@ -79,12 +79,17 @@ export default function LegalDocumentViewPage({ params }: { params: { id: string
           <span className="text-xs text-gray-500 font-medium">GEMS Secure Viewer — Download disabled</span>
         </div>
         {blobUrl && (
-          <embed
-            src={`${blobUrl}#toolbar=0&navpanes=0&scrollbar=0&statusbar=0&messages=0&view=FitH`}
-            type="application/pdf"
-            className="absolute inset-0 w-full h-full"
-            style={{ top: '40px', height: 'calc(100% - 40px)' }}
-          />
+          <div className="absolute inset-0 overflow-hidden" style={{ top: '40px', height: 'calc(100% - 80px)' }}>
+            <embed
+              src={`${blobUrl}#toolbar=0&navpanes=0&scrollbar=1&statusbar=0&messages=0&view=FitH`}
+              type="application/pdf"
+              className="w-full"
+              style={{
+                height: 'calc(100% + 80px)',
+                marginTop: '-40px',
+              }}
+            />
+          </div>
         )}
         {!blobUrl && (
           <div className="absolute inset-0 flex items-center justify-center text-gray-500">
