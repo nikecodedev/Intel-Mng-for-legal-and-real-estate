@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS workflow_triggers (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
 
-    CONSTRAINT valid_action_type CHECK (action_type IN ('create_task', 'send_notification', 'block_transition'))
+    CONSTRAINT valid_action_type CHECK (action_type IN ('create_task', 'send_notification', 'block_transition', 'update_state'))
 );
 
 CREATE INDEX idx_workflow_triggers_tenant_id ON workflow_triggers(tenant_id);
