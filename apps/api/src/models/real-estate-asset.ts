@@ -36,6 +36,39 @@ export function getValidNextStates(current: AssetState): AssetState[] {
   return VALID_TRANSITIONS[current];
 }
 
+/**
+ * Check if transition is allowed including business rules (checklist completion)
+ */
+export async function isTransitionAllowed(
+  assetId: string,
+  tenantId: string,
+  from: AssetState,
+  to: AssetState
+): Promise<{ allowed: boolean; reason?: string }> {
+  // Basic state machine check
+  if (!isValidTransition(from, to)) {
+    return { allowed: false, reason: `Invalid transition from ${from} to ${to}` };
+  }
+
+  // SOLD/RENTED requires checklist 100%
+  if (to === 'SOLD' || to === 'RENTED') {
+    const result = await db.query<{ total: string; completed: string }>(
+      `SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE is_completed = true) as completed
+       FROM regularization_checklists WHERE tenant_id = $1 AND real_estate_asset_id = $2`,
+      [tenantId, assetId]
+    );
+    const { total, completed } = result.rows[0] || { total: '0', completed: '0' };
+    if (total === '0') {
+      return { allowed: false, reason: 'No regularization checklist items found. Create checklist items first.' };
+    }
+    if (completed !== total) {
+      return { allowed: false, reason: `Regularization checklist is ${completed}/${total} complete. Must be 100%.` };
+    }
+  }
+
+  return { allowed: true };
+}
+
 export interface RealEstateAsset {
   id: string;
   tenant_id: string;

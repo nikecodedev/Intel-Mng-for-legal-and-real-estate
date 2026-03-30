@@ -9,6 +9,7 @@ import { AccountsReceivableModel } from '../models/accounts-receivable.js';
 import { ExpenseCaptureModel, ExpenseStatus } from '../models/expense-capture.js';
 import { BankReconciliationService } from '../services/bank-reconciliation.js';
 import { AuditService, AuditAction, AuditEventCategory } from '../services/audit.js';
+import { DocumentModel } from '../models/document.js';
 import { logger } from '../utils/logger.js';
 
 const router = Router();
@@ -428,6 +429,26 @@ router.post(
       userAgent: req.get('user-agent') || undefined,
       requestId: req.headers['x-request-id'] as string | undefined,
     });
+
+    // Zero Footprint: schedule file deletion after TTL
+    const receipt_document_id = req.body.receipt_document_id;
+    if (receipt_document_id) {
+      const TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+      setTimeout(async () => {
+        try {
+          const doc = await DocumentModel.findById(receipt_document_id, tenantContext.tenantId);
+          if (doc?.storage_path) {
+            const fs = await import('fs');
+            if (fs.existsSync(doc.storage_path)) {
+              fs.unlinkSync(doc.storage_path);
+              logger.info('Zero Footprint: expense receipt auto-wiped', { receipt_document_id, path: doc.storage_path });
+            }
+          }
+        } catch (e) {
+          logger.warn('Zero Footprint: auto-wipe failed', { error: e, receipt_document_id });
+        }
+      }, TTL_MS);
+    }
 
     res.status(201).json({
       success: true,

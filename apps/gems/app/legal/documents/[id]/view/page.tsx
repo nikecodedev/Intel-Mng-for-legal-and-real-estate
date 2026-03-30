@@ -67,18 +67,23 @@ export default function LegalDocumentViewPage({ params }: { params: { id: string
       <div
         className="relative flex-1 min-h-0 rounded-lg border border-gray-200 bg-gray-100 overflow-hidden"
         onContextMenu={(e) => e.preventDefault()}
+        onKeyDown={(e) => {
+          if (e.ctrlKey && (e.key === 's' || e.key === 'p' || e.key === 'S')) {
+            e.preventDefault();
+          }
+        }}
+        tabIndex={0}
       >
         {/* Cover PDF toolbar to prevent download */}
         <div className="absolute top-0 left-0 right-0 h-10 bg-gray-100 z-10 flex items-center justify-center">
           <span className="text-xs text-gray-500 font-medium">GEMS Secure Viewer — Download disabled</span>
         </div>
         {blobUrl && (
-          <iframe
-            src={`${blobUrl}#toolbar=0&navpages=0&scrollbar=1`}
-            title="Document"
-            className="absolute inset-0 w-full h-full border-0"
+          <embed
+            src={`${blobUrl}#toolbar=0&navpanes=0&scrollbar=0&statusbar=0&messages=0&view=FitH`}
+            type="application/pdf"
+            className="absolute inset-0 w-full h-full"
             style={{ top: '40px', height: 'calc(100% - 40px)' }}
-            sandbox="allow-same-origin allow-scripts"
           />
         )}
         {!blobUrl && (

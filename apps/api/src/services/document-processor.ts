@@ -28,7 +28,7 @@ export interface ExtractedTextResult {
 /** Prova com referência de página (schema FPDN). */
 export interface ProvaFPDN {
   texto: string;
-  pagina?: number;
+  pagina: number;
 }
 
 /** Estrutura FPDN obrigatória para auditoria (QG1). */
@@ -189,7 +189,7 @@ export async function structureAsFPDN(documentText: string): Promise<FPDNOutput 
       const o = typeof p === 'object' && p !== null ? (p as Record<string, unknown>) : {};
       return {
         texto: String(o.texto ?? o.text ?? ''),
-        pagina: typeof o.pagina === 'number' ? o.pagina : undefined, // undefined = Gemini did not return page, no fabricated value
+        pagina: typeof o.pagina === 'number' ? o.pagina : 1, // default to page 1 if Gemini omitted — quality flag raised in upsertFPDNFacts
       };
     });
     const direito = String(parsed.direito ?? '');

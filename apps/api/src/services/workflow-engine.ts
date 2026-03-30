@@ -184,11 +184,28 @@ async function executeAction(
           return { success: false, summary: 'update_state:missing_config' };
         }
         if (entityType === 'real_estate_asset') {
-          await db.query(
-            `UPDATE real_estate_assets SET current_state = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id = $3`,
-            [newState, entityId, ctx.tenantId]
+          // Get current state for transition record
+          const currentResult = await db.query<{ current_state: string }>(
+            `SELECT current_state FROM real_estate_assets WHERE id = $1 AND tenant_id = $2`,
+            [entityId, ctx.tenantId]
           );
-          return { success: true, summary: `state_updated:${entityType}:${entityId}:${newState}` };
+          const fromState = currentResult.rows[0]?.current_state ?? 'UNKNOWN';
+
+          // Update the asset state
+          await db.query(
+            `UPDATE real_estate_assets SET current_state = $1, state_changed_at = CURRENT_TIMESTAMP, state_changed_by = $2, state_change_reason = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 AND tenant_id = $5`,
+            [newState, ctx.userId ?? null, `Workflow trigger: ${trigger.name}`, entityId, ctx.tenantId]
+          );
+
+          // Record state transition for audit trail
+          await db.query(
+            `INSERT INTO asset_state_transitions
+             (tenant_id, real_estate_asset_id, from_state, to_state, transitioned_by, transition_reason, is_valid)
+             VALUES ($1, $2, $3, $4, $5, $6, true)`,
+            [ctx.tenantId, entityId, fromState, newState, ctx.userId ?? null, `Workflow trigger: ${trigger.name}`]
+          );
+
+          return { success: true, summary: `state_updated:${entityType}:${entityId}:${fromState}->${newState}` };
         }
         return { success: false, summary: `update_state:unsupported_entity:${entityType}` };
       }

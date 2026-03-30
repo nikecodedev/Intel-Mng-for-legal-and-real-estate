@@ -70,7 +70,7 @@ interface FieldExtractionResult {
   overall_confidence: number;
   field_confidences: Record<string, number>;
   warnings: string[];
-  fpdn?: { fatos: string[]; provas: { texto: string; pagina?: number }[]; direito: string; nexo_causal: string } | null;
+  fpdn?: { fatos: string[]; provas: { texto: string; pagina: number }[]; direito: string; nexo_causal: string } | null;
 }
 
 /**
@@ -560,7 +560,7 @@ export class DocumentExtractionService {
   ): Promise<void> {
     await DocumentFactModel.deleteByDocumentId(documentId, tenantId);
     const conf = extraction.field_confidences ?? {};
-    const pageNumber: number | null = null; // Honest default — FPDN provas carry real page numbers from Gemini
+    const pageNumber: number = 1; // Default page 1 — FPDN provas carry real page numbers from Gemini
     const inputs: CreateDocumentFactInput[] = [];
 
     if (extraction.process_number) {
@@ -666,21 +666,38 @@ export class DocumentExtractionService {
         document_id: documentId,
         fact_type: 'fato_juridico',
         fact_value: fato,
-        page_number: null,
+        page_number: 1,
         confidence_score: null,
       });
     }
 
     // Provas with page references
+    let defaultedPageCount = 0;
     for (const prova of fpdn.provas) {
+      const pageNum = prova.pagina ?? 1;
+      if (prova.pagina == null || prova.pagina === undefined) {
+        defaultedPageCount++;
+      }
       inputs.push({
         tenant_id: tenantId,
         document_id: documentId,
         fact_type: 'prova',
         fact_value: prova.texto,
-        page_number: prova.pagina ?? null,
+        page_number: pageNum,
         confidence_score: null,
       });
+    }
+
+    // Quality flag if any prova page_number was defaulted
+    if (defaultedPageCount > 0) {
+      await this.createQualityFlag(
+        tenantId,
+        documentId,
+        'EXTRACTION_INCOMPLETE',
+        'INFO',
+        `${defaultedPageCount} FPDN prova(s) missing page reference — defaulted to page 1`,
+        { defaulted_page_count: defaultedPageCount }
+      );
     }
 
     // Direito
@@ -690,7 +707,7 @@ export class DocumentExtractionService {
         document_id: documentId,
         fact_type: 'direito',
         fact_value: fpdn.direito,
-        page_number: null,
+        page_number: 1,
         confidence_score: null,
       });
     }
@@ -702,7 +719,7 @@ export class DocumentExtractionService {
         document_id: documentId,
         fact_type: 'nexo_causal',
         fact_value: fpdn.nexo_causal,
-        page_number: null,
+        page_number: 1,
         confidence_score: null,
       });
     }

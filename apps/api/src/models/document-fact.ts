@@ -112,7 +112,7 @@ export class DocumentFactModel {
         input.document_id,
         input.fact_type,
         input.fact_value,
-        input.page_number ?? null,
+        input.page_number ?? 1,
         input.bounding_box ? JSON.stringify(input.bounding_box) : null,
         input.confidence_score ?? null,
       ]
