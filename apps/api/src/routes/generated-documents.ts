@@ -103,4 +103,50 @@ router.get(
   })
 );
 
+/**
+ * POST /generated-documents/:id/submit-review
+ * Submit a generated document for review. Uses req.context.tenant_id only.
+ */
+router.post(
+  '/:id/submit-review',
+  authenticate,
+  requirePermission('documents:update'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { tenantId } = getTenantContext(req);
+    const doc = await GeneratedDocumentModel.submitForReview(req.params.id, tenantId);
+    res.json({ success: true, data: doc });
+  })
+);
+
+/**
+ * POST /generated-documents/:id/approve
+ * Approve a generated document. Uses req.context.tenant_id only.
+ */
+router.post(
+  '/:id/approve',
+  authenticate,
+  requirePermission('documents:update'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { tenantId, userId } = getTenantContext(req);
+    const doc = await GeneratedDocumentModel.approve(req.params.id, tenantId, userId);
+    res.json({ success: true, data: doc });
+  })
+);
+
+/**
+ * POST /generated-documents/:id/reject
+ * Reject a generated document with an optional reason. Uses req.context.tenant_id only.
+ */
+router.post(
+  '/:id/reject',
+  authenticate,
+  requirePermission('documents:update'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { tenantId, userId } = getTenantContext(req);
+    const reason = req.body?.reason || '';
+    const doc = await GeneratedDocumentModel.reject(req.params.id, tenantId, userId, reason);
+    res.json({ success: true, data: doc });
+  })
+);
+
 export default router;

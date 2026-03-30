@@ -653,6 +653,9 @@ export class DocumentExtractionService {
     documentId: string,
     fpdn: FPDNOutput
   ): Promise<void> {
+    // Clear old facts (which have null page_number) before inserting FPDN facts with real page references
+    await DocumentFactModel.deleteByDocumentId(documentId, tenantId);
+
     const inputs: CreateDocumentFactInput[] = [];
 
     // Fatos
