@@ -208,7 +208,7 @@ export class AuctionAssetModel {
 
     // HG-3: Block F9 unless all due_diligence_checklist items are "ok"
     if (toStage === 'F9') {
-      const checklist = asset.due_diligence_checklist as Record<string, { status?: string }> | null;
+      const checklist = asset.due_diligence_checklist as unknown as Record<string, { status?: string }> | null;
       if (checklist) {
         const categories = ['occupancy', 'debts', 'legal_risks', 'zoning'];
         const pending = categories.filter(c => checklist[c]?.status !== 'ok');
