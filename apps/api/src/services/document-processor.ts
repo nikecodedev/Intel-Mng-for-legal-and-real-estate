@@ -189,7 +189,7 @@ export async function structureAsFPDN(documentText: string): Promise<FPDNOutput 
       const o = typeof p === 'object' && p !== null ? (p as Record<string, unknown>) : {};
       return {
         texto: String(o.texto ?? o.text ?? ''),
-        pagina: typeof o.pagina === 'number' ? o.pagina : 1,
+        pagina: typeof o.pagina === 'number' ? o.pagina : undefined, // undefined = Gemini did not return page, no fabricated value
       };
     });
     const direito = String(parsed.direito ?? '');

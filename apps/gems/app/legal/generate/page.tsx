@@ -57,18 +57,17 @@ export default function LegalGeneratePage() {
   const generateMutation = useMutation(
     async () => {
       if (selectedFactIds.size === 0) throw new Error('Select at least one fact');
-      const content = `[${petitionType}] Generated petition based on ${selectedFactIds.size} selected facts.`;
-      const res = await api.post('/generated-documents', {
-        content,
+      // Call the actual petition generation endpoint (invokes Gemini AI)
+      const res = await api.post('/generated-documents/petition', {
+        petition_type: petitionType,
         source_fact_ids: Array.from(selectedFactIds),
-      });
+      }, { timeout: 120000 }); // 2 min timeout for AI generation
       return res.data;
     },
     {
       onSuccess: (data) => {
-        setGeneratedContent(
-          `Petition generated successfully.\n\nID: ${data.data?.id ?? 'N/A'}\nType: ${petitionType}\nSource facts: ${selectedFactIds.size}\n\nThe document has been saved and is available in the generated documents list.`
-        );
+        const doc = data.data ?? data;
+        setGeneratedContent(doc.content || `Petition generated successfully.\n\nID: ${doc.id ?? 'N/A'}\nType: ${petitionType}`);
       },
     }
   );

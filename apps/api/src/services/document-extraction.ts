@@ -169,11 +169,12 @@ export class DocumentExtractionService {
         await this.createQualityFlag(tenantId, documentId, 'OCR_FAILED', 'INFO', 'Python OCR skipped — using pdf-parse/Gemini fallback');
         result.quality_flags.push('OCR_FALLBACK_USED');
 
-        // Set default OCR result so extraction proceeds
-        result.ocr_result = { passed: true, confidence: 80, required: OCR_CONFIDENCE_MINIMUM, message: 'Fallback: pdf-parse + Gemini' };
+        // Set OCR result — confidence is estimated (not from Tesseract), flagged as below threshold
+        const fallbackConfidence = 75; // Below the 95% QG1 threshold — honest estimate, not hardcoded pass
+        result.ocr_result = { passed: false, confidence: fallbackConfidence, required: OCR_CONFIDENCE_MINIMUM, message: 'Fallback: pdf-parse + Gemini (estimated confidence)' };
         result.status_cpo = 'AMARELO';
-        await DocumentModel.updateOCR(documentId, tenantId, { ocr_processed: true, ocr_confidence: 80, ocr_engine: 'pdf-parse+gemini' });
-        await DocumentModel.updateCPO(documentId, tenantId, { status_cpo: 'AMARELO', cpo_notes: 'OCR fallback used', cpo_approval_required: true });
+        await DocumentModel.updateOCR(documentId, tenantId, { ocr_processed: true, ocr_confidence: fallbackConfidence, ocr_engine: 'pdf-parse+gemini' });
+        await DocumentModel.updateCPO(documentId, tenantId, { status_cpo: 'AMARELO', cpo_notes: 'OCR fallback used — confidence estimated', cpo_approval_required: true });
 
         // Go directly to text extraction (Step 5)
         try {

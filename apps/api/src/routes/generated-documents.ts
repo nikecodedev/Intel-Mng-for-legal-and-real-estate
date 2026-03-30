@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware/index.js';
 import { getTenantContext } from '../utils/tenant-context.js';
 import { parsePagination } from '../utils/pagination.js';
-import { createGeneratedDocument, GeneratedDocumentValidationError } from '../services/generated-document.js';
+import { createGeneratedDocument, generatePetition, GeneratedDocumentValidationError } from '../services/generated-document.js';
 import { GeneratedDocumentModel } from '../models/generated-document.js';
 import { AuditService, AuditAction, AuditEventCategory } from '../services/audit.js';
 
@@ -66,6 +66,51 @@ router.post(
           error: err.message,
           code: err.code,
         });
+        return;
+      }
+      throw err;
+    }
+  })
+);
+
+/**
+ * POST /generated-documents/petition
+ * Generate a petition using Gemini AI from selected facts.
+ * Calls generatePetition() which validates CPO status, fetches knowledge base, and invokes Gemini.
+ */
+router.post(
+  '/petition',
+  authenticate,
+  requirePermission('documents:create'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { tenantId, userId } = getTenantContext(req);
+    const { petition_type, source_fact_ids } = req.body;
+
+    if (!petition_type || !Array.isArray(source_fact_ids) || source_fact_ids.length === 0) {
+      res.status(400).json({ success: false, error: 'petition_type and source_fact_ids are required' });
+      return;
+    }
+
+    try {
+      const result = await generatePetition({
+        tenantId,
+        sourceFactIds: source_fact_ids,
+        petitionType: petition_type,
+        generatedBy: userId,
+      });
+
+      res.status(201).json({
+        success: true,
+        data: {
+          id: result.id,
+          content: result.content,
+          petition_type: petition_type,
+          source_facts_count: source_fact_ids.length,
+        },
+      });
+    } catch (err) {
+      if (err instanceof GeneratedDocumentValidationError) {
+        res.status(400).json({ success: false, error: err.message, code: err.code });
         return;
       }
       throw err;
