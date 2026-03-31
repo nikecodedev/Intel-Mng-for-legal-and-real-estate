@@ -122,7 +122,7 @@ export class SuperAdminService {
         event_type: 'finance.transaction.paid',
         condition: { transaction_category: { eq: 'ITBI' } },
         action_type: 'create_task',
-        action_config: { title: 'Registrar imóvel — Despachante', description: 'ITBI pago. Iniciar processo de registro do imóvel no cartório.', task_type: 'registration', assigned_role: 'OPERATIONAL', priority: 'HIGH', due_days: 5 },
+        action_config: { title: 'Registrar imóvel — Despachante', description: 'ITBI pago. Iniciar processo de registro do imóvel no cartório.', task_type: 'custom', assigned_role: 'OPERATIONAL', priority: 'HIGH', due_days: 5 },
       },
       {
         name: 'Document VERDE → Notify Owner',

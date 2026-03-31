@@ -30,7 +30,7 @@ VALUES (
   'finance.transaction.paid',
   '{"transaction_category": {"eq": "ITBI"}}',
   'create_task',
-  '{"title": "Registrar imóvel — Despachante", "description": "ITBI pago. Iniciar processo de registro do imóvel no cartório.", "task_type": "registration", "assigned_role": "OPERATIONAL", "priority": "HIGH", "due_days": 5}',
+  '{"title": "Registrar imóvel — Despachante", "description": "ITBI pago. Iniciar processo de registro do imóvel no cartório.", "task_type": "custom", "assigned_role": "OPERATIONAL", "priority": "HIGH", "due_days": 5}',
   true,
   NOW(),
   NOW()
