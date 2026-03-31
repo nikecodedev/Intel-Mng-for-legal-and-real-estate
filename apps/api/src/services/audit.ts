@@ -227,7 +227,7 @@ export class AuditService {
       // 1. Calculate previous_hash from last record WHERE tenant_id = entry.tenant_id
       // 2. Calculate current_hash including previous_hash (forming the chain)
       // 3. Ensure immutability (no UPDATE/DELETE allowed)
-      await db.query(
+      const insertResult = await db.query<{ id: string }>(
         `INSERT INTO audit_logs (
           tenant_id,
           event_type, event_category, action,
@@ -239,7 +239,7 @@ export class AuditService {
           compliance_flags, retention_category
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
-          `.trim(),
+        ) RETURNING id`.trim(),
         [
           tenantId,
           entry.event_type ?? entry.eventType ?? '',
@@ -266,35 +266,48 @@ export class AuditService {
           entry.retention_category ?? null,
         ]
       );
-      // Proactive hash chain violation detection
-      // Check if the DB trigger detected a break and inserted into compliance_violations
-      try {
-        const violationCheck = await db.query<{ cnt: string }>(
-          `SELECT COUNT(*) as cnt FROM compliance_violations
-           WHERE tenant_id = $1 AND violation_type = 'hash_chain_break'
-           AND detected_at > CURRENT_TIMESTAMP - INTERVAL '5 seconds'`,
-          [tenantId]
-        );
-        if (violationCheck.rows[0] && parseInt(violationCheck.rows[0].cnt, 10) > 0) {
-          logger.error('COMPLIANCE: Hash chain violation detected at INSERT time', { tenantId });
-          // Emit compliance.hash_violation event to workflow engine
-          try {
-            const { runWorkflow } = await import('./workflow-engine.js');
-            await runWorkflow({
+
+      // ── Proactive hash chain violation detection ──
+      // The DB trigger trg_detect_hash_violation (migration 031) fires AFTER INSERT
+      // and records any chain break into compliance_violations.
+      // We check for a violation referencing this exact audit_log_id.
+      const auditLogId = insertResult.rows[0]?.id;
+      if (auditLogId) {
+        try {
+          const violationCheck = await db.query<{ id: string; details: Record<string, unknown> }>(
+            `SELECT id, details FROM compliance_violations
+             WHERE tenant_id = $1
+               AND violation_type = 'hash_chain_break'
+               AND details->>'audit_log_id' = $2`,
+            [tenantId, auditLogId]
+          );
+          if (violationCheck.rows.length > 0) {
+            logger.error('COMPLIANCE: Hash chain violation detected at INSERT time', {
               tenantId,
-              eventType: 'compliance.hash_violation',
-              payload: {
-                violation_type: 'hash_chain_break',
-                severity: 'CRITICAL',
-                detected_at: new Date().toISOString(),
-              },
+              auditLogId,
+              violationId: violationCheck.rows[0].id,
             });
-          } catch {
-            // Workflow emission is best-effort
+            // Emit compliance.hash_violation event to workflow engine
+            try {
+              const { runWorkflow } = await import('./workflow-engine.js');
+              await runWorkflow({
+                tenantId,
+                eventType: 'compliance.hash_violation',
+                payload: {
+                  audit_log_id: auditLogId,
+                  violation_id: violationCheck.rows[0].id,
+                  violation_type: 'hash_chain_break',
+                  severity: 'CRITICAL',
+                  detected_at: new Date().toISOString(),
+                },
+              });
+            } catch {
+              // Workflow emission is best-effort
+            }
           }
+        } catch {
+          // Violation check is best-effort — don't break audit logging
         }
-      } catch {
-        // Violation check is best-effort — don't break audit logging
       }
 
       logger.debug('Audit log created', {

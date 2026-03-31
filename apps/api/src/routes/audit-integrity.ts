@@ -159,12 +159,12 @@ async function verifyTenantHashChain(tenantId: string): Promise<IntegrityVerific
 }
 
 /**
- * GET /audit-integrity/verify
+ * GET /audit-integrity/verify-chain
  * Verify audit log hash chain integrity for current tenant
  * Requires: audit:read permission
  */
 router.get(
-  '/verify',
+  '/verify-chain',
   authenticate,
   requirePermission('audit:read'),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
@@ -184,12 +184,12 @@ router.get(
 );
 
 /**
- * GET /audit-integrity/verify/:tenant_id
+ * GET /audit-integrity/verify-chain/:tenant_id
  * Verify audit log hash chain integrity for specific tenant (super admin only)
  * Requires: super_admin permission
  */
 router.get(
-  '/verify/:tenant_id',
+  '/verify-chain/:tenant_id',
   authenticate,
   requirePermission('super_admin:read'),
   asyncHandler(async (req: Request, res: Response): Promise<void> => {

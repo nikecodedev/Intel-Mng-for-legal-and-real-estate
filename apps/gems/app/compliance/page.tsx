@@ -63,7 +63,7 @@ export default function CompliancePage() {
 
   const verifyMutation = useMutation(
     async () => {
-      const res = await api.get('/audit-integrity/verify');
+      const res = await api.get('/audit-integrity/verify-chain');
       return res.data.data as VerificationResult;
     },
     {
