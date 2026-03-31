@@ -266,6 +266,37 @@ export class AuditService {
           entry.retention_category ?? null,
         ]
       );
+      // Proactive hash chain violation detection
+      // Check if the DB trigger detected a break and inserted into compliance_violations
+      try {
+        const violationCheck = await db.query<{ cnt: string }>(
+          `SELECT COUNT(*) as cnt FROM compliance_violations
+           WHERE tenant_id = $1 AND violation_type = 'hash_chain_break'
+           AND detected_at > CURRENT_TIMESTAMP - INTERVAL '5 seconds'`,
+          [tenantId]
+        );
+        if (violationCheck.rows[0] && parseInt(violationCheck.rows[0].cnt, 10) > 0) {
+          logger.error('COMPLIANCE: Hash chain violation detected at INSERT time', { tenantId });
+          // Emit compliance.hash_violation event to workflow engine
+          try {
+            const { runWorkflow } = await import('./workflow-engine.js');
+            await runWorkflow({
+              tenantId,
+              eventType: 'compliance.hash_violation',
+              payload: {
+                violation_type: 'hash_chain_break',
+                severity: 'CRITICAL',
+                detected_at: new Date().toISOString(),
+              },
+            });
+          } catch {
+            // Workflow emission is best-effort
+          }
+        }
+      } catch {
+        // Violation check is best-effort — don't break audit logging
+      }
+
       logger.debug('Audit log created', {
         tenant_id: tenantId,
         event_type: entry.event_type ?? entry.eventType,
