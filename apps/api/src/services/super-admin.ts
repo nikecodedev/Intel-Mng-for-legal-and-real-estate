@@ -87,6 +87,9 @@ export class SuperAdminService {
       );
     }
 
+    // Seed default workflow triggers for the new tenant
+    await this.seedDefaultWorkflowTriggers(tenant.id);
+
     logger.info('Tenant provisioned', {
       tenantId: tenant.id,
       tenantCode: tenant.tenant_code,
@@ -98,6 +101,57 @@ export class SuperAdminService {
       quota,
       white_label_config: whiteLabelConfig,
     };
+  }
+
+  /**
+   * Seed default workflow triggers for a newly provisioned tenant.
+   * Ensures ITBI automation, risk blocking, and document notifications
+   * work out-of-the-box for every tenant — not just the system tenant.
+   */
+  static async seedDefaultWorkflowTriggers(tenantId: string): Promise<void> {
+    const triggers = [
+      {
+        name: 'ITBI Payment → Asset Em Registro',
+        event_type: 'finance.transaction.paid',
+        condition: { transaction_category: { eq: 'ITBI' } },
+        action_type: 'update_state',
+        action_config: { entity_type: 'real_estate_asset', new_state: 'REGULARIZATION', reason: 'ITBI paid - automatic transition to regularization' },
+      },
+      {
+        name: 'ITBI Payment → Tarefa Despachante',
+        event_type: 'finance.transaction.paid',
+        condition: { transaction_category: { eq: 'ITBI' } },
+        action_type: 'create_task',
+        action_config: { title: 'Registrar imóvel — Despachante', description: 'ITBI pago. Iniciar processo de registro do imóvel no cartório.', task_type: 'registration', assigned_role: 'OPERATIONAL', priority: 'HIGH', due_days: 5 },
+      },
+      {
+        name: 'Document VERDE → Notify Owner',
+        event_type: 'document.processed',
+        condition: { status_cpo: { eq: 'VERDE' } },
+        action_type: 'send_notification',
+        action_config: { message: 'Documento aprovado (VERDE) — pronto para uso no pipeline jurídico.', target_role: 'OWNER' },
+      },
+      {
+        name: 'High Risk → Block Stage Advance',
+        event_type: 'auction.stage_advance',
+        condition: { risk_score: { gte: 70 } },
+        action_type: 'block_transition',
+        action_config: { reason: 'Risk score ≥ 70%. Resolve all due diligence issues before advancing.' },
+      },
+    ];
+
+    for (const t of triggers) {
+      try {
+        await db.query(
+          `INSERT INTO workflow_triggers (tenant_id, name, event_type, condition, action_type, action_config, is_active)
+           VALUES ($1, $2, $3, $4, $5, $6, true)
+           ON CONFLICT DO NOTHING`,
+          [tenantId, t.name, t.event_type, JSON.stringify(t.condition), t.action_type, JSON.stringify(t.action_config)]
+        );
+      } catch (err) {
+        logger.warn('Failed to seed workflow trigger', { tenantId, triggerName: t.name, error: err });
+      }
+    }
   }
 
   /**

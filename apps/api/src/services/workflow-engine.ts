@@ -104,7 +104,7 @@ export interface WorkflowRunResult {
  * Run workflow for an event. Evaluates all active triggers for event_type,
  * executes actions (create_task, send_notification, block_transition, update_state).
  * block_transition blocks the whole run and is audited; other actions are executed and audited.
- * update_state transitions real_estate_asset state and records in asset_state_transitions.
+ * update_state supports: real_estate_asset, auction_asset, process.
  * Returns whether the transition/action is allowed (false if any trigger blocked).
  */
 export async function runWorkflow(ctx: WorkflowEventContext): Promise<WorkflowRunResult> {
@@ -185,20 +185,20 @@ async function executeAction(
           return { success: false, summary: 'update_state:missing_config' };
         }
         if (entityType === 'real_estate_asset') {
-          // Get current state for transition record
           const currentResult = await db.query<{ current_state: string }>(
             `SELECT current_state FROM real_estate_assets WHERE id = $1 AND tenant_id = $2`,
             [entityId, ctx.tenantId]
           );
-          const fromState = currentResult.rows[0]?.current_state ?? 'UNKNOWN';
+          if (!currentResult.rows[0]) {
+            return { success: false, summary: `update_state:entity_not_found:${entityType}:${entityId}` };
+          }
+          const fromState = currentResult.rows[0].current_state;
 
-          // Update the asset state
           await db.query(
             `UPDATE real_estate_assets SET current_state = $1, state_changed_at = CURRENT_TIMESTAMP, state_changed_by = $2, state_change_reason = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 AND tenant_id = $5`,
             [newState, ctx.userId ?? null, `Workflow trigger: ${trigger.name}`, entityId, ctx.tenantId]
           );
 
-          // Record state transition for audit trail
           await db.query(
             `INSERT INTO asset_state_transitions
              (tenant_id, real_estate_asset_id, from_state, to_state, transitioned_by, transition_reason, is_valid)
@@ -207,6 +207,40 @@ async function executeAction(
           );
 
           return { success: true, summary: `state_updated:${entityType}:${entityId}:${fromState}->${newState}` };
+        }
+        if (entityType === 'auction_asset') {
+          const currentResult = await db.query<{ current_stage: string }>(
+            `SELECT current_stage FROM auction_assets WHERE id = $1 AND tenant_id = $2`,
+            [entityId, ctx.tenantId]
+          );
+          if (!currentResult.rows[0]) {
+            return { success: false, summary: `update_state:entity_not_found:${entityType}:${entityId}` };
+          }
+          const fromStage = currentResult.rows[0].current_stage;
+
+          await db.query(
+            `UPDATE auction_assets SET current_stage = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id = $3`,
+            [newState, entityId, ctx.tenantId]
+          );
+
+          return { success: true, summary: `state_updated:${entityType}:${entityId}:${fromStage}->${newState}` };
+        }
+        if (entityType === 'process') {
+          const currentResult = await db.query<{ status: string }>(
+            `SELECT status FROM processes WHERE id = $1 AND tenant_id = $2`,
+            [entityId, ctx.tenantId]
+          );
+          if (!currentResult.rows[0]) {
+            return { success: false, summary: `update_state:entity_not_found:${entityType}:${entityId}` };
+          }
+          const fromStatus = currentResult.rows[0].status;
+
+          await db.query(
+            `UPDATE processes SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id = $3`,
+            [newState, entityId, ctx.tenantId]
+          );
+
+          return { success: true, summary: `state_updated:${entityType}:${entityId}:${fromStatus}->${newState}` };
         }
         return { success: false, summary: `update_state:unsupported_entity:${entityType}` };
       }
