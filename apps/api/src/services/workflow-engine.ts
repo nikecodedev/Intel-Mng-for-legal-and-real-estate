@@ -102,8 +102,9 @@ export interface WorkflowRunResult {
 
 /**
  * Run workflow for an event. Evaluates all active triggers for event_type,
- * executes actions (create_task, send_notification, block_transition).
+ * executes actions (create_task, send_notification, block_transition, update_state).
  * block_transition blocks the whole run and is audited; other actions are executed and audited.
+ * update_state transitions real_estate_asset state and records in asset_state_transitions.
  * Returns whether the transition/action is allowed (false if any trigger blocked).
  */
 export async function runWorkflow(ctx: WorkflowEventContext): Promise<WorkflowRunResult> {
