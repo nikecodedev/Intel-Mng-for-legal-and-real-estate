@@ -94,10 +94,11 @@ export default function ExpenseCaptureFormPage() {
         amount_cents: amountCents,
         currency: 'BRL',
         description: description.trim(),
-        vendor_name: vendor.trim() || undefined,
         captured_via: 'MOBILE',
-        proof_document_id: scannedDocId || undefined,
-        transaction_date: new Date().toLocaleDateString('en-CA'),
+        receipt_document_id: scannedDocId || undefined,
+        expense_date: new Date().toLocaleDateString('en-CA'),
+        // Default to general client_id to satisfy schema validation
+        client_id: '00000000-0000-0000-0000-000000000001',
       });
     },
     onSuccess: () => {
