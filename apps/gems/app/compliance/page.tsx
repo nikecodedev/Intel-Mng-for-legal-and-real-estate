@@ -58,7 +58,7 @@ export default function CompliancePage() {
       const res = await api.get('/audit-integrity/status');
       return res.data.data as AuditStatus;
     },
-    { staleTime: 30 * 1000 }
+    { staleTime: 30 * 1000, retry: false, refetchOnWindowFocus: false }
   );
 
   const verifyMutation = useMutation(
