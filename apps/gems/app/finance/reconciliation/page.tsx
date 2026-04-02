@@ -5,8 +5,8 @@ import { api } from '@/lib/api';
 
 export default function ReconciliationPage() {
   const { data, isLoading, isError } = useQuery('finance-reconciliation', async () => {
-    const res = await api.get('/finance/reconciliation', { params: { limit: 100 } });
-    return res.data?.movements ?? res.data?.data ?? res.data?.reconciliation ?? [];
+    const res = await api.get('/finance/bank-reconciliation/unreconciled', { params: { limit: 100 } });
+    return res.data?.transactions ?? res.data?.data ?? res.data?.movements ?? [];
   }, { staleTime: 30_000, retry: false });
 
   return (
