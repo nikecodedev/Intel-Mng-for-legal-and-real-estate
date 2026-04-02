@@ -86,14 +86,16 @@ export class KnowledgeSearchService {
     const total = parseInt(countResult.rows[0].count, 10);
 
     // Get search results with relevance scoring
+    // Re-use $2 (the query param) for ts_rank instead of adding a new param
+    const limitParam = paramCount++;
     const searchValues = [...values, limit];
     const result = await db.query<KnowledgeEntry & { ts_rank: number }>(
       `SELECT *,
-         ts_rank(to_tsvector('portuguese', COALESCE(search_text, '')), plainto_tsquery('portuguese', $${paramCount++})) as ts_rank
+         ts_rank(to_tsvector('portuguese', COALESCE(search_text, '')), plainto_tsquery('portuguese', $2)) as ts_rank
        FROM knowledge_entries
        WHERE ${whereClause}
        ORDER BY ts_rank DESC, relevance_score DESC NULLS LAST, created_at DESC
-       LIMIT $${paramCount++}`,
+       LIMIT $${limitParam}`,
       searchValues
     );
 
