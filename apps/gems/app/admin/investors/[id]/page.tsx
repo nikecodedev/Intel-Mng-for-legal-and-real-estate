@@ -1,8 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import { useQuery } from 'react-query';
 import Link from 'next/link';
 import { DateDisplay, BlockLoader } from '@/components/ui';
+import { api } from '@/lib/api';
 import {
   fetchInvestorById,
   fetchInvestorAssignedAssets,
@@ -14,6 +16,44 @@ function matchScoreColor(score: number) {
   if (score >= 80) return 'text-green-700 bg-green-100';
   if (score >= 50) return 'text-amber-700 bg-amber-100';
   return 'text-gray-700 bg-gray-100';
+}
+
+function FindMatchesButton({ investorId }: { investorId: string }) {
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState('');
+  async function run() {
+    setLoading(true); setMsg('');
+    try {
+      const { data } = await api.post(`/matching/find-matches/${investorId}`);
+      setMsg(`Found ${data?.matches?.length ?? data?.count ?? 0} matches.`);
+    } catch { setMsg('Failed.'); }
+    finally { setLoading(false); }
+  }
+  return (
+    <span className="inline-flex items-center gap-1">
+      <button onClick={run} disabled={loading} className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">{loading ? 'Matching...' : 'Find Matches'}</button>
+      {msg && <span className="text-xs text-gray-600">{msg}</span>}
+    </span>
+  );
+}
+
+function AutoNotifyButton({ investorId }: { investorId: string }) {
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState('');
+  async function run() {
+    setLoading(true); setMsg('');
+    try {
+      await api.post(`/matching/auto-notify/${investorId}`);
+      setMsg('Notified.');
+    } catch { setMsg('Failed.'); }
+    finally { setLoading(false); }
+  }
+  return (
+    <span className="inline-flex items-center gap-1">
+      <button onClick={run} disabled={loading} className="rounded bg-green-600 px-3 py-1.5 text-sm text-white hover:bg-green-700 disabled:opacity-50">{loading ? 'Notifying...' : 'Auto-Notify'}</button>
+      {msg && <span className="text-xs text-gray-600">{msg}</span>}
+    </span>
+  );
 }
 
 export default function AdminInvestorDetailPage({ params }: { params: { id: string } }) {
@@ -52,9 +92,13 @@ export default function AdminInvestorDetailPage({ params }: { params: { id: stri
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-gray-900">{name}</h2>
-        <Link href="/admin/investors" className="text-sm text-blue-600 hover:underline">
-          ← Back to list
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href={`/admin/investors/${id}/kyc`} className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">KYC</Link>
+          <Link href={`/admin/investors/${id}/preferences`} className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Preferences</Link>
+          <FindMatchesButton investorId={id} />
+          <AutoNotifyButton investorId={id} />
+          <Link href="/admin/investors" className="text-sm text-blue-600 hover:underline">← Back</Link>
+        </div>
       </div>
 
       <section className="rounded-lg border border-gray-200 bg-white p-6">
