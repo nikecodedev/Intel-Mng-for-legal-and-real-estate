@@ -55,11 +55,16 @@ export default function AuctionsListPage() {
   }
 
   return (
-    <DataTable<AuctionAsset>
-      columns={columns}
-      data={assets}
-      keyExtractor={(row) => row.id}
-      emptyMessage="No auctions yet."
-    />
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <Link href="/auctions/new" className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">New Auction</Link>
+      </div>
+      <DataTable<AuctionAsset>
+        columns={columns}
+        data={assets}
+        keyExtractor={(row) => row.id}
+        emptyMessage="No auctions yet."
+      />
+    </div>
   );
 }

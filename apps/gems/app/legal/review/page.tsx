@@ -49,6 +49,14 @@ export default function LegalReviewPage() {
     }
   );
 
+  const submitReviewMutation = useMutation(
+    async (docId: string) => {
+      const res = await api.post(`/generated-documents/${docId}/submit-review`);
+      return res.data;
+    },
+    { onSuccess: () => { queryClient.invalidateQueries('generated-documents'); } }
+  );
+
   const rejectMutation = useMutation(
     async ({ id, reason }: { id: string; reason: string }) => {
       const res = await api.post(`/generated-documents/${id}/reject`, { reason });
@@ -200,6 +208,14 @@ export default function LegalReviewPage() {
                           </>
                         )}
                       </div>
+                    ) : (doc.review_status as string) === 'DRAFT' ? (
+                      <button
+                        onClick={() => submitReviewMutation.mutate(doc.id)}
+                        disabled={submitReviewMutation.isLoading}
+                        className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        {submitReviewMutation.isLoading ? 'Submitting...' : 'Submit for Review'}
+                      </button>
                     ) : (
                       <span className="text-xs text-gray-400">-</span>
                     )}

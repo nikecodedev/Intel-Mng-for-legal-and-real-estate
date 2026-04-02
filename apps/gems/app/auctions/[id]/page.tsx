@@ -19,6 +19,105 @@ import {
   type DueDiligenceChecklist,
 } from '@/lib/auction-api';
 import { RiskIndicator } from '@/components/auctions/RiskIndicator';
+import { api } from '@/lib/api';
+
+function ROIInputForm({ assetId, onSuccess }: { assetId: string; onSuccess: () => void }) {
+  const [form, setForm] = useState({ purchase_value_cents: '', renovation_costs_cents: '', expected_resale_cents: '', holding_period_months: '' });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  function set(f: string, v: string) { setForm(p => ({ ...p, [f]: v })); setError(''); setSuccess(''); }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true); setError(''); setSuccess('');
+    try {
+      await api.post(`/auctions/assets/${assetId}/roi/inputs`, {
+        purchase_value_cents: form.purchase_value_cents ? Math.round(parseFloat(form.purchase_value_cents) * 100) : 0,
+        renovation_costs_cents: form.renovation_costs_cents ? Math.round(parseFloat(form.renovation_costs_cents) * 100) : 0,
+        expected_resale_cents: form.expected_resale_cents ? Math.round(parseFloat(form.expected_resale_cents) * 100) : 0,
+        holding_period_months: form.holding_period_months ? parseInt(form.holding_period_months, 10) : 12,
+      });
+      setSuccess('ROI inputs saved.');
+      onSuccess();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Failed to save ROI inputs.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-gray-200 bg-white p-6">
+      <h3 className="text-sm font-medium text-gray-500 mb-3">ROI Input Form</h3>
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Purchase Value (R$)</label>
+            <input type="number" step="0.01" value={form.purchase_value_cents} onChange={e => set('purchase_value_cents', e.target.value)} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="0.00" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Renovation Costs (R$)</label>
+            <input type="number" step="0.01" value={form.renovation_costs_cents} onChange={e => set('renovation_costs_cents', e.target.value)} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="0.00" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Expected Resale (R$)</label>
+            <input type="number" step="0.01" value={form.expected_resale_cents} onChange={e => set('expected_resale_cents', e.target.value)} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="0.00" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Holding Period (months)</label>
+            <input type="number" min="1" value={form.holding_period_months} onChange={e => set('holding_period_months', e.target.value)} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="12" />
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <button type="submit" disabled={loading} className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">{loading ? 'Saving...' : 'Save ROI Inputs'}</button>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          {success && <p className="text-sm text-green-600">{success}</p>}
+        </div>
+      </form>
+    </section>
+  );
+}
+
+function ROIVersionsTable({ assetId }: { assetId: string }) {
+  const { data, isLoading } = useQuery(
+    ['auction-roi-versions', assetId],
+    async () => { const r = await api.get(`/auctions/assets/${assetId}/roi/versions`); return r.data?.versions ?? r.data?.data ?? []; },
+    { staleTime: 60 * 1000, retry: false }
+  );
+
+  if (isLoading) return null;
+  if (!data || !Array.isArray(data) || data.length === 0) return null;
+
+  return (
+    <section className="rounded-lg border border-gray-200 bg-white p-6">
+      <h3 className="text-sm font-medium text-gray-500 mb-3">Historical ROI Versions</h3>
+      <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">Version</th>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">ROI %</th>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">Net Profit</th>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">Created</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {data.map((v: any, i: number) => (
+              <tr key={v.id ?? i} className="hover:bg-gray-50">
+                <td className="px-4 py-2 font-medium">{v.version_number ?? i + 1}</td>
+                <td className="px-4 py-2">{v.outputs?.roi_percentage != null ? `${Number(v.outputs.roi_percentage).toFixed(2)}%` : '-'}</td>
+                <td className="px-4 py-2">{v.outputs?.net_profit_cents != null ? `R$ ${(v.outputs.net_profit_cents / 100).toFixed(2)}` : '-'}</td>
+                <td className="px-4 py-2 text-gray-500">{v.created_at ? new Date(v.created_at).toLocaleDateString() : '-'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
 
 export default function AuctionDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
@@ -315,6 +414,12 @@ export default function AuctionDetailPage({ params }: { params: { id: string } }
           </dl>
         )}
       </section>
+
+      {/* ROI Input Form */}
+      <ROIInputForm assetId={id} onSuccess={() => { queryClient.invalidateQueries(['auction-roi', id]); }} />
+
+      {/* Historical ROI Versions */}
+      <ROIVersionsTable assetId={id} />
 
       {/* Linked documents */}
       <section className="rounded-lg border border-gray-200 bg-white p-6">

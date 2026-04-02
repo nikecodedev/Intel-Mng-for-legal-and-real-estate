@@ -58,11 +58,16 @@ export default function RealEstateListPage() {
   }
 
   return (
-    <DataTable<RealEstateAsset>
-      columns={columns}
-      data={assets}
-      keyExtractor={(row) => row.id}
-      emptyMessage="No real estate assets yet."
-    />
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <Link href="/real-estate/new" className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">New Asset</Link>
+      </div>
+      <DataTable<RealEstateAsset>
+        columns={columns}
+        data={assets}
+        keyExtractor={(row) => row.id}
+        emptyMessage="No real estate assets yet."
+      />
+    </div>
   );
 }

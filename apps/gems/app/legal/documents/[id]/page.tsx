@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from 'react-query';
+import { useQuery, useQueryClient } from 'react-query';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { DateDisplay, StatusBadge, BlockLoader } from '@/components/ui';
 import { formatPercent } from '@/lib/utils';
 import { fetchDocumentById, fetchDocumentFacts, type DocumentFact, type QualityFlag } from '@/lib/legal-api';
+import { api } from '@/lib/api';
 
 const PAGE_SIZE = 10;
 
@@ -102,6 +104,8 @@ function PartiesTable({ parties }: { parties: Array<{ name?: string; role?: stri
 
 export default function LegalDocumentDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
+  const queryClient = useQueryClient();
+  const router = useRouter();
   const { data, isLoading, error } = useQuery(['legal-document', id], () => fetchDocumentById(id), {
     staleTime: 60 * 1000,
   });
@@ -110,6 +114,82 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
     () => fetchDocumentFacts(id),
     { staleTime: 60 * 1000, enabled: !!id }
   );
+  const { data: extractions } = useQuery(
+    ['legal-document-extractions', id],
+    async () => { const r = await api.get(`/documents/${id}/extractions`); return r.data?.data ?? r.data; },
+    { staleTime: 60 * 1000, enabled: !!id, retry: false }
+  );
+
+  // Edit metadata state
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editType, setEditType] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+
+  // Delete state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Quality flag state
+  const [showFlagForm, setShowFlagForm] = useState(false);
+  const [flagType, setFlagType] = useState('MANUAL_REVIEW');
+  const [flagDesc, setFlagDesc] = useState('');
+  const [flagSeverity, setFlagSeverity] = useState('WARNING');
+  const [flagLoading, setFlagLoading] = useState(false);
+
+  const [actionMsg, setActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  function startEdit() {
+    const doc = data?.data?.document;
+    setEditTitle(doc?.title ?? '');
+    setEditType(doc?.document_type ?? '');
+    setEditNotes((doc as any)?.notes ?? '');
+    setEditing(true);
+    setActionMsg(null);
+  }
+
+  async function saveEdit() {
+    setEditLoading(true);
+    try {
+      await api.put(`/documents/${id}`, { title: editTitle, document_type: editType, notes: editNotes });
+      setEditing(false);
+      setActionMsg({ type: 'success', text: 'Metadata updated.' });
+      queryClient.invalidateQueries(['legal-document', id]);
+    } catch (err: any) {
+      setActionMsg({ type: 'error', text: err?.response?.data?.message || 'Update failed.' });
+    } finally {
+      setEditLoading(false);
+    }
+  }
+
+  async function handleDelete() {
+    setDeleteLoading(true);
+    try {
+      await api.delete(`/documents/${id}`);
+      router.push('/legal');
+    } catch (err: any) {
+      setActionMsg({ type: 'error', text: err?.response?.data?.message || 'Delete failed.' });
+      setShowDeleteConfirm(false);
+    } finally {
+      setDeleteLoading(false);
+    }
+  }
+
+  async function submitFlag() {
+    setFlagLoading(true);
+    try {
+      await api.post(`/documents/${id}/quality-flags`, { flag_type: flagType, description: flagDesc, severity: flagSeverity });
+      setShowFlagForm(false);
+      setFlagDesc('');
+      setActionMsg({ type: 'success', text: 'Quality flag submitted.' });
+      queryClient.invalidateQueries(['legal-document', id]);
+    } catch (err: any) {
+      setActionMsg({ type: 'error', text: err?.response?.data?.message || 'Flag submission failed.' });
+    } finally {
+      setFlagLoading(false);
+    }
+  }
 
   if (isLoading) return <BlockLoader message="Loading document…" />;
 
@@ -126,15 +206,91 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
 
   return (
     <div className="space-y-6">
+      {actionMsg && (
+        <div className={`rounded-lg border p-3 text-sm ${actionMsg.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+          {actionMsg.text}
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-gray-900">{document.title || document.document_number}</h2>
-        <Link
-          href={`/legal/documents/${id}/view`}
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          View source
-        </Link>
+        <div className="flex items-center gap-2">
+          <button onClick={startEdit} className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Edit</button>
+          <button onClick={() => setShowFlagForm(true)} className="rounded border border-amber-300 px-3 py-1.5 text-sm text-amber-700 hover:bg-amber-50">Flag</button>
+          <button onClick={() => setShowDeleteConfirm(true)} className="rounded border border-red-300 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50">Delete</button>
+          <Link href={`/legal/documents/${id}/view`} className="rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700">View source</Link>
+        </div>
       </div>
+
+      {/* Edit metadata modal */}
+      {editing && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
+          <h3 className="text-sm font-medium text-blue-800">Edit Document Metadata</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Title</label>
+              <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Type</label>
+              <input value={editType} onChange={(e) => setEditType(e.target.value)} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Notes</label>
+            <textarea value={editNotes} onChange={(e) => setEditNotes(e.target.value)} rows={2} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={saveEdit} disabled={editLoading} className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50">{editLoading ? 'Saving...' : 'Save'}</button>
+            <button onClick={() => setEditing(false)} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation */}
+      {showDeleteConfirm && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+          <p className="text-sm text-red-800 mb-3">Are you sure you want to delete this document? This action cannot be undone.</p>
+          <div className="flex gap-2">
+            <button onClick={handleDelete} disabled={deleteLoading} className="rounded bg-red-600 px-4 py-1.5 text-sm text-white hover:bg-red-700 disabled:opacity-50">{deleteLoading ? 'Deleting...' : 'Confirm Delete'}</button>
+            <button onClick={() => setShowDeleteConfirm(false)} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Submit quality flag form */}
+      {showFlagForm && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3">
+          <h3 className="text-sm font-medium text-amber-800">Submit Quality Flag</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Type</label>
+              <select value={flagType} onChange={(e) => setFlagType(e.target.value)} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm">
+                <option value="MANUAL_REVIEW">Manual Review</option>
+                <option value="DATA_QUALITY">Data Quality</option>
+                <option value="OCR_ERROR">OCR Error</option>
+                <option value="MISSING_DATA">Missing Data</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Severity</label>
+              <select value={flagSeverity} onChange={(e) => setFlagSeverity(e.target.value)} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm">
+                <option value="INFO">Info</option>
+                <option value="WARNING">Warning</option>
+                <option value="ERROR">Error</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Description</label>
+            <textarea value={flagDesc} onChange={(e) => setFlagDesc(e.target.value)} rows={2} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" placeholder="Describe the issue..." />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={submitFlag} disabled={flagLoading || !flagDesc.trim()} className="rounded bg-amber-600 px-4 py-1.5 text-sm text-white hover:bg-amber-700 disabled:opacity-50">{flagLoading ? 'Submitting...' : 'Submit Flag'}</button>
+            <button onClick={() => setShowFlagForm(false)} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+          </div>
+        </div>
+      )}
 
       <section className="rounded-lg border border-gray-200 bg-white p-6">
         <h3 className="text-sm font-medium text-gray-500 mb-3">Document</h3>
@@ -273,6 +429,41 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {/* OCR Extractions */}
+      {extractions && (
+        <section className="rounded-lg border border-gray-200 bg-white p-6">
+          <h3 className="text-sm font-medium text-gray-500 mb-3">OCR Extractions</h3>
+          {Array.isArray(extractions) ? (
+            extractions.length === 0 ? (
+              <p className="text-sm text-gray-500">No extractions available.</p>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border border-gray-200">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left font-medium text-gray-600">Field</th>
+                      <th className="px-4 py-2 text-left font-medium text-gray-600">Value</th>
+                      <th className="px-4 py-2 text-left font-medium text-gray-600">Confidence</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {(extractions as Array<{ field?: string; value?: unknown; confidence?: number }>).map((ex, i) => (
+                      <tr key={i} className="hover:bg-gray-50">
+                        <td className="px-4 py-2 font-medium text-gray-900">{ex.field ?? `Field ${i + 1}`}</td>
+                        <td className="px-4 py-2 text-gray-700">{typeof ex.value === 'object' ? JSON.stringify(ex.value) : String(ex.value ?? '')}</td>
+                        <td className="px-4 py-2 text-gray-500">{ex.confidence != null ? `${Math.round(ex.confidence * 100)}%` : '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
+          ) : (
+            <pre className="text-xs bg-gray-50 rounded p-3 overflow-x-auto">{JSON.stringify(extractions, null, 2)}</pre>
+          )}
         </section>
       )}
     </div>

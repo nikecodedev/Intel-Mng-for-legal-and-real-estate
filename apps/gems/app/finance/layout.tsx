@@ -8,6 +8,9 @@ const financeNav = [
   { href: '/finance', label: 'Overview' },
   { href: '/finance/transactions', label: 'Transactions' },
   { href: '/finance/expenses', label: 'Expenses' },
+  { href: '/finance/receivables', label: 'Receivables' },
+  { href: '/finance/payables', label: 'Payables' },
+  { href: '/finance/reconciliation', label: 'Reconciliation' },
 ];
 
 export default function FinanceLayout({ children }: { children: React.ReactNode }) {
