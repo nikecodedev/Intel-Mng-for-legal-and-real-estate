@@ -18,10 +18,10 @@ interface WorkflowTask {
 type StatusGroup = 'pending' | 'in_progress' | 'completed' | 'cancelled';
 
 const STATUS_LABELS: Record<StatusGroup, string> = {
-  pending: 'Pending',
-  in_progress: 'In Progress',
-  completed: 'Completed',
-  cancelled: 'Cancelled',
+  pending: 'Pendente',
+  in_progress: 'Em Andamento',
+  completed: 'Concluido',
+  cancelled: 'Cancelado',
 };
 
 const STATUS_COLORS: Record<StatusGroup, string> = {
@@ -51,7 +51,7 @@ export default function WorkflowTasksPage() {
       if (isApiError(err)) {
         setError(getApiErrorMessage(err));
       } else {
-        setError('Failed to load workflow tasks');
+        setError('Falha ao carregar tarefas do fluxo');
       }
     } finally {
       setLoading(false);
@@ -94,7 +94,7 @@ export default function WorkflowTasksPage() {
       <div className="rounded-lg bg-red-50 p-4 text-red-700 text-sm">
         {error}
         <button onClick={fetchTasks} className="ml-3 underline">
-          Retry
+          Tentar novamente
         </button>
       </div>
     );
@@ -103,7 +103,7 @@ export default function WorkflowTasksPage() {
   if (tasks.length === 0) {
     return (
       <div className="text-center py-16 text-gray-500">
-        No workflow tasks found.
+        Nenhuma tarefa encontrada.
       </div>
     );
   }
@@ -153,11 +153,11 @@ export default function WorkflowTasksPage() {
                       )}
                       {(task.task_type === 'expense_approval' || task.related_entity_type === 'expense') && (
                         <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-                          Expense Approval
+                          Aprovacao de Despesa
                         </span>
                       )}
                       <span>
-                        Created{' '}
+                        Criado em{' '}
                         {new Date(task.created_at).toLocaleDateString()}
                       </span>
                     </div>
@@ -168,7 +168,7 @@ export default function WorkflowTasksPage() {
                         onClick={() => updateTaskStatus(task.id, 'in_progress')}
                         className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100"
                       >
-                        Start
+                        Iniciar
                       </button>
                     )}
                     {status === 'in_progress' && (
@@ -176,7 +176,7 @@ export default function WorkflowTasksPage() {
                         onClick={() => updateTaskStatus(task.id, 'completed')}
                         className="px-2 py-1 text-xs bg-green-50 text-green-700 rounded hover:bg-green-100"
                       >
-                        Complete
+                        Concluir
                       </button>
                     )}
                     {(status === 'pending' || status === 'in_progress') && (
@@ -184,7 +184,7 @@ export default function WorkflowTasksPage() {
                         onClick={() => updateTaskStatus(task.id, 'cancelled')}
                         className="px-2 py-1 text-xs bg-gray-50 text-gray-600 rounded hover:bg-gray-100"
                       >
-                        Cancel
+                        Cancelar
                       </button>
                     )}
                   </div>

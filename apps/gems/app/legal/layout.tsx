@@ -5,17 +5,17 @@ import { usePathname } from 'next/navigation';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 
 const legalNav = [
-  { href: '/legal', label: 'Documents' },
+  { href: '/legal', label: 'Documentos' },
   { href: '/legal/upload', label: 'Upload' },
-  { href: '/legal/sanitation', label: 'Sanitation queue' },
-  { href: '/legal/review', label: 'Review' },
-  { href: '/legal/generate', label: 'Generate' },
+  { href: '/legal/sanitation', label: 'Fila de Saneamento' },
+  { href: '/legal/review', label: 'Revisão' },
+  { href: '/legal/generate', label: 'Gerar' },
 ];
 
 export default function LegalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   return (
-    <DashboardLayout title="Legal">
+    <DashboardLayout title="Jurídico">
       <nav className="mb-4 flex gap-2 border-b border-gray-200">
         {legalNav.map(({ href, label }) => {
           const isActive =

@@ -50,10 +50,10 @@ export default function InvestorPreferencesPage({ params }: { params: { id: stri
       } else {
         await api.post('/crm/preference-profiles', payload);
       }
-      setSuccess('Preferences saved.');
+      setSuccess('Preferências salvas.');
       queryClient.invalidateQueries(['crm-preferences', id]);
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to save preferences.');
+      setError(err?.response?.data?.message || 'Falha ao salvar preferências.');
     } finally {
       setLoading(false);
     }
@@ -62,41 +62,41 @@ export default function InvestorPreferencesPage({ params }: { params: { id: stri
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900">Investor Preferences</h1>
-        <Link href={`/admin/investors/${id}`} className="text-sm text-blue-600 hover:underline">Back to investor</Link>
+        <h1 className="text-xl font-bold text-gray-900">Preferências do Investidor</h1>
+        <Link href={`/admin/investors/${id}`} className="text-sm text-blue-600 hover:underline">Voltar ao investidor</Link>
       </div>
 
       {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">{error}</p>}
       {success && <p className="text-sm text-green-600 bg-green-50 border border-green-200 rounded p-3">{success}</p>}
-      {isLoading ? <p className="text-sm text-gray-500">Loading...</p> : (
+      {isLoading ? <p className="text-sm text-gray-500">Carregando...</p> : (
         <form onSubmit={handleSubmit} className="rounded-lg border border-gray-200 bg-white p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <label className="block text-xs text-gray-600 mb-1">Preferred Asset Types (comma-separated)</label>
+              <label className="block text-xs text-gray-600 mb-1">Tipos de Ativo Preferidos (separados por vírgula)</label>
               <input value={form.preferred_asset_types} onChange={e => setForm(p => ({ ...p, preferred_asset_types: e.target.value }))} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="APARTMENT, HOUSE, COMMERCIAL" />
             </div>
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Min ROI %</label>
+              <label className="block text-xs text-gray-600 mb-1">ROI Mín. %</label>
               <input type="number" step="0.1" value={form.min_roi_percentage} onChange={e => setForm(p => ({ ...p, min_roi_percentage: e.target.value }))} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Max Risk Score</label>
+              <label className="block text-xs text-gray-600 mb-1">Pontuação Máx. de Risco</label>
               <input type="number" min="0" max="100" value={form.max_risk_score} onChange={e => setForm(p => ({ ...p, max_risk_score: e.target.value }))} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Min Investment (R$)</label>
+              <label className="block text-xs text-gray-600 mb-1">Investimento Mín. (R$)</label>
               <input type="number" step="0.01" value={form.min_investment_cents} onChange={e => setForm(p => ({ ...p, min_investment_cents: e.target.value }))} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Max Investment (R$)</label>
+              <label className="block text-xs text-gray-600 mb-1">Investimento Máx. (R$)</label>
               <input type="number" step="0.01" value={form.max_investment_cents} onChange={e => setForm(p => ({ ...p, max_investment_cents: e.target.value }))} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
             </div>
             <div className="col-span-2">
-              <label className="block text-xs text-gray-600 mb-1">Preferred Locations (comma-separated)</label>
-              <input value={form.preferred_locations} onChange={e => setForm(p => ({ ...p, preferred_locations: e.target.value }))} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="Sao Paulo, Rio de Janeiro" />
+              <label className="block text-xs text-gray-600 mb-1">Localizações Preferidas (separadas por vírgula)</label>
+              <input value={form.preferred_locations} onChange={e => setForm(p => ({ ...p, preferred_locations: e.target.value }))} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="São Paulo, Rio de Janeiro" />
             </div>
           </div>
-          <button type="submit" disabled={loading} className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">{loading ? 'Saving...' : profile?.id ? 'Update Preferences' : 'Create Preferences'}</button>
+          <button type="submit" disabled={loading} className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">{loading ? 'Salvando...' : profile?.id ? 'Atualizar Preferências' : 'Criar Preferências'}</button>
         </form>
       )}
     </div>

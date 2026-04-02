@@ -41,8 +41,8 @@ function SignupContent() {
           <div className="w-14 h-14 rounded-2xl bg-blue-600 flex items-center justify-center mb-4 shadow-lg shadow-blue-600/30">
             <span className="text-white text-2xl font-bold">G</span>
           </div>
-          <h1 className="text-2xl font-bold text-white">Create your account</h1>
-          <p className="text-slate-400 text-sm mt-1">Join GEMS — Legal & Real Estate Platform</p>
+          <h1 className="text-2xl font-bold text-white">Crie sua conta</h1>
+          <p className="text-slate-400 text-sm mt-1">Junte-se ao GEMS — Plataforma Jurídica e Imobiliária</p>
         </div>
 
         {/* Card */}
@@ -51,9 +51,9 @@ function SignupContent() {
         </div>
 
         <p className="mt-6 text-center text-sm text-slate-400">
-          Already have an account?{' '}
+          Já tem uma conta?{' '}
           <Link href="/login" className="font-semibold text-blue-400 hover:text-blue-300 transition-colors">
-            Sign in
+            Entrar
           </Link>
         </p>
       </div>

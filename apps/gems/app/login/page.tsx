@@ -54,7 +54,7 @@ function LoginContent() {
       <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900">
         <div className="flex items-center gap-2">
           <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-          <p className="text-sm text-white/60">Loading...</p>
+          <p className="text-sm text-white/60">Carregando...</p>
         </div>
       </main>
     );
@@ -78,8 +78,8 @@ function LoginContent() {
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 shadow-lg shadow-blue-600/30">
             <span className="text-2xl font-bold text-white">G</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">Welcome back</h1>
-          <p className="mt-1 text-sm text-slate-400">Sign in to your GEMS account</p>
+          <h1 className="text-2xl font-bold tracking-tight text-white">Bem-vindo de volta</h1>
+          <p className="mt-1 text-sm text-slate-400">Entre na sua conta GEMS</p>
         </div>
 
         {/* Login form card */}
@@ -88,9 +88,9 @@ function LoginContent() {
         </div>
 
         <p className="mt-6 text-center text-sm text-slate-400">
-          Don&apos;t have an account?{' '}
+          Ainda n&atilde;o tem uma conta?{' '}
           <Link href="/signup" className="font-medium text-blue-400 hover:text-blue-300 transition-colors">
-            Sign up
+            Cadastre-se
           </Link>
         </p>
       </div>
@@ -104,7 +104,7 @@ export default function LoginPage() {
       <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900">
         <div className="flex items-center gap-2">
           <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-          <p className="text-sm text-white/60">Loading...</p>
+          <p className="text-sm text-white/60">Carregando...</p>
         </div>
       </main>
     }>

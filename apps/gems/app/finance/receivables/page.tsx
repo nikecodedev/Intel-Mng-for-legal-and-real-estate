@@ -27,12 +27,12 @@ export default function ReceivablesPage() {
         due_date: form.due_date || undefined,
         description: form.description || undefined,
       });
-      setSuccess('Receivable created.');
+      setSuccess('Conta a receber criada.');
       setForm({ debtor_name: '', amount_cents: '', due_date: '', description: '' });
       setShowCreate(false);
       queryClient.invalidateQueries('finance-receivables');
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to create receivable.');
+      setError(err?.response?.data?.message || 'Falha ao criar conta a receber.');
     } finally {
       setLoading(false);
     }
@@ -41,38 +41,38 @@ export default function ReceivablesPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900">Accounts Receivable</h2>
-        <button onClick={() => setShowCreate(!showCreate)} className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">New Receivable</button>
+        <h2 className="text-lg font-semibold text-gray-900">Contas a Receber</h2>
+        <button onClick={() => setShowCreate(!showCreate)} className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">Nova Conta a Receber</button>
       </div>
 
       {showCreate && (
         <form onSubmit={handleCreate} className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="block text-xs text-gray-600 mb-1">Debtor</label><input value={form.debtor_name} onChange={e => setForm(p => ({ ...p, debtor_name: e.target.value }))} required className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" /></div>
-            <div><label className="block text-xs text-gray-600 mb-1">Amount (R$)</label><input type="number" step="0.01" value={form.amount_cents} onChange={e => setForm(p => ({ ...p, amount_cents: e.target.value }))} required className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" /></div>
-            <div><label className="block text-xs text-gray-600 mb-1">Due Date</label><input type="date" value={form.due_date} onChange={e => setForm(p => ({ ...p, due_date: e.target.value }))} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" /></div>
-            <div><label className="block text-xs text-gray-600 mb-1">Description</label><input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" /></div>
+            <div><label className="block text-xs text-gray-600 mb-1">Devedor</label><input value={form.debtor_name} onChange={e => setForm(p => ({ ...p, debtor_name: e.target.value }))} required className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" /></div>
+            <div><label className="block text-xs text-gray-600 mb-1">Valor (R$)</label><input type="number" step="0.01" value={form.amount_cents} onChange={e => setForm(p => ({ ...p, amount_cents: e.target.value }))} required className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" /></div>
+            <div><label className="block text-xs text-gray-600 mb-1">Vencimento</label><input type="date" value={form.due_date} onChange={e => setForm(p => ({ ...p, due_date: e.target.value }))} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" /></div>
+            <div><label className="block text-xs text-gray-600 mb-1">Descrição</label><input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" /></div>
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           {success && <p className="text-sm text-green-600">{success}</p>}
           <div className="flex gap-2">
-            <button type="submit" disabled={loading} className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white disabled:opacity-50">{loading ? 'Creating...' : 'Create'}</button>
-            <button type="button" onClick={() => setShowCreate(false)} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700">Cancel</button>
+            <button type="submit" disabled={loading} className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white disabled:opacity-50">{loading ? 'Criando...' : 'Criar'}</button>
+            <button type="button" onClick={() => setShowCreate(false)} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700">Cancelar</button>
           </div>
         </form>
       )}
 
-      {isLoading ? <p className="text-sm text-gray-500">Loading...</p> : !data || data.length === 0 ? (
-        <p className="text-sm text-gray-500">No receivables found.</p>
+      {isLoading ? <p className="text-sm text-gray-500">Carregando...</p> : !data || data.length === 0 ? (
+        <p className="text-sm text-gray-500">Nenhuma conta a receber encontrada.</p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Debtor</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Amount</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Due Date</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Status</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Devedor</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Valor</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Vencimento</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Situação</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">

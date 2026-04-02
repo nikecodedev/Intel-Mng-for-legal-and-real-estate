@@ -11,22 +11,22 @@ export default function ReconciliationPage() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-lg font-semibold text-gray-900">Bank Reconciliation</h2>
+      <h2 className="text-lg font-semibold text-gray-900">Conciliação Bancária</h2>
 
-      {isLoading ? <p className="text-sm text-gray-500">Loading...</p> : isError ? (
-        <p className="text-sm text-gray-500">Reconciliation data not available.</p>
+      {isLoading ? <p className="text-sm text-gray-500">Carregando...</p> : isError ? (
+        <p className="text-sm text-gray-500">Dados de conciliação indisponíveis.</p>
       ) : !data || data.length === 0 ? (
-        <p className="text-sm text-gray-500">No reconciliation movements found.</p>
+        <p className="text-sm text-gray-500">Nenhum movimento de conciliação encontrado.</p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Date</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Description</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Amount</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Match Status</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Matched Transaction</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Data</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Descrição</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Valor</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Status da Conciliação</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Transação Conciliada</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -37,7 +37,7 @@ export default function ReconciliationPage() {
                   <td className="px-4 py-3">R$ {((m.amount_cents ?? m.amount ?? 0) / 100).toFixed(2)}</td>
                   <td className="px-4 py-3">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${m.matched ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                      {m.matched ? 'Matched' : 'Unmatched'}
+                      {m.matched ? 'Conciliado' : 'Não Conciliado'}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-xs font-mono text-gray-500">{m.matched_transaction_id ? m.matched_transaction_id.slice(0, 8) + '...' : '-'}</td>

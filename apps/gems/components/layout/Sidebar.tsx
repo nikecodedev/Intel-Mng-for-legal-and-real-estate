@@ -14,17 +14,17 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard', icon: <DashboardIcon />, section: 'main' },
-  { href: '/legal', label: 'Legal', icon: <LegalIcon />, section: 'main' },
-  { href: '/auctions', label: 'Auctions', icon: <AuctionsIcon />, section: 'main' },
-  { href: '/real-estate', label: 'Real Estate', icon: <RealEstateIcon />, section: 'main' },
-  { href: '/finance', label: 'Finance', icon: <FinanceIcon />, section: 'main' },
+  { href: '/dashboard', label: 'Painel', icon: <DashboardIcon />, section: 'main' },
+  { href: '/legal', label: 'Jurídico', icon: <LegalIcon />, section: 'main' },
+  { href: '/auctions', label: 'Leilões', icon: <AuctionsIcon />, section: 'main' },
+  { href: '/real-estate', label: 'Imóveis', icon: <RealEstateIcon />, section: 'main' },
+  { href: '/finance', label: 'Financeiro', icon: <FinanceIcon />, section: 'main' },
   { href: '/crm', label: 'CRM', icon: <CRMIcon />, section: 'main' },
-  { href: '/knowledge', label: 'Knowledge', icon: <KnowledgeIcon />, section: 'tools' },
-  { href: '/workflow', label: 'Workflow', icon: <WorkflowIcon />, section: 'tools' },
-  { href: '/compliance', label: 'Compliance', icon: <ComplianceIcon />, section: 'tools' },
-  { href: '/investor', label: 'Investor', icon: <InvestorIcon />, section: 'admin', roles: ['INVESTOR'] },
-  { href: '/admin', label: 'Admin', icon: <AdminIcon />, section: 'admin', roles: ['OWNER'] },
+  { href: '/knowledge', label: 'Conhecimento', icon: <KnowledgeIcon />, section: 'tools' },
+  { href: '/workflow', label: 'Fluxos', icon: <WorkflowIcon />, section: 'tools' },
+  { href: '/compliance', label: 'Conformidade', icon: <ComplianceIcon />, section: 'tools' },
+  { href: '/investor', label: 'Investidor', icon: <InvestorIcon />, section: 'admin', roles: ['INVESTOR'] },
+  { href: '/admin', label: 'Administração', icon: <AdminIcon />, section: 'admin', roles: ['OWNER'] },
   { href: '/super-admin', label: 'Super Admin', icon: <SuperAdminIcon />, section: 'admin', roles: ['OWNER'] },
 ];
 
@@ -117,7 +117,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
           {/* Tools */}
           {toolItems.length > 0 && (
             <div className="mt-6">
-              <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-white/20">Tools</p>
+              <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-white/20">Ferramentas</p>
               <div className="space-y-0.5">
                 {toolItems.map(({ href, label, icon }) => (
                   <NavLink key={href} href={href} label={label} icon={icon} />
@@ -129,7 +129,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
           {/* Admin */}
           {adminItems.length > 0 && (
             <div className="mt-6">
-              <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-white/20">Admin</p>
+              <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-white/20">Administração</p>
               <div className="space-y-0.5">
                 {adminItems.map(({ href, label, icon }) => (
                   <NavLink key={href} href={href} label={label} icon={icon} />

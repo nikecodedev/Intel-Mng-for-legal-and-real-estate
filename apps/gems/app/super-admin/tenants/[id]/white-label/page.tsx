@@ -36,10 +36,10 @@ export default function WhiteLabelPage({ params }: { params: { id: string } }) {
     setLoading(true); setError(''); setSuccess('');
     try {
       await api.put(`/super-admin/tenants/${tenantId}/white-label`, form);
-      setSuccess('White-label configuration saved.');
+      setSuccess('Configuração white-label salva.');
       queryClient.invalidateQueries(['white-label', tenantId]);
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to save.');
+      setError(err?.response?.data?.message || 'Falha ao salvar.');
     } finally {
       setLoading(false);
     }
@@ -48,42 +48,42 @@ export default function WhiteLabelPage({ params }: { params: { id: string } }) {
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900">White-Label Configuration</h1>
-        <Link href={`/super-admin/tenants/${tenantId}`} className="text-sm text-blue-600 hover:underline">Back to tenant</Link>
+        <h1 className="text-xl font-bold text-gray-900">Configuração White-Label</h1>
+        <Link href={`/super-admin/tenants/${tenantId}`} className="text-sm text-blue-600 hover:underline">Voltar ao tenant</Link>
       </div>
       {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">{error}</p>}
       {success && <p className="text-sm text-green-600 bg-green-50 border border-green-200 rounded p-3">{success}</p>}
-      {isLoading ? <p className="text-sm text-gray-500">Loading...</p> : (
+      {isLoading ? <p className="text-sm text-gray-500">Carregando...</p> : (
         <form onSubmit={handleSave} className="rounded-lg border border-gray-200 bg-white p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <label className="block text-xs text-gray-600 mb-1">Company Name</label>
+              <label className="block text-xs text-gray-600 mb-1">Nome da Empresa</label>
               <input value={form.company_name} onChange={e => setForm(p => ({ ...p, company_name: e.target.value }))} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Primary Color</label>
+              <label className="block text-xs text-gray-600 mb-1">Cor Primária</label>
               <div className="flex gap-2">
                 <input type="color" value={form.primary_color} onChange={e => setForm(p => ({ ...p, primary_color: e.target.value }))} className="h-9 w-12 rounded border border-gray-300" />
                 <input value={form.primary_color} onChange={e => setForm(p => ({ ...p, primary_color: e.target.value }))} className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm font-mono" />
               </div>
             </div>
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Secondary Color</label>
+              <label className="block text-xs text-gray-600 mb-1">Cor Secundária</label>
               <div className="flex gap-2">
                 <input type="color" value={form.secondary_color} onChange={e => setForm(p => ({ ...p, secondary_color: e.target.value }))} className="h-9 w-12 rounded border border-gray-300" />
                 <input value={form.secondary_color} onChange={e => setForm(p => ({ ...p, secondary_color: e.target.value }))} className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm font-mono" />
               </div>
             </div>
             <div className="col-span-2">
-              <label className="block text-xs text-gray-600 mb-1">Logo URL</label>
+              <label className="block text-xs text-gray-600 mb-1">URL do Logo</label>
               <input value={form.logo_url} onChange={e => setForm(p => ({ ...p, logo_url: e.target.value }))} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="https://..." />
             </div>
             <div className="col-span-2">
-              <label className="block text-xs text-gray-600 mb-1">Custom CSS</label>
+              <label className="block text-xs text-gray-600 mb-1">CSS Personalizado</label>
               <textarea value={form.custom_css} onChange={e => setForm(p => ({ ...p, custom_css: e.target.value }))} rows={4} className="w-full rounded border border-gray-300 px-3 py-2 text-sm font-mono" />
             </div>
           </div>
-          <button type="submit" disabled={loading} className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">{loading ? 'Saving...' : 'Save Configuration'}</button>
+          <button type="submit" disabled={loading} className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">{loading ? 'Salvando...' : 'Salvar Configuração'}</button>
         </form>
       )}
     </div>

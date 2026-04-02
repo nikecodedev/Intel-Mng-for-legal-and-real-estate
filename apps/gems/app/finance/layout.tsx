@@ -5,18 +5,18 @@ import { usePathname } from 'next/navigation';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 
 const financeNav = [
-  { href: '/finance', label: 'Overview' },
-  { href: '/finance/transactions', label: 'Transactions' },
-  { href: '/finance/expenses', label: 'Expenses' },
-  { href: '/finance/receivables', label: 'Receivables' },
-  { href: '/finance/payables', label: 'Payables' },
-  { href: '/finance/reconciliation', label: 'Reconciliation' },
+  { href: '/finance', label: 'Visão Geral' },
+  { href: '/finance/transactions', label: 'Transações' },
+  { href: '/finance/expenses', label: 'Despesas' },
+  { href: '/finance/receivables', label: 'Recebíveis' },
+  { href: '/finance/payables', label: 'Contas a Pagar' },
+  { href: '/finance/reconciliation', label: 'Conciliação' },
 ];
 
 export default function FinanceLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   return (
-    <DashboardLayout title="Finance">
+    <DashboardLayout title="Financeiro">
       <nav className="mb-4 flex gap-2 border-b border-gray-200">
         {financeNav.map(({ href, label }) => {
           const isActive =

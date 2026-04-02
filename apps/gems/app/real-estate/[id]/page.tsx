@@ -83,7 +83,7 @@ export default function RealEstateAssetDetailPage({ params }: { params: { id: st
     setTransitionError('');
     setTransitionSuccess('');
     try {
-      await api.post(`/real-estate-assets/${id}/transition`, {
+      await api.post(`/assets/${id}/transition`, {
         to_state: transitionState,
         reason: transitionReason,
       });
@@ -109,7 +109,7 @@ export default function RealEstateAssetDetailPage({ params }: { params: { id: st
       for (const [key, val] of Object.entries(costForm)) {
         payload[key] = val !== '' ? Number(val) : null;
       }
-      await api.put(`/real-estate-assets/${id}`, payload);
+      await api.put(`/assets/${id}`, payload);
       setCostSuccess('Costs updated successfully.');
       queryClient.invalidateQueries(['real-estate-asset', id]);
       queryClient.invalidateQueries(['real-estate-cost-breakdown', id]);

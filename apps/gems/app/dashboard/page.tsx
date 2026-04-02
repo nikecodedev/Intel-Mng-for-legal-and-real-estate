@@ -45,9 +45,9 @@ export default function DashboardPage() {
 
   const greeting = (() => {
     const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 18) return 'Good afternoon';
-    return 'Good evening';
+    if (hour < 12) return 'Bom dia';
+    if (hour < 18) return 'Boa tarde';
+    return 'Boa noite';
   })();
 
   const displayName = (() => {
@@ -57,11 +57,11 @@ export default function DashboardPage() {
   })();
 
   return (
-    <DashboardLayout title="Dashboard">
+    <DashboardLayout title="Painel">
       {/* Welcome section */}
       <div className="mb-8">
         <p className="text-lg text-gray-600">
-          {greeting}{displayName ? `, ${displayName}` : ''}. Here is your overview.
+          {greeting}{displayName ? `, ${displayName}` : ''}. Aqui esta o seu resumo.
         </p>
       </div>
 
@@ -71,7 +71,7 @@ export default function DashboardPage() {
           <StatCardSkeleton />
         ) : (
           <StatCard
-            label="Total documents"
+            label="Total de documentos"
             value={documentsQuery.data ?? 0}
             error={documentsQuery.isError}
           />
@@ -80,7 +80,7 @@ export default function DashboardPage() {
           <StatCardSkeleton />
         ) : (
           <StatCard
-            label="Pending sanitation"
+            label="Saneamento pendente"
             value={sanitationQuery.data ?? 0}
             error={sanitationQuery.isError}
           />
@@ -89,7 +89,7 @@ export default function DashboardPage() {
           <StatCardSkeleton />
         ) : (
           <StatCard
-            label="Active auctions"
+            label="Leiloes ativos"
             value={auctionsQuery.data ?? 0}
             error={auctionsQuery.isError}
           />
@@ -98,7 +98,7 @@ export default function DashboardPage() {
           <StatCardSkeleton />
         ) : (
           <StatCard
-            label="In renovation"
+            label="Em reforma"
             value={renovationQuery.data ?? 0}
             error={renovationQuery.isError}
           />
@@ -107,7 +107,7 @@ export default function DashboardPage() {
           <StatCardSkeleton />
         ) : (
           <StatCard
-            label="Financial approvals"
+            label="Aprovacoes financeiras"
             value={payablesQuery.data ?? 0}
             error={payablesQuery.isError}
           />

@@ -37,13 +37,13 @@ interface VerificationResult {
 function integrityBadge(status: string) {
   switch (status) {
     case 'valid':
-      return <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">Valid</span>;
+      return <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">Valido</span>;
     case 'invalid':
-      return <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">Invalid</span>;
+      return <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">Invalido</span>;
     case 'partial':
-      return <span className="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">Partial</span>;
+      return <span className="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">Parcial</span>;
     case 'no_entries':
-      return <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">No entries</span>;
+      return <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">Sem registros</span>;
     default:
       return <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">{status}</span>;
   }
@@ -75,20 +75,20 @@ export default function CompliancePage() {
     <div className="space-y-6">
       {/* Status Card */}
       <div className="rounded-lg border border-gray-200 bg-white p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">Audit Chain Status</h2>
-        {statusLoading ? <p className="text-sm text-gray-500">Loading status...</p> : null}
+        <h2 className="text-lg font-medium text-gray-900 mb-4">Estado da Cadeia de Auditoria</h2>
+        {statusLoading ? <p className="text-sm text-gray-500">Carregando status...</p> : null}
         {statusError ? (
-          <p className="text-sm text-red-600">Failed to load audit status. You may not have the required permissions.</p>
+          <p className="text-sm text-red-600">Falha ao carregar status de auditoria. Voce pode nao ter as permissoes necessarias.</p>
         ) : null}
         {statusData ? (
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
             <dt className="text-gray-600">Status</dt>
             <dd>{integrityBadge(statusData.status)}</dd>
-            <dt className="text-gray-600">Total entries</dt>
+            <dt className="text-gray-600">Total de registros</dt>
             <dd className="font-medium">{statusData.total_entries ?? 0}</dd>
-            <dt className="text-gray-600">Latest hash valid</dt>
-            <dd className="font-medium">{statusData.latest_hash_valid ? 'Yes' : 'No'}</dd>
-            <dt className="text-gray-600">Last checked</dt>
+            <dt className="text-gray-600">Ultimo hash valido</dt>
+            <dd className="font-medium">{statusData.latest_hash_valid ? 'Sim' : 'Nao'}</dd>
+            <dt className="text-gray-600">Ultima verificacao</dt>
             <dd className="font-medium">{statusData.checked_at ? new Date(statusData.checked_at).toLocaleString() : '--'}</dd>
           </dl>
         ) : null}
@@ -96,49 +96,49 @@ export default function CompliancePage() {
 
       {/* Verify Button */}
       <div className="rounded-lg border border-gray-200 bg-white p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">Full Chain Verification</h2>
+        <h2 className="text-lg font-medium text-gray-900 mb-4">Verificacao Completa da Cadeia</h2>
         <p className="text-sm text-gray-600 mb-4">
-          Run a full hash chain verification on all audit log entries. This checks every entry in order and validates that no records have been tampered with.
+          Execute uma verificacao completa da cadeia de hash em todos os registros de auditoria. Isso verifica cada registro em ordem e valida que nenhum dado foi adulterado.
         </p>
         <button
           onClick={() => verifyMutation.mutate()}
           disabled={verifyMutation.isLoading}
           className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {verifyMutation.isLoading ? 'Verifying...' : 'Verify Chain'}
+          {verifyMutation.isLoading ? 'Verificando...' : 'Verificar Cadeia'}
         </button>
         {verifyMutation.isError && (
-          <p className="mt-3 text-sm text-red-600">Verification request failed. You may not have the required permissions.</p>
+          <p className="mt-3 text-sm text-red-600">Falha na solicitacao de verificacao. Voce pode nao ter as permissoes necessarias.</p>
         )}
       </div>
 
       {/* Verification Results */}
       {verification ? (
         <div className="rounded-lg border border-gray-200 bg-white p-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">Verification Results</h2>
+          <h2 className="text-lg font-medium text-gray-900 mb-4">Resultados da Verificacao</h2>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm mb-4">
-            <dt className="text-gray-600">Chain integrity</dt>
+            <dt className="text-gray-600">Integridade da cadeia</dt>
             <dd>{integrityBadge(verification.chain_integrity)}</dd>
-            <dt className="text-gray-600">Total entries</dt>
+            <dt className="text-gray-600">Total de registros</dt>
             <dd className="font-medium">{verification.total_entries}</dd>
-            <dt className="text-gray-600">Valid entries</dt>
+            <dt className="text-gray-600">Registros validos</dt>
             <dd className="font-medium text-green-700">{verification.valid_entries}</dd>
-            <dt className="text-gray-600">Invalid entries</dt>
+            <dt className="text-gray-600">Registros invalidos</dt>
             <dd className="font-medium text-red-700">{verification.invalid_entries}</dd>
-            <dt className="text-gray-600">Verified at</dt>
+            <dt className="text-gray-600">Verificado em</dt>
             <dd className="font-medium">{new Date(verification.verified_at).toLocaleString()}</dd>
           </dl>
 
           {verification.issues.length > 0 && (
             <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Broken links ({verification.issues.length})</h3>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Links quebrados ({verification.issues.length})</h3>
               <div className="overflow-x-auto">
                 <table className="min-w-full text-xs">
                   <thead>
                     <tr className="border-b border-gray-200">
-                      <th className="text-left py-2 pr-4 font-medium text-gray-600">Entry ID</th>
-                      <th className="text-left py-2 pr-4 font-medium text-gray-600">Timestamp</th>
-                      <th className="text-left py-2 pr-4 font-medium text-gray-600">Error</th>
+                      <th className="text-left py-2 pr-4 font-medium text-gray-600">ID do Registro</th>
+                      <th className="text-left py-2 pr-4 font-medium text-gray-600">Data/Hora</th>
+                      <th className="text-left py-2 pr-4 font-medium text-gray-600">Erro</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -156,7 +156,7 @@ export default function CompliancePage() {
           )}
 
           {verification.issues.length === 0 && verification.chain_integrity === 'valid' && (
-            <p className="text-sm text-green-700">All audit log entries have valid hash chains. No tampering detected.</p>
+            <p className="text-sm text-green-700">Todos os registros de auditoria possuem cadeias de hash validas. Nenhuma adulteracao detectada.</p>
           )}
         </div>
       ) : null}

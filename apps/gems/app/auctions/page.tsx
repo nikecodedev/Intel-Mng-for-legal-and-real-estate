@@ -16,10 +16,10 @@ export default function AuctionsListPage() {
   const columns = [
     {
       key: 'title',
-      header: 'Auction',
+      header: 'Leilão',
       render: (row: AuctionAsset) => (
         <Link href={`/auctions/${row.id}`} className="text-blue-600 hover:underline font-medium">
-          {row.title || row.asset_reference || `Auction ${row.id.slice(0, 8)}`}
+          {row.title || row.asset_reference || `Leilão ${row.id.slice(0, 8)}`}
         </Link>
       ),
     },
@@ -32,24 +32,24 @@ export default function AuctionsListPage() {
     },
     {
       key: 'risk',
-      header: 'Risk',
+      header: 'Risco',
       render: (row: AuctionAsset) => (
         <RiskIndicator riskLevel={(row.risk_level as RiskLevel) || 'LOW'} riskScore={row.risk_score} showScore />
       ),
     },
     {
       key: 'created_at',
-      header: 'Created',
+      header: 'Criado em',
       render: (row: AuctionAsset) => <DateDisplay value={row.created_at} style="short" />,
     },
   ];
 
-  if (isLoading) return <BlockLoader message="Loading auctions…" />;
+  if (isLoading) return <BlockLoader message="Carregando leilões…" />;
 
   if (error) {
     return (
       <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">
-        No auctions yet.
+        Nenhum leilão ainda.
       </div>
     );
   }
@@ -57,13 +57,13 @@ export default function AuctionsListPage() {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Link href="/auctions/new" className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">New Auction</Link>
+        <Link href="/auctions/new" className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Novo Leilão</Link>
       </div>
       <DataTable<AuctionAsset>
         columns={columns}
         data={assets}
         keyExtractor={(row) => row.id}
-        emptyMessage="No auctions yet."
+        emptyMessage="Nenhum leilão ainda."
       />
     </div>
   );

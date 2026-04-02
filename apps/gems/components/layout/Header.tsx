@@ -12,24 +12,24 @@ function formatUserDisplay(user: { email: string; first_name?: string | null; la
 
 function formatTenantDisplay(tenantName: string | null | undefined, tenantId: string): string {
   if (tenantName?.trim()) return tenantName.trim();
-  if (tenantId) return `Tenant ${tenantId.slice(0, 8)}`;
-  return 'Tenant';
+  if (tenantId) return `Inquilino ${tenantId.slice(0, 8)}`;
+  return 'Inquilino';
 }
 
 function getPageTitle(pathname: string): string {
   const segments = pathname.split('/').filter(Boolean);
-  if (segments.length === 0) return 'Home';
+  if (segments.length === 0) return 'Início';
   const titles: Record<string, string> = {
-    dashboard: 'Dashboard',
-    legal: 'Legal',
-    auctions: 'Auctions',
-    'real-estate': 'Real Estate',
-    finance: 'Finance',
+    dashboard: 'Painel',
+    legal: 'Jurídico',
+    auctions: 'Leilões',
+    'real-estate': 'Imóveis',
+    finance: 'Financeiro',
     crm: 'CRM',
-    workflow: 'Workflow',
-    compliance: 'Compliance',
-    investor: 'Investor',
-    admin: 'Admin',
+    workflow: 'Fluxo de Trabalho',
+    compliance: 'Conformidade',
+    investor: 'Investidor',
+    admin: 'Administração',
     'super-admin': 'Super Admin',
   };
   return titles[segments[0]] ?? segments[0].charAt(0).toUpperCase() + segments[0].slice(1);
@@ -43,7 +43,7 @@ export function Header({ onMenuToggle }: { onMenuToggle?: () => void }) {
   const handleLogout = () => {
     // Block logout if an upload is in progress
     if (typeof window !== 'undefined' && (window as unknown as Record<string, boolean>).__gemsUploading) {
-      alert('An upload is currently in progress. Please wait for it to finish before logging out.');
+      alert('Um upload está em andamento. Aguarde a conclusão antes de sair.');
       return;
     }
     logout();
@@ -66,7 +66,7 @@ export function Header({ onMenuToggle }: { onMenuToggle?: () => void }) {
           type="button"
           onClick={onMenuToggle}
           className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 lg:hidden"
-          aria-label="Toggle menu"
+          aria-label="Alternar menu"
         >
           <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -102,7 +102,7 @@ export function Header({ onMenuToggle }: { onMenuToggle?: () => void }) {
           onClick={handleLogout}
           className="shrink-0 rounded-lg px-3 py-2 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
         >
-          Log out
+          Sair
         </button>
       </div>
     </header>

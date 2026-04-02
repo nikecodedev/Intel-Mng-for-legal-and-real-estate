@@ -19,7 +19,7 @@ export default function InvestorLoginPage() {
       if (data?.token) localStorage.setItem('investor_token', data.token);
       router.push('/investor/assets');
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Login failed.');
+      setError(err?.response?.data?.message || 'Falha no login.');
     } finally {
       setLoading(false);
     }
@@ -28,18 +28,18 @@ export default function InvestorLoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
-        <h1 className="text-xl font-bold text-gray-900 mb-6">Investor Portal Login</h1>
+        <h1 className="text-xl font-bold text-gray-900 mb-6">Portal do Investidor — Entrar</h1>
         {error && <p className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">{error}</p>}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
           </div>
-          <button type="submit" disabled={loading} className="w-full rounded bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">{loading ? 'Logging in...' : 'Login'}</button>
+          <button type="submit" disabled={loading} className="w-full rounded bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">{loading ? 'Entrando...' : 'Entrar'}</button>
         </form>
       </div>
     </div>

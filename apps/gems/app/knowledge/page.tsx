@@ -64,7 +64,7 @@ export default function KnowledgePage() {
       setEntries(data?.entries ?? []);
       setEntriesTotal(data?.total ?? 0);
     } catch (err) {
-      setError(isApiError(err) ? getApiErrorMessage(err) : 'Failed to load entries');
+      setError(isApiError(err) ? getApiErrorMessage(err) : 'Falha ao carregar registros');
     } finally {
       setLoading(false);
     }
@@ -78,7 +78,7 @@ export default function KnowledgePage() {
       setTemplates(data?.templates ?? []);
       setTemplatesTotal(data?.total ?? 0);
     } catch (err) {
-      setError(isApiError(err) ? getApiErrorMessage(err) : 'Failed to load templates');
+      setError(isApiError(err) ? getApiErrorMessage(err) : 'Falha ao carregar modelos');
     } finally {
       setLoading(false);
     }
@@ -93,21 +93,21 @@ export default function KnowledgePage() {
       const { data } = await api.post('/knowledge/search', { query: searchQuery, limit: 50 });
       setSearchResults(data?.results ?? []);
     } catch (err) {
-      setError(isApiError(err) ? getApiErrorMessage(err) : 'Search failed');
+      setError(isApiError(err) ? getApiErrorMessage(err) : 'Falha na pesquisa');
     } finally {
       setSearching(false);
     }
   }
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'entries', label: 'Entries' },
-    { key: 'templates', label: 'Templates' },
-    { key: 'search', label: 'Search' },
+    { key: 'entries', label: 'Registros' },
+    { key: 'templates', label: 'Modelos' },
+    { key: 'search', label: 'Pesquisar' },
   ];
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Knowledge Base</h1>
+      <h1 className="text-2xl font-bold text-gray-900">Base de Conhecimento</h1>
 
       {/* Tabs */}
       <div className="border-b border-gray-200">
@@ -138,13 +138,13 @@ export default function KnowledgePage() {
       {tab === 'entries' && (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <p className="text-sm text-gray-600">{entriesTotal} entries</p>
+            <p className="text-sm text-gray-600">{entriesTotal} registros</p>
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
               className="rounded border border-gray-300 px-3 py-1.5 text-sm"
             >
-              <option value="">All types</option>
+              <option value="">Todos os tipos</option>
               {ENTRY_TYPES.map((t) => (
                 <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>
               ))}
@@ -152,19 +152,19 @@ export default function KnowledgePage() {
           </div>
 
           {loading ? (
-            <p className="text-sm text-gray-500">Loading...</p>
+            <p className="text-sm text-gray-500">Carregando...</p>
           ) : entries.length === 0 ? (
-            <p className="text-sm text-gray-500">No entries found.</p>
+            <p className="text-sm text-gray-500">Nenhum registro encontrado.</p>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-gray-200">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Verified</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Titulo</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoria</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Verificado</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Criado em</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -177,7 +177,7 @@ export default function KnowledgePage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">{entry.category ?? '-'}</td>
-                      <td className="px-4 py-3 text-sm">{entry.is_verified ? 'Yes' : 'No'}</td>
+                      <td className="px-4 py-3 text-sm">{entry.is_verified ? 'Sim' : 'Nao'}</td>
                       <td className="px-4 py-3 text-sm text-gray-500">{new Date(entry.created_at).toLocaleDateString()}</td>
                     </tr>
                   ))}
@@ -192,24 +192,24 @@ export default function KnowledgePage() {
       {tab === 'templates' && (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <p className="text-sm text-gray-600">{templatesTotal} templates</p>
+            <p className="text-sm text-gray-600">{templatesTotal} modelos</p>
           </div>
 
           {loading ? (
-            <p className="text-sm text-gray-500">Loading...</p>
+            <p className="text-sm text-gray-500">Carregando...</p>
           ) : templates.length === 0 ? (
-            <p className="text-sm text-gray-500">No templates found.</p>
+            <p className="text-sm text-gray-500">Nenhum modelo encontrado.</p>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-gray-200">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Uses</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Success Rate</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nome</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoria</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usos</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Taxa de Sucesso</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Criado em</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -240,7 +240,7 @@ export default function KnowledgePage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search knowledge base..."
+              placeholder="Pesquisar base de conhecimento..."
               className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
             />
             <button
@@ -248,7 +248,7 @@ export default function KnowledgePage() {
               disabled={searching || !searchQuery.trim()}
               className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {searching ? 'Searching...' : 'Search'}
+              {searching ? 'Pesquisando...' : 'Pesquisar'}
             </button>
           </form>
 
@@ -257,9 +257,9 @@ export default function KnowledgePage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Titulo</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoria</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -279,7 +279,7 @@ export default function KnowledgePage() {
             </div>
           )}
           {!searching && searchResults.length === 0 && searchQuery && (
-            <p className="text-sm text-gray-500">No results found.</p>
+            <p className="text-sm text-gray-500">Nenhum resultado encontrado.</p>
           )}
         </div>
       )}

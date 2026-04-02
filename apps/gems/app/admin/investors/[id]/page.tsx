@@ -25,13 +25,13 @@ function FindMatchesButton({ investorId }: { investorId: string }) {
     setLoading(true); setMsg('');
     try {
       const { data } = await api.post(`/matching/find-matches/${investorId}`);
-      setMsg(`Found ${data?.matches?.length ?? data?.count ?? 0} matches.`);
-    } catch { setMsg('Failed.'); }
+      setMsg(`Encontrado(s) ${data?.matches?.length ?? data?.count ?? 0} resultado(s).`);
+    } catch { setMsg('Falhou.'); }
     finally { setLoading(false); }
   }
   return (
     <span className="inline-flex items-center gap-1">
-      <button onClick={run} disabled={loading} className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">{loading ? 'Matching...' : 'Find Matches'}</button>
+      <button onClick={run} disabled={loading} className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">{loading ? 'Buscando...' : 'Buscar Compatíveis'}</button>
       {msg && <span className="text-xs text-gray-600">{msg}</span>}
     </span>
   );
@@ -44,13 +44,13 @@ function AutoNotifyButton({ investorId }: { investorId: string }) {
     setLoading(true); setMsg('');
     try {
       await api.post(`/matching/auto-notify/${investorId}`);
-      setMsg('Notified.');
-    } catch { setMsg('Failed.'); }
+      setMsg('Notificado.');
+    } catch { setMsg('Falhou.'); }
     finally { setLoading(false); }
   }
   return (
     <span className="inline-flex items-center gap-1">
-      <button onClick={run} disabled={loading} className="rounded bg-green-600 px-3 py-1.5 text-sm text-white hover:bg-green-700 disabled:opacity-50">{loading ? 'Notifying...' : 'Auto-Notify'}</button>
+      <button onClick={run} disabled={loading} className="rounded bg-green-600 px-3 py-1.5 text-sm text-white hover:bg-green-700 disabled:opacity-50">{loading ? 'Notificando...' : 'Auto-Notificar'}</button>
       {msg && <span className="text-xs text-gray-600">{msg}</span>}
     </span>
   );
@@ -76,12 +76,12 @@ export default function AdminInvestorDetailPage({ params }: { params: { id: stri
   );
   const matches = matchesData?.matches ?? [];
 
-  if (invLoading) return <BlockLoader message="Loading investor…" />;
+  if (invLoading) return <BlockLoader message="Carregando investidor…" />;
 
   if (invError || !investor) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
-        Investor not found or you don’t have access.
+        Investidor não encontrado ou sem permissão de acesso.
       </div>
     );
   }
@@ -94,35 +94,35 @@ export default function AdminInvestorDetailPage({ params }: { params: { id: stri
         <h2 className="text-lg font-semibold text-gray-900">{name}</h2>
         <div className="flex items-center gap-2">
           <Link href={`/admin/investors/${id}/kyc`} className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">KYC</Link>
-          <Link href={`/admin/investors/${id}/preferences`} className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Preferences</Link>
+          <Link href={`/admin/investors/${id}/preferences`} className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Preferências</Link>
           <FindMatchesButton investorId={id} />
           <AutoNotifyButton investorId={id} />
-          <Link href="/admin/investors" className="text-sm text-blue-600 hover:underline">← Back</Link>
+          <Link href="/admin/investors" className="text-sm text-blue-600 hover:underline">← Voltar</Link>
         </div>
       </div>
 
       <section className="rounded-lg border border-gray-200 bg-white p-6">
-        <h3 className="text-sm font-medium text-gray-500 mb-3">Investor details</h3>
+        <h3 className="text-sm font-medium text-gray-500 mb-3">Detalhes do investidor</h3>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-          <dt className="text-gray-600">Email</dt>
+          <dt className="text-gray-600">E-mail</dt>
           <dd className="font-medium">{investor.email}</dd>
-          <dt className="text-gray-600">Company</dt>
+          <dt className="text-gray-600">Empresa</dt>
           <dd className="font-medium">{investor.company_name ?? '—'}</dd>
-          <dt className="text-gray-600">Active</dt>
-          <dd className="font-medium">{investor.is_active ? 'Yes' : 'No'}</dd>
-          <dt className="text-gray-600">Last login</dt>
+          <dt className="text-gray-600">Ativo</dt>
+          <dd className="font-medium">{investor.is_active ? 'Sim' : 'Não'}</dd>
+          <dt className="text-gray-600">Último login</dt>
           <dd className="font-medium"><DateDisplay value={investor.last_login_at} style="medium" /></dd>
-          <dt className="text-gray-600">Created</dt>
+          <dt className="text-gray-600">Criado em</dt>
           <dd className="font-medium"><DateDisplay value={investor.created_at} style="medium" /></dd>
         </dl>
       </section>
 
       <section className="rounded-lg border border-gray-200 bg-white p-6">
-        <h3 className="text-sm font-medium text-gray-500 mb-3">Assigned assets</h3>
+        <h3 className="text-sm font-medium text-gray-500 mb-3">Ativos atribuídos</h3>
         {assetsLoading ? (
-          <p className="text-sm text-gray-500">Loading…</p>
+          <p className="text-sm text-gray-500">Carregando…</p>
         ) : assignedAssets.length === 0 ? (
-          <p className="text-sm text-gray-500">No assigned assets.</p>
+          <p className="text-sm text-gray-500">Nenhum ativo atribuído.</p>
         ) : (
           <ul className="space-y-2">
             {(assignedAssets as AssignedAssetItem[]).map((item) => (
@@ -134,7 +134,7 @@ export default function AdminInvestorDetailPage({ params }: { params: { id: stri
                   {item.asset.title || item.asset.asset_reference || item.asset.id.slice(0, 8)}
                 </Link>
                 <span className="text-gray-500">
-                  Stage: {item.asset.current_stage} · Risk: {item.asset.risk_score}
+                  Etapa: {item.asset.current_stage} · Risco: {item.asset.risk_score}
                 </span>
               </li>
             ))}
@@ -143,17 +143,17 @@ export default function AdminInvestorDetailPage({ params }: { params: { id: stri
       </section>
 
       <section className="rounded-lg border border-gray-200 bg-white p-6">
-        <h3 className="text-sm font-medium text-gray-500 mb-3">Match scores</h3>
+        <h3 className="text-sm font-medium text-gray-500 mb-3">Pontuações de compatibilidade</h3>
         {matchesLoading ? (
-          <p className="text-sm text-gray-500">Loading…</p>
+          <p className="text-sm text-gray-500">Carregando…</p>
         ) : matches.length === 0 ? (
-          <p className="text-sm text-gray-500">No match records. Run matching to see scores.</p>
+          <p className="text-sm text-gray-500">Nenhum registro de compatibilidade. Execute a busca para ver as pontuações.</p>
         ) : (
           <ul className="space-y-2">
             {(matches as MatchRecord[]).map((m) => (
               <li key={m.id} className="flex items-center justify-between text-sm">
                 <Link href={`/auctions/${m.auction_asset_id}`} className="text-blue-600 hover:underline">
-                  Asset {m.auction_asset_id?.slice(0, 8) ?? m.id}
+                  Ativo {m.auction_asset_id?.slice(0, 8) ?? m.id}
                 </Link>
                 <span
                   className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${matchScoreColor(Number(m.match_score))}`}

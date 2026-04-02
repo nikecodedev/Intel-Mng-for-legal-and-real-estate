@@ -61,7 +61,7 @@ export default function QualityGatesPage() {
       setGates(data?.gates ?? []);
       setTotal(data?.total ?? 0);
     } catch (err) {
-      setError(isApiError(err) ? getApiErrorMessage(err) : 'Failed to load quality gates');
+      setError(isApiError(err) ? getApiErrorMessage(err) : 'Falha ao carregar portoes de qualidade');
     } finally {
       setLoading(false);
     }
@@ -80,7 +80,7 @@ export default function QualityGatesPage() {
       });
       setCheckResult(data?.validation ?? null);
     } catch (err) {
-      setError(isApiError(err) ? getApiErrorMessage(err) : 'Gate check failed');
+      setError(isApiError(err) ? getApiErrorMessage(err) : 'Falha na verificacao do portao');
     } finally {
       setChecking(false);
     }
@@ -88,7 +88,7 @@ export default function QualityGatesPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Quality Gates</h1>
+      <h1 className="text-2xl font-bold text-gray-900">Portoes de Qualidade</h1>
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4">
@@ -98,13 +98,13 @@ export default function QualityGatesPage() {
 
       {/* Filter + Count */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-600">{total} gates</p>
+        <p className="text-sm text-gray-600">{total} portoes</p>
         <select
           value={filterType}
           onChange={(e) => setFilterType(e.target.value)}
           className="rounded border border-gray-300 px-3 py-1.5 text-sm"
         >
-          <option value="">All types</option>
+          <option value="">Todos os tipos</option>
           {GATE_TYPES.map((t) => (
             <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>
           ))}
@@ -113,21 +113,21 @@ export default function QualityGatesPage() {
 
       {/* Gates Table */}
       {loading ? (
-        <p className="text-sm text-gray-500">Loading...</p>
+        <p className="text-sm text-gray-500">Carregando...</p>
       ) : gates.length === 0 ? (
-        <p className="text-sm text-gray-500">No quality gates found.</p>
+        <p className="text-sm text-gray-500">Nenhum portao de qualidade encontrado.</p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-gray-200">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Code</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Blocking</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mandatory</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Active</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Failure Action</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Codigo</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nome</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bloqueante</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Obrigatorio</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ativo</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acao de Falha</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -144,8 +144,8 @@ export default function QualityGatesPage() {
                       {gate.gate_type.replace(/_/g, ' ')}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm">{gate.is_blocking ? 'Yes' : 'No'}</td>
-                  <td className="px-4 py-3 text-sm">{gate.is_mandatory ? 'Yes' : 'No'}</td>
+                  <td className="px-4 py-3 text-sm">{gate.is_blocking ? 'Sim' : 'Nao'}</td>
+                  <td className="px-4 py-3 text-sm">{gate.is_mandatory ? 'Sim' : 'Nao'}</td>
                   <td className="px-4 py-3 text-sm">
                     <span className={`inline-block w-2 h-2 rounded-full ${gate.is_active ? 'bg-green-500' : 'bg-gray-400'}`} />
                   </td>
@@ -161,37 +161,37 @@ export default function QualityGatesPage() {
       {selectedGate && (
         <div className="rounded-lg border border-gray-200 bg-white p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-2">{selectedGate.gate_code} — {selectedGate.gate_name}</h2>
-          <p className="text-sm text-gray-600 mb-4">{selectedGate.description ?? 'No description.'}</p>
+          <p className="text-sm text-gray-600 mb-4">{selectedGate.description ?? 'Sem descricao.'}</p>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-            <dt className="text-gray-500">Type</dt><dd className="font-medium">{selectedGate.gate_type}</dd>
-            <dt className="text-gray-500">Category</dt><dd className="font-medium">{selectedGate.gate_category ?? '-'}</dd>
-            <dt className="text-gray-500">Blocking</dt><dd className="font-medium">{selectedGate.is_blocking ? 'Yes' : 'No'}</dd>
-            <dt className="text-gray-500">Mandatory</dt><dd className="font-medium">{selectedGate.is_mandatory ? 'Yes' : 'No'}</dd>
-            <dt className="text-gray-500">Priority</dt><dd className="font-medium">{selectedGate.priority ?? '-'}</dd>
-            <dt className="text-gray-500">Created</dt><dd className="font-medium">{new Date(selectedGate.created_at).toLocaleDateString()}</dd>
+            <dt className="text-gray-500">Tipo</dt><dd className="font-medium">{selectedGate.gate_type}</dd>
+            <dt className="text-gray-500">Categoria</dt><dd className="font-medium">{selectedGate.gate_category ?? '-'}</dd>
+            <dt className="text-gray-500">Bloqueante</dt><dd className="font-medium">{selectedGate.is_blocking ? 'Sim' : 'Nao'}</dd>
+            <dt className="text-gray-500">Obrigatorio</dt><dd className="font-medium">{selectedGate.is_mandatory ? 'Sim' : 'Nao'}</dd>
+            <dt className="text-gray-500">Prioridade</dt><dd className="font-medium">{selectedGate.priority ?? '-'}</dd>
+            <dt className="text-gray-500">Criado em</dt><dd className="font-medium">{new Date(selectedGate.created_at).toLocaleDateString()}</dd>
           </dl>
         </div>
       )}
 
       {/* Gate Check */}
       <div className="rounded-lg border border-gray-200 bg-white p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">Test Gate Check</h2>
+        <h2 className="text-lg font-medium text-gray-900 mb-4">Testar Portao</h2>
         <form onSubmit={handleCheck} className="flex items-end gap-3">
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Resource Type</label>
+            <label className="block text-xs text-gray-500 mb-1">Tipo de Recurso</label>
             <select
               value={checkResourceType}
               onChange={(e) => setCheckResourceType(e.target.value)}
               className="rounded border border-gray-300 px-3 py-2 text-sm"
             >
-              <option value="PROCESS">Process</option>
-              <option value="AUCTION_ASSET">Auction Asset</option>
-              <option value="REAL_ESTATE_ASSET">Real Estate Asset</option>
-              <option value="DOCUMENT">Document</option>
+              <option value="PROCESS">Processo</option>
+              <option value="AUCTION_ASSET">Ativo de Leilao</option>
+              <option value="REAL_ESTATE_ASSET">Ativo Imobiliario</option>
+              <option value="DOCUMENT">Documento</option>
             </select>
           </div>
           <div className="flex-1">
-            <label className="block text-xs text-gray-500 mb-1">Resource ID</label>
+            <label className="block text-xs text-gray-500 mb-1">ID do Recurso</label>
             <input
               type="text"
               value={checkResourceId}
@@ -205,14 +205,14 @@ export default function QualityGatesPage() {
             disabled={checking || !checkResourceId.trim()}
             className="rounded bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            {checking ? 'Checking...' : 'Check'}
+            {checking ? 'Verificando...' : 'Verificar'}
           </button>
         </form>
 
         {checkResult && (
           <div className={`mt-4 rounded-lg p-4 ${checkResult.all_passed ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
             <p className={`text-sm font-medium ${checkResult.all_passed ? 'text-green-800' : 'text-red-800'}`}>
-              {checkResult.all_passed ? 'All gates passed' : `${checkResult.blocking_failures.length} gate(s) failed`}
+              {checkResult.all_passed ? 'Todos os portoes passaram' : `${checkResult.blocking_failures.length} portao(oes) falharam`}
             </p>
             {checkResult.blocking_failures.length > 0 && (
               <ul className="mt-2 space-y-1">

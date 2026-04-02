@@ -67,7 +67,7 @@ export default function WorkflowTriggersPage() {
       setCreateForm({ name: '', event_type: '', condition: '{}', action_type: 'create_task', action_config: '{}' });
       queryClient.invalidateQueries('workflow-triggers');
     } catch (err: any) {
-      setCreateError(err?.response?.data?.message || 'Failed to create trigger.');
+      setCreateError(err?.response?.data?.message || 'Falha ao criar gatilho.');
     } finally {
       setCreateLoading(false);
     }
@@ -89,48 +89,48 @@ export default function WorkflowTriggersPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900">Workflow Triggers</h2>
+        <h2 className="text-lg font-semibold text-gray-900">Gatilhos de Fluxo</h2>
         <div className="flex gap-2">
-          <button onClick={() => setShowEmit(!showEmit)} className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Emit Event</button>
-          <button onClick={() => setShowCreate(!showCreate)} className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">Create Trigger</button>
+          <button onClick={() => setShowEmit(!showEmit)} className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Emitir Evento</button>
+          <button onClick={() => setShowCreate(!showCreate)} className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">Criar Gatilho</button>
         </div>
       </div>
 
       {/* Create Trigger Form */}
       {showCreate && (
         <form onSubmit={handleCreate} className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
-          <h3 className="text-sm font-medium text-blue-800">New Workflow Trigger</h3>
+          <h3 className="text-sm font-medium text-blue-800">Novo Gatilho de Fluxo</h3>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Name</label>
-              <input value={createForm.name} onChange={e => setCreateForm(p => ({ ...p, name: e.target.value }))} required className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" placeholder="Trigger name" />
+              <label className="block text-xs text-gray-600 mb-1">Nome</label>
+              <input value={createForm.name} onChange={e => setCreateForm(p => ({ ...p, name: e.target.value }))} required className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" placeholder="Nome do gatilho" />
             </div>
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Event Type</label>
-              <input value={createForm.event_type} onChange={e => setCreateForm(p => ({ ...p, event_type: e.target.value }))} required className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" placeholder="e.g. finance.transaction.paid" />
+              <label className="block text-xs text-gray-600 mb-1">Tipo de Evento</label>
+              <input value={createForm.event_type} onChange={e => setCreateForm(p => ({ ...p, event_type: e.target.value }))} required className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" placeholder="ex: finance.transaction.paid" />
             </div>
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Action Type</label>
+              <label className="block text-xs text-gray-600 mb-1">Tipo de Acao</label>
               <select value={createForm.action_type} onChange={e => setCreateForm(p => ({ ...p, action_type: e.target.value }))} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm">
-                <option value="create_task">Create Task</option>
-                <option value="send_notification">Send Notification</option>
-                <option value="block_transition">Block Transition</option>
-                <option value="update_state">Update State</option>
+                <option value="create_task">Criar Tarefa</option>
+                <option value="send_notification">Enviar Notificacao</option>
+                <option value="block_transition">Bloquear Transicao</option>
+                <option value="update_state">Atualizar Estado</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Condition (JSON)</label>
+              <label className="block text-xs text-gray-600 mb-1">Condicao (JSON)</label>
               <input value={createForm.condition} onChange={e => setCreateForm(p => ({ ...p, condition: e.target.value }))} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm font-mono" />
             </div>
           </div>
           <div>
-            <label className="block text-xs text-gray-600 mb-1">Action Config (JSON)</label>
+            <label className="block text-xs text-gray-600 mb-1">Configuracao da Acao (JSON)</label>
             <textarea value={createForm.action_config} onChange={e => setCreateForm(p => ({ ...p, action_config: e.target.value }))} rows={2} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm font-mono" />
           </div>
           {createError && <p className="text-sm text-red-600">{createError}</p>}
           <div className="flex gap-2">
-            <button type="submit" disabled={createLoading} className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50">{createLoading ? 'Creating...' : 'Create'}</button>
-            <button type="button" onClick={() => setShowCreate(false)} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700">Cancel</button>
+            <button type="submit" disabled={createLoading} className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50">{createLoading ? 'Criando...' : 'Criar'}</button>
+            <button type="button" onClick={() => setShowCreate(false)} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700">Cancelar</button>
           </div>
         </form>
       )}
@@ -138,11 +138,11 @@ export default function WorkflowTriggersPage() {
       {/* Emit Debug Event Form */}
       {showEmit && (
         <form onSubmit={handleEmit} className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
-          <h3 className="text-sm font-medium text-gray-800">Emit Debug Event</h3>
+          <h3 className="text-sm font-medium text-gray-800">Emitir Evento de Depuracao</h3>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Event Type</label>
-              <input value={emitEventType} onChange={e => setEmitEventType(e.target.value)} required className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" placeholder="e.g. finance.transaction.paid" />
+              <label className="block text-xs text-gray-600 mb-1">Tipo de Evento</label>
+              <input value={emitEventType} onChange={e => setEmitEventType(e.target.value)} required className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" placeholder="ex: finance.transaction.paid" />
             </div>
             <div>
               <label className="block text-xs text-gray-600 mb-1">Payload (JSON)</label>
@@ -150,18 +150,18 @@ export default function WorkflowTriggersPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <button type="submit" disabled={emitLoading} className="rounded bg-gray-700 px-4 py-1.5 text-sm text-white hover:bg-gray-800 disabled:opacity-50">{emitLoading ? 'Emitting...' : 'Emit'}</button>
-            <button type="button" onClick={() => setShowEmit(false)} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700">Cancel</button>
+            <button type="submit" disabled={emitLoading} className="rounded bg-gray-700 px-4 py-1.5 text-sm text-white hover:bg-gray-800 disabled:opacity-50">{emitLoading ? 'Emitindo...' : 'Emitir'}</button>
+            <button type="button" onClick={() => setShowEmit(false)} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700">Cancelar</button>
           </div>
           {emitResult && <pre className="text-xs bg-white border border-gray-200 rounded p-3 overflow-x-auto max-h-40">{emitResult}</pre>}
         </form>
       )}
 
-      {isLoading ? <p className="text-sm text-gray-500">Loading triggers...</p> : null}
-      {isError ? <p className="text-sm text-red-600">Failed to load triggers.</p> : null}
+      {isLoading ? <p className="text-sm text-gray-500">Carregando gatilhos...</p> : null}
+      {isError ? <p className="text-sm text-red-600">Falha ao carregar gatilhos.</p> : null}
 
       {!isLoading && !isError && triggers.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">No workflow triggers configured.</div>
+        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">Nenhum gatilho de fluxo configurado.</div>
       ) : null}
 
       {triggers.length > 0 ? (
@@ -169,11 +169,11 @@ export default function WorkflowTriggersPage() {
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Name</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Event</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Action</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Condition</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Active</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Nome</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Evento</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Acao</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Condicao</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Ativo</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -203,21 +203,21 @@ export default function WorkflowTriggersPage() {
       {/* Trigger Detail */}
       {selected && (
         <div className="rounded-lg border border-gray-200 bg-white p-6 space-y-3">
-          <h3 className="text-sm font-medium text-gray-500">Trigger Detail</h3>
+          <h3 className="text-sm font-medium text-gray-500">Detalhe do Gatilho</h3>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <dt className="text-gray-600">ID</dt><dd className="font-mono text-xs">{selected.id}</dd>
-            <dt className="text-gray-600">Name</dt><dd className="font-medium">{selected.name}</dd>
-            <dt className="text-gray-600">Event</dt><dd><code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">{selected.event_type}</code></dd>
-            <dt className="text-gray-600">Action</dt><dd className="font-medium">{selected.action_type}</dd>
-            <dt className="text-gray-600">Active</dt><dd>{selected.is_active ? 'Yes' : 'No'}</dd>
-            <dt className="text-gray-600">Created</dt><dd>{new Date(selected.created_at).toLocaleString()}</dd>
+            <dt className="text-gray-600">Nome</dt><dd className="font-medium">{selected.name}</dd>
+            <dt className="text-gray-600">Evento</dt><dd><code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">{selected.event_type}</code></dd>
+            <dt className="text-gray-600">Acao</dt><dd className="font-medium">{selected.action_type}</dd>
+            <dt className="text-gray-600">Ativo</dt><dd>{selected.is_active ? 'Sim' : 'Nao'}</dd>
+            <dt className="text-gray-600">Criado em</dt><dd>{new Date(selected.created_at).toLocaleString()}</dd>
           </dl>
           <div>
-            <h4 className="text-xs font-medium text-gray-500 mb-1">Condition</h4>
+            <h4 className="text-xs font-medium text-gray-500 mb-1">Condicao</h4>
             <pre className="text-xs bg-gray-50 border border-gray-200 rounded p-2 overflow-x-auto">{JSON.stringify(selected.condition, null, 2)}</pre>
           </div>
           <div>
-            <h4 className="text-xs font-medium text-gray-500 mb-1">Action Config</h4>
+            <h4 className="text-xs font-medium text-gray-500 mb-1">Configuracao da Acao</h4>
             <pre className="text-xs bg-gray-50 border border-gray-200 rounded p-2 overflow-x-auto">{JSON.stringify(selected.action_config, null, 2)}</pre>
           </div>
         </div>
