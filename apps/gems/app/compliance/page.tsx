@@ -63,8 +63,16 @@ export default function CompliancePage() {
 
   const verifyMutation = useMutation(
     async () => {
-      const res = await api.get('/audit-integrity/verify-chain');
-      return res.data.data as VerificationResult;
+      try {
+        const res = await api.get('/audit-integrity/verify-chain');
+        return res.data.data as VerificationResult;
+      } catch (err: any) {
+        // 422 = chain invalid — still a valid response with verification data
+        if (err?.response?.status === 422 && err?.response?.data?.data) {
+          return err.response.data.data as VerificationResult;
+        }
+        throw err;
+      }
     },
     {
       onSuccess: (data) => setVerification(data),
