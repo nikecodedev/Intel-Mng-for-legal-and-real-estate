@@ -20,6 +20,7 @@ const navItems: NavItem[] = [
   { href: '/real-estate', label: 'Real Estate', icon: '\u2302' },
   { href: '/finance', label: 'Finance', icon: '\u2234' },
   { href: '/crm', label: 'CRM', icon: '\u2605' },
+  { href: '/knowledge', label: 'Knowledge', icon: '\u2709' },
   { href: '/workflow', label: 'Workflow', icon: '\u21BB' },
   { href: '/compliance', label: 'Compliance', icon: '\u2611' },
   { href: '/investor', label: 'Investor', icon: '\u2197', roles: ['INVESTOR'] },
