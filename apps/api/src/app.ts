@@ -63,7 +63,7 @@ export function createApp(): Express {
   // Global timeout middleware (prevent hanging requests)
   // Skip for upload routes — they use extendedTimeout at route level
   app.use((req, res, next) => {
-    if (req.path.includes('/upload')) return next();
+    if (req.path.includes('/upload') || req.path.includes('/petition')) return next();
     return globalTimeout()(req, res, next);
   });
 
