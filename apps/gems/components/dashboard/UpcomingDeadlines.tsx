@@ -28,23 +28,23 @@ export function UpcomingDeadlines({
   if (error) {
     return (
       <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <p className="text-sm font-medium text-gray-500">Upcoming deadlines</p>
-        <p className="mt-1 text-red-600">Unable to load</p>
+        <p className="text-sm font-medium text-gray-500">Prazos próximos</p>
+        <p className="mt-1 text-red-600">Falha ao carregar</p>
       </div>
     );
   }
 
   const summary = [
-    overdueCount > 0 && `${overdueCount} overdue`,
-    dueTodayCount > 0 && `${dueTodayCount} due today`,
-    dueThisWeekCount > 0 && `${dueThisWeekCount} due this week`,
+    overdueCount > 0 && `${overdueCount} vencido(s)`,
+    dueTodayCount > 0 && `${dueTodayCount} vence(m) hoje`,
+    dueThisWeekCount > 0 && `${dueThisWeekCount} esta semana`,
   ]
     .filter(Boolean)
-    .join(' · ') || 'None';
+    .join(' · ') || 'Nenhum';
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4">
-      <p className="text-sm font-medium text-gray-500">Upcoming deadlines</p>
+      <p className="text-sm font-medium text-gray-500">Prazos próximos</p>
       <p className="mt-1 text-2xl font-semibold text-gray-900">{total}</p>
       <p className="mt-1 text-sm text-gray-600">{summary}</p>
       {critical.length > 0 && (
@@ -54,7 +54,7 @@ export function UpcomingDeadlines({
               <span className="font-medium">{d.title}</span>
               <span className="text-gray-500">
                 {' '}
-                — {d.days_until_due < 0 ? 'Overdue' : `in ${d.days_until_due}d`}
+                — {d.days_until_due < 0 ? 'Vencido' : `em ${d.days_until_due} dia(s)`}
               </span>
             </li>
           ))}

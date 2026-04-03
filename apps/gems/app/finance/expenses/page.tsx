@@ -129,24 +129,24 @@ export default function ExpenseCaptureFormPage() {
 
   return (
     <div className="max-w-lg space-y-6">
-      <h2 className="text-xl font-semibold text-gray-900">Capture Expense</h2>
-      <p className="text-sm text-gray-500">Quick expense entry with receipt photo OCR.</p>
+      <h2 className="text-xl font-semibold text-gray-900">Capturar Despesa</h2>
+      <p className="text-sm text-gray-500">Registro rápido de despesa com OCR de recibo.</p>
 
       <div className="rounded-lg border border-gray-200 bg-white p-6 space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Amount (BRL) *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Valor (BRL) *</label>
           <input type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" required placeholder="0.00" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Description *</label>
-          <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" required placeholder="e.g. Taxi to cartório" />
+          <label className="block text-sm font-medium text-gray-700 mb-1">Descrição *</label>
+          <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" required placeholder="ex. Táxi para cartório" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Vendor</label>
-          <input type="text" value={vendor} onChange={(e) => setVendor(e.target.value)} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="e.g. Uber, Cartório 15" />
+          <label className="block text-sm font-medium text-gray-700 mb-1">Fornecedor</label>
+          <input type="text" value={vendor} onChange={(e) => setVendor(e.target.value)} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="ex. Uber, Cartório 15" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Receipt photo</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Foto do recibo</label>
           <input
             ref={fileInputRef}
             type="file"
@@ -155,7 +155,7 @@ export default function ExpenseCaptureFormPage() {
             onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
             className="block w-full text-sm text-gray-500 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-blue-700"
           />
-          <p className="mt-1 text-xs text-gray-400">Take a photo or select a file. Click Scan Receipt to extract value automatically.</p>
+          <p className="mt-1 text-xs text-gray-400">Tire uma foto ou selecione um arquivo. Clique em Escanear Recibo para extrair o valor automaticamente.</p>
           {receiptFile && !scannedDocId ? (
             <button
               type="button"
@@ -163,11 +163,11 @@ export default function ExpenseCaptureFormPage() {
               disabled={scanning}
               className="mt-2 rounded bg-amber-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-600 disabled:opacity-50"
             >
-              {scanning ? 'Scanning...' : 'Scan Receipt (OCR)'}
+              {scanning ? 'Escaneando...' : 'Escanear Recibo (OCR)'}
             </button>
           ) : null}
           {scannedDocId ? (
-            <p className="mt-1 text-xs text-green-600">Receipt uploaded and scanned.</p>
+            <p className="mt-1 text-xs text-green-600">Recibo enviado e escaneado.</p>
           ) : null}
         </div>
 
@@ -175,8 +175,8 @@ export default function ExpenseCaptureFormPage() {
         {mutation.isError ? <p className="text-sm text-red-600">{(mutation.error as Error)?.message || 'Error'}</p> : null}
         {success ? (
           <div className="rounded-md bg-green-50 border border-green-200 p-3">
-            <p className="text-sm text-green-700 font-medium">Expense captured successfully!</p>
-            <p className="text-xs text-green-600 mt-1">All local data has been cleared (Zero Footprint).</p>
+            <p className="text-sm text-green-700 font-medium">Despesa capturada com sucesso!</p>
+            <p className="text-xs text-green-600 mt-1">Todos os dados locais foram apagados (Zero Footprint).</p>
           </div>
         ) : null}
 
@@ -185,12 +185,12 @@ export default function ExpenseCaptureFormPage() {
           disabled={mutation.isLoading || !amount || !description}
           className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 w-full"
         >
-          {mutation.isLoading ? 'Processing...' : 'Capture Expense'}
+          {mutation.isLoading ? 'Processando...' : 'Capturar Despesa'}
         </button>
       </div>
 
       <div className="rounded-md bg-gray-50 border border-gray-200 p-3">
-        <p className="text-xs text-gray-500"><strong>Zero Footprint:</strong> All expense data, receipt photos, and cached files are automatically cleared from this device after submission. No data persists locally.</p>
+        <p className="text-xs text-gray-500"><strong>Zero Footprint:</strong> Todos os dados de despesas, fotos de recibos e arquivos em cache são automaticamente apagados deste dispositivo após o envio. Nenhum dado persiste localmente.</p>
       </div>
     </div>
   );
