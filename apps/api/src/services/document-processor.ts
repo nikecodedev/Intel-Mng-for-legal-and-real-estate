@@ -107,7 +107,7 @@ async function extractTextWithGeminiVision(filePath: string, pdfBuffer: Buffer):
   try {
     const { GoogleGenerativeAI } = await import('@google/generative-ai');
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-preview-05-20' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const base64 = pdfBuffer.toString('base64');
 
@@ -169,7 +169,7 @@ export async function structureAsFPDN(documentText: string): Promise<FPDNOutput 
     const { GoogleGenerativeAI } = await import('@google/generative-ai');
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash-preview-05-20',
+      model: 'gemini-2.5-flash',
       systemInstruction: FPDN_SYSTEM_PROMPT,
     });
 
