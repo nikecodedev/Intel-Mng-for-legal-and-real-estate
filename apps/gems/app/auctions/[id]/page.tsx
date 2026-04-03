@@ -33,7 +33,7 @@ function ROIInputForm({ assetId, onSuccess }: { assetId: string; onSuccess: () =
     e.preventDefault();
     setLoading(true); setError(''); setSuccess('');
     try {
-      await api.post(`/auctions/assets/${assetId}/roi/inputs`, {
+      await api.put(`/auctions/assets/${assetId}/roi`, {
         purchase_value_cents: form.purchase_value_cents ? Math.round(parseFloat(form.purchase_value_cents) * 100) : 0,
         renovation_costs_cents: form.renovation_costs_cents ? Math.round(parseFloat(form.renovation_costs_cents) * 100) : 0,
         expected_resale_cents: form.expected_resale_cents ? Math.round(parseFloat(form.expected_resale_cents) * 100) : 0,
