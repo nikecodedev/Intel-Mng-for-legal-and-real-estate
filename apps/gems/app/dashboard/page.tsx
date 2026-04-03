@@ -10,6 +10,7 @@ import {
   fetchActiveAuctionsCount,
   fetchAssetsInRenovation,
   fetchPendingFinancialApprovals,
+  fetchUpcomingDeadlines,
 } from '@/lib/dashboard-api';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -27,6 +28,7 @@ export default function DashboardPage() {
   const auctions = useQuery('dash-auctions', fetchActiveAuctionsCount, { staleTime: 60_000, retry: 1 });
   const reno = useQuery('dash-reno', fetchAssetsInRenovation, { staleTime: 60_000, retry: 1 });
   const payables = useQuery('dash-payables', fetchPendingFinancialApprovals, { staleTime: 60_000, retry: 1 });
+  const deadlines = useQuery('dash-deadlines', fetchUpcomingDeadlines, { staleTime: 60_000, retry: 1 });
 
   // Fetch transactions for financial chart
   const txQuery = useQuery('dash-transactions', async () => {
@@ -221,6 +223,20 @@ export default function DashboardPage() {
           <p className="text-xs font-medium text-gray-500 mb-1">Exposição ao Risco</p>
           <p className="text-2xl font-bold text-gray-900">{riskKpi.data?.high_risk_count ?? 0} <span className="text-sm font-normal text-red-500">alto risco</span></p>
           <p className="text-xs text-gray-400 mt-1">{riskKpi.data?.total_assets ?? 0} ativos analisados</p>
+        </div>
+      </div>
+
+      {/* Deadlines Card */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+        <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+          <p className="text-xs font-medium text-gray-500 mb-1">Prazos Futuros</p>
+          <p className="text-2xl font-bold text-gray-900">{deadlines.data?.total_deadlines ?? 0}</p>
+          <p className="text-xs text-gray-400 mt-1">total de prazos</p>
+        </div>
+        <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+          <p className="text-xs font-medium text-gray-500 mb-1">Prazos Vencidos</p>
+          <p className="text-2xl font-bold text-red-600">{deadlines.data?.overdue_count ?? 0}</p>
+          <p className="text-xs text-gray-400 mt-1">{deadlines.data?.due_today_count ?? 0} vencem hoje</p>
         </div>
       </div>
 

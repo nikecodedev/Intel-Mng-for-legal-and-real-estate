@@ -87,10 +87,24 @@ export default function KnowledgePage() {
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     if (!searchQuery.trim()) return;
+    await performSearch('/knowledge/search');
+  }
+
+  async function handleSearchPastCases() {
+    if (!searchQuery.trim()) return;
+    await performSearch('/knowledge/search/past-cases');
+  }
+
+  async function handleSearchOutcomes() {
+    if (!searchQuery.trim()) return;
+    await performSearch('/knowledge/search/outcomes');
+  }
+
+  async function performSearch(endpoint: string) {
     setSearching(true);
     setError(null);
     try {
-      const { data } = await api.post('/knowledge/search', { query: searchQuery, limit: 50 });
+      const { data } = await api.post(endpoint, { query: searchQuery, limit: 50 });
       setSearchResults(data?.results ?? []);
     } catch (err) {
       setError(isApiError(err) ? getApiErrorMessage(err) : 'Falha na pesquisa');
@@ -235,21 +249,41 @@ export default function KnowledgePage() {
       {/* Search Tab */}
       {tab === 'search' && (
         <div>
-          <form onSubmit={handleSearch} className="flex gap-3 mb-6">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Pesquisar base de conhecimento..."
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-            />
-            <button
-              type="submit"
-              disabled={searching || !searchQuery.trim()}
-              className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-            >
-              {searching ? 'Pesquisando...' : 'Pesquisar'}
-            </button>
+          <form onSubmit={handleSearch} className="mb-6 space-y-3">
+            <div className="flex gap-3">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Pesquisar base de conhecimento..."
+                className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+              />
+              <button
+                type="submit"
+                disabled={searching || !searchQuery.trim()}
+                className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {searching ? 'Pesquisando...' : 'Pesquisar'}
+              </button>
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={handleSearchPastCases}
+                disabled={searching || !searchQuery.trim()}
+                className="rounded-lg bg-purple-600 px-5 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+              >
+                {searching ? 'Pesquisando...' : 'Pesquisar Casos Passados'}
+              </button>
+              <button
+                type="button"
+                onClick={handleSearchOutcomes}
+                disabled={searching || !searchQuery.trim()}
+                className="rounded-lg bg-amber-600 px-5 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+              >
+                {searching ? 'Pesquisando...' : 'Pesquisar Resultados'}
+              </button>
+            </div>
           </form>
 
           {searchResults.length > 0 && (
