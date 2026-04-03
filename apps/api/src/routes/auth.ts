@@ -114,10 +114,8 @@ router.post(
       const user = await AuthService.authenticate(email, password);
 
       // Generate tokens using user's tenant_id from DB (not from headers/request)
-      // If remember_me is true, use 30-day access token; otherwise default 15m
-      const accessToken = remember_me
-        ? AuthService.generateAccessToken(user, await tenantOptsFromUser(user), '30d')
-        : AuthService.generateAccessToken(user, await tenantOptsFromUser(user));
+      // Access token always short-lived (15m). remember_me extends refresh token only.
+      const accessToken = AuthService.generateAccessToken(user, await tenantOptsFromUser(user));
       let refreshToken: string | null = null;
       if (user.tenant_id) {
         try {
@@ -434,6 +432,8 @@ router.get(
           first_name: user.first_name,
           last_name: user.last_name,
           is_email_verified: user.is_email_verified,
+          tenant_id: req.context?.tenant_id ?? user.tenant_id,
+          role: req.context?.role ?? (user as any).role,
         },
       },
     });

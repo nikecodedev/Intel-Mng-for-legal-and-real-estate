@@ -149,12 +149,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(async () => {
-    if (cookieAuth) {
-      try {
-        await api.post('/auth/logout', { refresh_token: '' });
-      } catch {
-        // ignore
+    // Revoke refresh token on backend before clearing local state
+    try {
+      const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('refresh_token') : null;
+      if (refreshToken) {
+        await api.post('/auth/logout', { refresh_token: refreshToken });
       }
+    } catch {
+      // ignore — local cleanup happens regardless
     }
     clearStoredAuth();
     // Clear all cached data to prevent cross-tenant leaks

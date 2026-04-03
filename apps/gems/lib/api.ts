@@ -123,8 +123,16 @@ api.interceptors.response.use(
             return api(original);
           }
         }
+        // Refresh returned null — token is invalid, clear auth
+        try {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user');
+        } catch {}
+        if (typeof window !== 'undefined') window.location.href = '/login';
+        return Promise.reject(error);
       } catch {
-        // Refresh failed — clear auth and redirect
+        // Refresh threw — clear auth and redirect
         try {
           localStorage.removeItem('access_token');
           localStorage.removeItem('refresh_token');

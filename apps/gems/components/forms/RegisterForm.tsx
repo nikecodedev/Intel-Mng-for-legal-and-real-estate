@@ -4,14 +4,13 @@ import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getApiErrorMessage } from '@/lib/api';
 
-const PASSWORD_RULES = 'At least 8 characters, one uppercase, one lowercase, one number, one special character.';
+const PASSWORD_RULES = 'Mínimo 8 caracteres, uma maiúscula, uma minúscula e um número.';
 
 function validatePassword(pwd: string): string | null {
-  if (pwd.length < 8) return 'Password must be at least 8 characters.';
-  if (!/[A-Z]/.test(pwd)) return 'Password must contain at least one uppercase letter.';
-  if (!/[a-z]/.test(pwd)) return 'Password must contain at least one lowercase letter.';
-  if (!/[0-9]/.test(pwd)) return 'Password must contain at least one number.';
-  if (!/[!@#$%^&*()_+\-=\[\]{};:'",.<>?\/\\|`~]/.test(pwd)) return 'Password must contain at least one special character.';
+  if (pwd.length < 8) return 'A senha deve ter pelo menos 8 caracteres.';
+  if (!/[A-Z]/.test(pwd)) return 'A senha deve conter pelo menos uma letra maiúscula.';
+  if (!/[a-z]/.test(pwd)) return 'A senha deve conter pelo menos uma letra minúscula.';
+  if (!/[0-9]/.test(pwd)) return 'A senha deve conter pelo menos um número.';
   return null;
 }
 
