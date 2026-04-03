@@ -56,7 +56,11 @@ function calculateHash(
   payloadEvento: Record<string, unknown>,
   createdAt: Date
 ): string {
-  const hashInput = `${previousHash || ''}|${JSON.stringify(payloadEvento)}|${createdAt.toISOString()}`;
+  // Must match DB trigger: sha256(prev_hash || payload_evento::text || created_at::text)
+  // PostgreSQL ::text for jsonb uses no spaces, and timestamptz includes +00
+  const pgPayload = JSON.stringify(payloadEvento);
+  const pgTimestamp = createdAt.toISOString().replace('T', ' ').replace('Z', '+00');
+  const hashInput = `${previousHash || ''}${pgPayload}${pgTimestamp}`;
   return createHash('sha256').update(hashInput).digest('hex');
 }
 
