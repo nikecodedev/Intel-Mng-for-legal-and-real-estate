@@ -138,7 +138,49 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
   const [flagSeverity, setFlagSeverity] = useState('WARNING');
   const [flagLoading, setFlagLoading] = useState(false);
 
+  // CPO + extract state
+  const [cpoLoading, setCpoLoading] = useState(false);
+  const [extractLoading, setExtractLoading] = useState(false);
+  const [rejectCpoReason, setRejectCpoReason] = useState('');
+  const [showRejectCpo, setShowRejectCpo] = useState(false);
+
   const [actionMsg, setActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  async function approveCpo() {
+    setCpoLoading(true);
+    try {
+      await api.post(`/documents/${id}/approve-cpo`);
+      setActionMsg({ type: 'success', text: 'CPO aprovado.' });
+      queryClient.invalidateQueries(['legal-document', id]);
+    } catch (err: any) {
+      setActionMsg({ type: 'error', text: err?.response?.data?.message || 'Falha ao aprovar CPO.' });
+    } finally { setCpoLoading(false); }
+  }
+
+  async function rejectCpo() {
+    if (!rejectCpoReason.trim()) { setActionMsg({ type: 'error', text: 'Informe o motivo.' }); return; }
+    setCpoLoading(true);
+    try {
+      await api.post(`/documents/${id}/reject-cpo`, { reason: rejectCpoReason });
+      setActionMsg({ type: 'success', text: 'CPO rejeitado.' });
+      setShowRejectCpo(false); setRejectCpoReason('');
+      queryClient.invalidateQueries(['legal-document', id]);
+    } catch (err: any) {
+      setActionMsg({ type: 'error', text: err?.response?.data?.message || 'Falha ao rejeitar CPO.' });
+    } finally { setCpoLoading(false); }
+  }
+
+  async function extractFacts() {
+    setExtractLoading(true);
+    try {
+      await api.post(`/documents/${id}/extract-facts`);
+      setActionMsg({ type: 'success', text: 'Extração de factos iniciada.' });
+      queryClient.invalidateQueries(['legal-document-facts', id]);
+      queryClient.invalidateQueries(['legal-document-extractions', id]);
+    } catch (err: any) {
+      setActionMsg({ type: 'error', text: err?.response?.data?.message || 'Falha ao extrair factos.' });
+    } finally { setExtractLoading(false); }
+  }
 
   function startEdit() {
     const doc = data?.data?.document;
@@ -214,11 +256,14 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
 
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-gray-900">{document.title || document.document_number}</h2>
-        <div className="flex items-center gap-2">
-          <button onClick={startEdit} className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Edit</button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={approveCpo} disabled={cpoLoading} className="rounded border border-green-300 px-3 py-1.5 text-sm text-green-700 hover:bg-green-50 disabled:opacity-50">Aprovar CPO</button>
+          <button onClick={() => setShowRejectCpo(true)} className="rounded border border-orange-300 px-3 py-1.5 text-sm text-orange-700 hover:bg-orange-50">Rejeitar CPO</button>
+          <button onClick={extractFacts} disabled={extractLoading} className="rounded border border-indigo-300 px-3 py-1.5 text-sm text-indigo-700 hover:bg-indigo-50 disabled:opacity-50">{extractLoading ? 'Extraindo...' : 'Re-extrair Factos'}</button>
+          <button onClick={startEdit} className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Editar</button>
           <button onClick={() => setShowFlagForm(true)} className="rounded border border-amber-300 px-3 py-1.5 text-sm text-amber-700 hover:bg-amber-50">Flag</button>
-          <button onClick={() => setShowDeleteConfirm(true)} className="rounded border border-red-300 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50">Delete</button>
-          <Link href={`/legal/documents/${id}/view`} className="rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700">View source</Link>
+          <button onClick={() => setShowDeleteConfirm(true)} className="rounded border border-red-300 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50">Excluir</button>
+          <Link href={`/legal/documents/${id}/view`} className="rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700">Ver fonte</Link>
         </div>
       </div>
 
@@ -254,6 +299,18 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
           <div className="flex gap-2">
             <button onClick={handleDelete} disabled={deleteLoading} className="rounded bg-red-600 px-4 py-1.5 text-sm text-white hover:bg-red-700 disabled:opacity-50">{deleteLoading ? 'Deleting...' : 'Confirm Delete'}</button>
             <button onClick={() => setShowDeleteConfirm(false)} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Reject CPO form */}
+      {showRejectCpo && (
+        <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 space-y-3">
+          <h3 className="text-sm font-medium text-orange-800">Rejeitar CPO</h3>
+          <input value={rejectCpoReason} onChange={(e) => setRejectCpoReason(e.target.value)} placeholder="Motivo da rejeição..." className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" />
+          <div className="flex gap-2">
+            <button onClick={rejectCpo} disabled={cpoLoading || !rejectCpoReason.trim()} className="rounded bg-orange-600 px-4 py-1.5 text-sm text-white hover:bg-orange-700 disabled:opacity-50">{cpoLoading ? 'Rejeitando...' : 'Confirmar Rejeição'}</button>
+            <button onClick={() => { setShowRejectCpo(false); setRejectCpoReason(''); }} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Cancelar</button>
           </div>
         </div>
       )}

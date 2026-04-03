@@ -29,3 +29,11 @@ export function fetchMatchesForInvestor(
 ): Promise<MatchesListResponse> {
   return api.get<MatchesListResponse>(`/matching/matches/${investorId}`, { params }).then((r) => r.data);
 }
+
+export function fetchMatchById(matchId: string): Promise<MatchRecord> {
+  return api.get<{ success: boolean; match: MatchRecord }>(`/matching/matches/${matchId}`).then((r) => r.data?.match ?? r.data as any);
+}
+
+export function updateMatchInterest(matchId: string, interest_level: string): Promise<void> {
+  return api.put(`/matching/matches/${matchId}/interest`, { interest_level }).then(() => {});
+}

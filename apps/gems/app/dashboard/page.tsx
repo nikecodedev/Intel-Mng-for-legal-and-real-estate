@@ -46,6 +46,22 @@ export default function DashboardPage() {
     return res.data?.assets ?? [];
   }, { staleTime: 60_000, retry: false });
 
+  // Dedicated KPI endpoints
+  const cashFlowKpi = useQuery('dash-kpi-cashflow', async () => {
+    const res = await api.get('/dashboards/kpis/cash-flow');
+    return res.data?.kpi ?? null;
+  }, { staleTime: 60_000, retry: false });
+
+  const roiKpi = useQuery('dash-kpi-roi', async () => {
+    const res = await api.get('/dashboards/kpis/roi');
+    return res.data?.kpi ?? null;
+  }, { staleTime: 60_000, retry: false });
+
+  const riskKpi = useQuery('dash-kpi-risk', async () => {
+    const res = await api.get('/dashboards/kpis/risk-exposure');
+    return res.data?.kpi ?? null;
+  }, { staleTime: 60_000, retry: false });
+
   const greeting = (() => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Bom dia';
@@ -186,6 +202,25 @@ export default function DashboardPage() {
           ) : (
             <div className="flex items-center justify-center h-[250px] text-sm text-gray-400">Sem dados de imóveis</div>
           )}
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+          <p className="text-xs font-medium text-gray-500 mb-1">Fluxo de Caixa</p>
+          <p className="text-2xl font-bold text-gray-900">{cashFlowKpi.data?.net_cash_flow != null ? `R$ ${(cashFlowKpi.data.net_cash_flow / 100).toLocaleString('pt-BR')}` : '-'}</p>
+          <p className="text-xs text-gray-400 mt-1">{cashFlowKpi.data?.period ?? 'Período atual'}</p>
+        </div>
+        <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+          <p className="text-xs font-medium text-gray-500 mb-1">ROI Médio</p>
+          <p className="text-2xl font-bold text-gray-900">{roiKpi.data?.average_roi != null ? `${Number(roiKpi.data.average_roi).toFixed(1)}%` : '-'}</p>
+          <p className="text-xs text-gray-400 mt-1">{roiKpi.data?.total_assets ?? 0} ativos</p>
+        </div>
+        <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+          <p className="text-xs font-medium text-gray-500 mb-1">Exposição ao Risco</p>
+          <p className="text-2xl font-bold text-gray-900">{riskKpi.data?.high_risk_count ?? 0} <span className="text-sm font-normal text-red-500">alto risco</span></p>
+          <p className="text-xs text-gray-400 mt-1">{riskKpi.data?.total_assets ?? 0} ativos analisados</p>
         </div>
       </div>
 

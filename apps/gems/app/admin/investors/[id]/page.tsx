@@ -10,7 +10,7 @@ import {
   fetchInvestorAssignedAssets,
   type AssignedAssetItem,
 } from '@/lib/crm-api';
-import { fetchMatchesForInvestor, type MatchRecord } from '@/lib/matching-api';
+import { fetchMatchesForInvestor, updateMatchInterest, type MatchRecord } from '@/lib/matching-api';
 
 function matchScoreColor(score: number) {
   if (score >= 80) return 'text-green-700 bg-green-100';
@@ -52,6 +52,24 @@ function AutoNotifyButton({ investorId }: { investorId: string }) {
     <span className="inline-flex items-center gap-1">
       <button onClick={run} disabled={loading} className="rounded bg-green-600 px-3 py-1.5 text-sm text-white hover:bg-green-700 disabled:opacity-50">{loading ? 'Notificando...' : 'Auto-Notificar'}</button>
       {msg && <span className="text-xs text-gray-600">{msg}</span>}
+    </span>
+  );
+}
+
+function InterestButtons({ matchId, currentInterest }: { matchId: string; currentInterest?: string }) {
+  const [level, setLevel] = useState(currentInterest || '');
+  const [saving, setSaving] = useState(false);
+  async function set(interest: string) {
+    setSaving(true);
+    try { await updateMatchInterest(matchId, interest); setLevel(interest); } catch {}
+    finally { setSaving(false); }
+  }
+  const opts = [{ v: 'HIGH', l: 'Alto', c: 'bg-green-100 text-green-700' }, { v: 'MEDIUM', l: 'Médio', c: 'bg-yellow-100 text-yellow-700' }, { v: 'LOW', l: 'Baixo', c: 'bg-gray-100 text-gray-600' }];
+  return (
+    <span className="inline-flex gap-1">
+      {opts.map(o => (
+        <button key={o.v} onClick={() => set(o.v)} disabled={saving} className={`rounded px-1.5 py-0.5 text-[10px] font-medium disabled:opacity-50 ${level === o.v ? o.c + ' ring-1 ring-offset-1' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}>{o.l}</button>
+      ))}
     </span>
   );
 }
@@ -151,16 +169,14 @@ export default function AdminInvestorDetailPage({ params }: { params: { id: stri
         ) : (
           <ul className="space-y-2">
             {(matches as MatchRecord[]).map((m) => (
-              <li key={m.id} className="flex items-center justify-between text-sm">
+              <li key={m.id} className="flex items-center justify-between text-sm gap-2">
                 <Link href={`/auctions/${m.auction_asset_id}`} className="text-blue-600 hover:underline">
                   Ativo {m.auction_asset_id?.slice(0, 8) ?? m.id}
                 </Link>
-                <span
-                  className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${matchScoreColor(Number(m.match_score))}`}
-                  title="Match score (backend)"
-                >
-                  {m.match_score}%
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${matchScoreColor(Number(m.match_score))}`}>{m.match_score}%</span>
+                  <InterestButtons matchId={m.id} currentInterest={m.match_status} />
+                </div>
               </li>
             ))}
           </ul>
