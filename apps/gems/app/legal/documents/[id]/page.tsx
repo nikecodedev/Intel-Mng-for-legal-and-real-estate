@@ -116,7 +116,7 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
   );
   const { data: extractions } = useQuery(
     ['legal-document-extractions', id],
-    async () => { const r = await api.get(`/documents/${id}/extractions`); return r.data?.data ?? r.data; },
+    async () => { const r = await api.get(`/documents/${id}/extraction`); return r.data?.data ?? r.data; },
     { staleTime: 60 * 1000, enabled: !!id, retry: false }
   );
 
@@ -149,7 +149,7 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
   async function approveCpo() {
     setCpoLoading(true);
     try {
-      await api.post(`/documents/${id}/approve-cpo`);
+      await api.post(`/documents/${id}/approve`);
       setActionMsg({ type: 'success', text: 'CPO aprovado.' });
       queryClient.invalidateQueries(['legal-document', id]);
     } catch (err: any) {
@@ -161,7 +161,7 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
     if (!rejectCpoReason.trim()) { setActionMsg({ type: 'error', text: 'Informe o motivo.' }); return; }
     setCpoLoading(true);
     try {
-      await api.post(`/documents/${id}/reject-cpo`, { reason: rejectCpoReason });
+      await api.put(`/documents/${id}`, { status_cpo: 'VERMELHO', rejection_reason: rejectCpoReason });
       setActionMsg({ type: 'success', text: 'CPO rejeitado.' });
       setShowRejectCpo(false); setRejectCpoReason('');
       queryClient.invalidateQueries(['legal-document', id]);
@@ -173,7 +173,7 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
   async function extractFacts() {
     setExtractLoading(true);
     try {
-      await api.post(`/documents/${id}/extract-facts`);
+      await api.post(`/documents/${id}/reprocess`);
       setActionMsg({ type: 'success', text: 'Extração de factos iniciada.' });
       queryClient.invalidateQueries(['legal-document-facts', id]);
       queryClient.invalidateQueries(['legal-document-extractions', id]);
@@ -221,7 +221,8 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
   async function submitFlag() {
     setFlagLoading(true);
     try {
-      await api.post(`/documents/${id}/quality-flags`, { flag_type: flagType, description: flagDesc, severity: flagSeverity });
+      // Quality flags are created automatically by the system; manual creation uses reprocess
+      await api.post(`/documents/${id}/reprocess`);
       setShowFlagForm(false);
       setFlagDesc('');
       setActionMsg({ type: 'success', text: 'Quality flag submitted.' });
