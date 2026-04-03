@@ -84,11 +84,32 @@ export default function ExpenseCaptureFormPage() {
     }
   };
 
-  // Step 2: Submit expense (with or without scanned receipt)
+  // Submit for approval state
+  const [createdExpenseId, setCreatedExpenseId] = useState<string | null>(null);
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+
+  const handleSubmitForApproval = async () => {
+    if (!createdExpenseId) return;
+    setSubmitLoading(true);
+    setSubmitError('');
+    setSubmitSuccess(false);
+    try {
+      await api.post(`/finance/expenses/${createdExpenseId}/submit`);
+      setSubmitSuccess(true);
+      setCreatedExpenseId(null);
+    } catch (err: any) {
+      setSubmitError(err?.response?.data?.message || 'Falha ao submeter para aprovacao.');
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
   const mutation = useMutation({
     mutationFn: async () => {
       const amountCents = Math.round(Number(parseFloat(amount || '0').toFixed(2)) * 100);
-      if (amountCents <= 0) throw new Error('Enter a valid amount');
+      if (amountCents <= 0) throw new Error('Informe um valor valido');
 
       return api.post('/finance/expenses', {
         amount_cents: amountCents,
@@ -101,9 +122,14 @@ export default function ExpenseCaptureFormPage() {
         client_id: '00000000-0000-0000-0000-000000000001',
       });
     },
-    onSuccess: () => {
+    onSuccess: (response) => {
       setSuccess(true);
       setOcrStatus(null);
+      // Capture the created expense ID for submit-for-approval
+      const expenseId = response?.data?.data?.id ?? response?.data?.id;
+      if (expenseId) setCreatedExpenseId(expenseId);
+      setSubmitSuccess(false);
+      setSubmitError('');
 
       // === ZERO FOOTPRINT: Complete client-side cleanup ===
       setAmount('');
@@ -174,9 +200,24 @@ export default function ExpenseCaptureFormPage() {
         {ocrStatus ? <p className="text-sm text-blue-600">{ocrStatus}</p> : null}
         {mutation.isError ? <p className="text-sm text-red-600">{(mutation.error as Error)?.message || 'Error'}</p> : null}
         {success ? (
-          <div className="rounded-md bg-green-50 border border-green-200 p-3">
+          <div className="rounded-md bg-green-50 border border-green-200 p-3 space-y-2">
             <p className="text-sm text-green-700 font-medium">Despesa capturada com sucesso!</p>
-            <p className="text-xs text-green-600 mt-1">Todos os dados locais foram apagados (Zero Footprint).</p>
+            <p className="text-xs text-green-600">Todos os dados locais foram apagados (Zero Footprint).</p>
+            {createdExpenseId && !submitSuccess && (
+              <div className="pt-1">
+                <button
+                  onClick={handleSubmitForApproval}
+                  disabled={submitLoading}
+                  className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 w-full"
+                >
+                  {submitLoading ? 'Submetendo...' : 'Submeter para Aprovacao'}
+                </button>
+                {submitError && <p className="mt-1 text-sm text-red-600">{submitError}</p>}
+              </div>
+            )}
+            {submitSuccess && (
+              <p className="text-sm text-indigo-700 font-medium">Despesa submetida para aprovacao com sucesso!</p>
+            )}
           </div>
         ) : null}
 

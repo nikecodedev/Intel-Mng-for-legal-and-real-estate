@@ -39,10 +39,10 @@ function ROIInputForm({ assetId, onSuccess }: { assetId: string; onSuccess: () =
         expected_resale_cents: form.expected_resale_cents ? Math.round(parseFloat(form.expected_resale_cents) * 100) : 0,
         holding_period_months: form.holding_period_months ? parseInt(form.holding_period_months, 10) : 12,
       });
-      setSuccess('ROI inputs saved.');
+      setSuccess('Dados de ROI salvos com sucesso.');
       onSuccess();
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to save ROI inputs.');
+      setError(err?.response?.data?.message || 'Falha ao salvar dados de ROI.');
     } finally {
       setLoading(false);
     }
@@ -50,28 +50,28 @@ function ROIInputForm({ assetId, onSuccess }: { assetId: string; onSuccess: () =
 
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-6">
-      <h3 className="text-sm font-medium text-gray-500 mb-3">ROI Input Form</h3>
+      <h3 className="text-sm font-medium text-gray-500 mb-3">Formulario de Dados de ROI</h3>
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs text-gray-600 mb-1">Purchase Value (R$)</label>
+            <label className="block text-xs text-gray-600 mb-1">Valor de Compra (R$)</label>
             <input type="number" step="0.01" value={form.purchase_value_cents} onChange={e => set('purchase_value_cents', e.target.value)} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="0.00" />
           </div>
           <div>
-            <label className="block text-xs text-gray-600 mb-1">Renovation Costs (R$)</label>
+            <label className="block text-xs text-gray-600 mb-1">Custos de Reforma (R$)</label>
             <input type="number" step="0.01" value={form.renovation_costs_cents} onChange={e => set('renovation_costs_cents', e.target.value)} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="0.00" />
           </div>
           <div>
-            <label className="block text-xs text-gray-600 mb-1">Expected Resale (R$)</label>
+            <label className="block text-xs text-gray-600 mb-1">Revenda Esperada (R$)</label>
             <input type="number" step="0.01" value={form.expected_resale_cents} onChange={e => set('expected_resale_cents', e.target.value)} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="0.00" />
           </div>
           <div>
-            <label className="block text-xs text-gray-600 mb-1">Holding Period (months)</label>
+            <label className="block text-xs text-gray-600 mb-1">Periodo de Posse (meses)</label>
             <input type="number" min="1" value={form.holding_period_months} onChange={e => set('holding_period_months', e.target.value)} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="12" />
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button type="submit" disabled={loading} className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">{loading ? 'Saving...' : 'Save ROI Inputs'}</button>
+          <button type="submit" disabled={loading} className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">{loading ? 'Salvando...' : 'Salvar Dados de ROI'}</button>
           {error && <p className="text-sm text-red-600">{error}</p>}
           {success && <p className="text-sm text-green-600">{success}</p>}
         </div>
