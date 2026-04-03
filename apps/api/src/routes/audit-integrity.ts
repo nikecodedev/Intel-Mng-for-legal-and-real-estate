@@ -65,81 +65,51 @@ function calculateHash(
 }
 
 /**
- * Verify hash chain for a tenant
+ * Verify hash chain for a tenant using the DB function.
+ * This ensures the exact same hash formula is used for both INSERT and verification
+ * (PostgreSQL ::text cast for jsonb and timestamptz).
  */
 async function verifyTenantHashChain(tenantId: string): Promise<IntegrityVerificationResult> {
-  // Get all audit logs for tenant, ordered by creation time
-  const result = await db.query<AuditLogEntry>(
-    `SELECT 
-      id,
-      tenant_id,
-      previous_hash,
-      current_hash,
-      payload_evento,
-      created_at
-    FROM audit_logs
-    WHERE tenant_id = $1
-    ORDER BY created_at ASC, id ASC`,
+  interface DbValidationRow {
+    hash_chain_index: number;
+    record_id: string;
+    created_at: Date;
+    current_hash: string;
+    previous_hash: string;
+    calculated_hash: string;
+    is_valid: boolean;
+  }
+
+  const result = await db.query<DbValidationRow>(
+    `SELECT * FROM validate_audit_hash_chain($1)`,
     [tenantId]
   );
 
-  const entries = result.rows;
+  const rows = result.rows;
   const issues: HashChainVerification[] = [];
   let validCount = 0;
   let invalidCount = 0;
-  let previousHash: string | null = null;
 
-  // Calculate genesis hash
-  const genesisHash = createHash('sha256').update('GENESIS').digest('hex');
-
-  for (const entry of entries) {
-    const verification: HashChainVerification = {
-      entry_id: entry.id,
-      entry_timestamp: entry.created_at.toISOString(),
-      previous_hash: entry.previous_hash,
-      calculated_hash: '',
-      stored_hash: entry.current_hash,
-      is_valid: false,
-    };
-
-    // Determine expected previous hash
-    const expectedPreviousHash = previousHash || genesisHash;
-
-    // Verify previous hash matches
-    if (entry.previous_hash !== expectedPreviousHash) {
-      verification.is_valid = false;
-      verification.error = `Previous hash mismatch. Expected: ${expectedPreviousHash}, Got: ${entry.previous_hash}`;
-      invalidCount++;
-      issues.push(verification);
-      // Continue verification with the stored previous_hash to check subsequent entries
-      previousHash = entry.current_hash;
-      continue;
-    }
-
-    // Calculate current hash
-    const calculatedHash = calculateHash(
-      entry.previous_hash,
-      entry.payload_evento as Record<string, unknown>,
-      entry.created_at
-    );
-
-    verification.calculated_hash = calculatedHash;
-
-    // Verify calculated hash matches stored hash
-    if (calculatedHash !== entry.current_hash) {
-      verification.is_valid = false;
-      verification.error = `Hash mismatch. Calculated: ${calculatedHash}, Stored: ${entry.current_hash}`;
-      invalidCount++;
-      issues.push(verification);
-    } else {
-      verification.is_valid = true;
+  for (const row of rows) {
+    if (row.is_valid) {
       validCount++;
+    } else {
+      invalidCount++;
+      issues.push({
+        entry_id: row.record_id,
+        entry_timestamp: row.created_at.toISOString(),
+        previous_hash: row.previous_hash,
+        calculated_hash: row.calculated_hash,
+        stored_hash: row.current_hash,
+        is_valid: false,
+        error: `Hash mismatch. Calculated: ${row.calculated_hash}, Stored: ${row.current_hash}`,
+      });
     }
-
-    previousHash = entry.current_hash;
   }
 
-  // Determine chain integrity status
+  const genesisHash = createHash('sha256').update('GENESIS').digest('hex');
+  const lastRow = rows[rows.length - 1];
+
   let chainIntegrity: 'valid' | 'invalid' | 'partial';
   if (invalidCount === 0) {
     chainIntegrity = 'valid';
@@ -152,13 +122,13 @@ async function verifyTenantHashChain(tenantId: string): Promise<IntegrityVerific
   return {
     tenant_id: tenantId,
     verified_at: new Date().toISOString(),
-    total_entries: entries.length,
+    total_entries: rows.length,
     valid_entries: validCount,
     invalid_entries: invalidCount,
     chain_integrity: chainIntegrity,
     issues,
     genesis_hash: genesisHash,
-    latest_hash: previousHash || genesisHash,
+    latest_hash: lastRow?.current_hash || genesisHash,
   };
 }
 
