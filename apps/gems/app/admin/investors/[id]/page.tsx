@@ -24,7 +24,7 @@ function FindMatchesButton({ investorId }: { investorId: string }) {
   async function run() {
     setLoading(true); setMsg('');
     try {
-      const { data } = await api.post(`/matching/find-matches/${investorId}`);
+      const { data } = await api.post(`/matching/find-matches/${investorId}`, {});
       setMsg(`Encontrado(s) ${data?.matches?.length ?? data?.count ?? 0} resultado(s).`);
     } catch { setMsg('Falhou.'); }
     finally { setLoading(false); }
@@ -43,7 +43,7 @@ function AutoNotifyButton({ investorId }: { investorId: string }) {
   async function run() {
     setLoading(true); setMsg('');
     try {
-      await api.post(`/matching/auto-notify/${investorId}`);
+      await api.post(`/matching/auto-notify/${investorId}`, {});
       setMsg('Notificado.');
     } catch { setMsg('Falhou.'); }
     finally { setLoading(false); }

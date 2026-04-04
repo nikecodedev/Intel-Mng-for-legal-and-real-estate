@@ -149,7 +149,7 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
   async function approveCpo() {
     setCpoLoading(true);
     try {
-      await api.post(`/documents/${id}/approve`);
+      await api.post(`/documents/${id}/approve`, {});
       setActionMsg({ type: 'success', text: 'CPO aprovado.' });
       queryClient.invalidateQueries(['legal-document', id]);
     } catch (err: any) {
@@ -173,7 +173,7 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
   async function extractFacts() {
     setExtractLoading(true);
     try {
-      await api.post(`/documents/${id}/reprocess`);
+      await api.post(`/documents/${id}/reprocess`, {});
       setActionMsg({ type: 'success', text: 'Extração de factos iniciada.' });
       queryClient.invalidateQueries(['legal-document-facts', id]);
       queryClient.invalidateQueries(['legal-document-extractions', id]);
@@ -222,7 +222,7 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
     setFlagLoading(true);
     try {
       // Quality flags are created automatically by the system; manual creation uses reprocess
-      await api.post(`/documents/${id}/reprocess`);
+      await api.post(`/documents/${id}/reprocess`, {});
       setShowFlagForm(false);
       setFlagDesc('');
       setActionMsg({ type: 'success', text: 'Quality flag submitted.' });
@@ -234,12 +234,12 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
     }
   }
 
-  if (isLoading) return <BlockLoader message="Loading document…" />;
+  if (isLoading) return <BlockLoader message="Carregando documento…" />;
 
   if (error || !data?.data) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
-        Document not found or you don’t have access.
+        Documento não encontrado ou sem permissão de acesso.
       </div>
     );
   }
@@ -271,24 +271,24 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
       {/* Edit metadata modal */}
       {editing && (
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
-          <h3 className="text-sm font-medium text-blue-800">Edit Document Metadata</h3>
+          <h3 className="text-sm font-medium text-blue-800">Editar Metadados do Documento</h3>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Title</label>
+              <label className="block text-xs text-gray-600 mb-1">Título</label>
               <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" />
             </div>
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Type</label>
+              <label className="block text-xs text-gray-600 mb-1">Tipo</label>
               <input value={editType} onChange={(e) => setEditType(e.target.value)} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" />
             </div>
           </div>
           <div>
-            <label className="block text-xs text-gray-600 mb-1">Notes</label>
+            <label className="block text-xs text-gray-600 mb-1">Observações</label>
             <textarea value={editNotes} onChange={(e) => setEditNotes(e.target.value)} rows={2} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" />
           </div>
           <div className="flex gap-2">
-            <button onClick={saveEdit} disabled={editLoading} className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50">{editLoading ? 'Saving...' : 'Save'}</button>
-            <button onClick={() => setEditing(false)} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+            <button onClick={saveEdit} disabled={editLoading} className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50">{editLoading ? 'Salvando...' : 'Salvar'}</button>
+            <button onClick={() => setEditing(false)} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Cancelar</button>
           </div>
         </div>
       )}
@@ -296,10 +296,10 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
       {/* Delete confirmation */}
       {showDeleteConfirm && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-800 mb-3">Are you sure you want to delete this document? This action cannot be undone.</p>
+          <p className="text-sm text-red-800 mb-3">Tem certeza que deseja excluir este documento? Esta ação não pode ser desfeita.</p>
           <div className="flex gap-2">
-            <button onClick={handleDelete} disabled={deleteLoading} className="rounded bg-red-600 px-4 py-1.5 text-sm text-white hover:bg-red-700 disabled:opacity-50">{deleteLoading ? 'Deleting...' : 'Confirm Delete'}</button>
-            <button onClick={() => setShowDeleteConfirm(false)} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+            <button onClick={handleDelete} disabled={deleteLoading} className="rounded bg-red-600 px-4 py-1.5 text-sm text-white hover:bg-red-700 disabled:opacity-50">{deleteLoading ? 'Excluindo...' : 'Confirmar Exclusão'}</button>
+            <button onClick={() => setShowDeleteConfirm(false)} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Cancelar</button>
           </div>
         </div>
       )}
@@ -311,7 +311,7 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
           <input value={rejectCpoReason} onChange={(e) => setRejectCpoReason(e.target.value)} placeholder="Motivo da rejeição..." className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" />
           <div className="flex gap-2">
             <button onClick={rejectCpo} disabled={cpoLoading || !rejectCpoReason.trim()} className="rounded bg-orange-600 px-4 py-1.5 text-sm text-white hover:bg-orange-700 disabled:opacity-50">{cpoLoading ? 'Rejeitando...' : 'Confirmar Rejeição'}</button>
-            <button onClick={() => { setShowRejectCpo(false); setRejectCpoReason(''); }} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Cancelar</button>
+            <button onClick={() => { setShowRejectCpo(false); setRejectCpoReason(''); }} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Cancelarar</button>
           </div>
         </div>
       )}
@@ -344,8 +344,8 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
             <textarea value={flagDesc} onChange={(e) => setFlagDesc(e.target.value)} rows={2} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" placeholder="Describe the issue..." />
           </div>
           <div className="flex gap-2">
-            <button onClick={submitFlag} disabled={flagLoading || !flagDesc.trim()} className="rounded bg-amber-600 px-4 py-1.5 text-sm text-white hover:bg-amber-700 disabled:opacity-50">{flagLoading ? 'Submitting...' : 'Submit Flag'}</button>
-            <button onClick={() => setShowFlagForm(false)} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+            <button onClick={submitFlag} disabled={flagLoading || !flagDesc.trim()} className="rounded bg-amber-600 px-4 py-1.5 text-sm text-white hover:bg-amber-700 disabled:opacity-50">{flagLoading ? 'Enviando...' : 'Enviar Flag'}</button>
+            <button onClick={() => setShowFlagForm(false)} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Cancelar</button>
           </div>
         </div>
       )}

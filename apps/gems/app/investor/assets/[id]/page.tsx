@@ -31,7 +31,7 @@ export default function InvestorAssetDetailPage({ params }: { params: { id: stri
   async function handleInquire() {
     setInquireLoading(true); setInquireMsg('');
     try {
-      await api.post(`/investor/assets/${id}/inquire`);
+      await api.post(`/investor/assets/${id}/inquire`, {});
       setInquireMsg('Interesse manifestado com sucesso.');
     } catch (err: any) {
       setInquireMsg(err?.response?.data?.message || 'Falha ao manifestar interesse.');
@@ -43,7 +43,7 @@ export default function InvestorAssetDetailPage({ params }: { params: { id: stri
   async function handleLogout() {
     setLogoutLoading(true);
     try {
-      await api.post('/investor/auth/logout');
+      await api.post('/investor/auth/logout', {});
       router.push('/investor/login');
     } catch {
       router.push('/investor/login');
