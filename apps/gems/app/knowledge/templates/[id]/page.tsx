@@ -23,7 +23,7 @@ export default function TemplateDetailPage({ params }: { params: { id: string } 
 
   async function recordUse() {
     try {
-      await api.post(`/knowledge/templates/${id}/use`);
+      await api.post(`/knowledge/templates/${id}/use`, {});
       setUseMsg('Uso registrado.');
     } catch { setUseMsg('Falha.'); }
   }

@@ -96,7 +96,7 @@ export default function SuperAdminTenantQuotasPage({ params }: { params: { id: s
     setRecalculating(true);
     setRecalcMsg(null);
     try {
-      const { data } = await api.post(`/super-admin/tenants/${id}/storage/calculate`);
+      const { data } = await api.post(`/super-admin/tenants/${id}/storage/calculate`, {});
       setRecalcMsg(`Armazenamento recalculado: ${formatBytes(data?.storage_bytes ?? data?.data?.storage_bytes ?? 0)}`);
     } catch (err: any) {
       setRecalcMsg(err?.response?.data?.message ?? 'Falha ao recalcular armazenamento.');

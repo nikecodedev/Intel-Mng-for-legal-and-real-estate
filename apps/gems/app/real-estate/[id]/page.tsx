@@ -62,6 +62,10 @@ export default function RealEstateAssetDetailPage({ params }: { params: { id: st
   const [vacancyError, setVacancyError] = useState('');
   const [vacancySuccess, setVacancySuccess] = useState('');
 
+  // Vacancy statistics state
+  const [vacStatsProcessing, setVacStatsProcessing] = useState(false);
+  const [vacStatsMsg, setVacStatsMsg] = useState('');
+
   const { data: asset, isLoading: assetLoading, error: assetError } = useQuery(
     ['real-estate-asset', id],
     () => fetchAssetById(id),
@@ -100,6 +104,27 @@ export default function RealEstateAssetDetailPage({ params }: { params: { id: st
     async () => { const r = await api.get(`/assets/${id}`); return r.data?.data ?? r.data; },
     { staleTime: 60 * 1000, retry: false, enabled: false }
   );
+
+  // Vacancy statistics query
+  const { data: vacancyStats, isLoading: vacStatsLoading, refetch: refetchVacStats } = useQuery(
+    'vacancy-statistics',
+    async () => { const r = await api.get('/assets/vacancy/statistics'); return r.data?.data ?? r.data; },
+    { staleTime: 60 * 1000, retry: false, refetchOnWindowFocus: false }
+  );
+
+  const handleProcessAlerts = async () => {
+    setVacStatsProcessing(true);
+    setVacStatsMsg('');
+    try {
+      await api.post('/assets/vacancy/process-alerts', {});
+      setVacStatsMsg('Alertas processados com sucesso.');
+      refetchVacStats();
+    } catch (err: any) {
+      setVacStatsMsg(err?.response?.data?.message || 'Falha ao processar alertas.');
+    } finally {
+      setVacStatsProcessing(false);
+    }
+  };
 
   // Individual cost submit
   const handleAddCost = async (e: React.FormEvent) => {
@@ -496,6 +521,50 @@ export default function RealEstateAssetDetailPage({ params }: { params: { id: st
         </div>
         {vacancyError && <p className="mt-2 text-sm text-red-600">{vacancyError}</p>}
         {vacancySuccess && <p className="mt-2 text-sm text-green-600">{vacancySuccess}</p>}
+      </section>
+
+      {/* Estatisticas de Vacancia */}
+      <section className="rounded-lg border border-gray-200 bg-white p-6">
+        <h3 className="text-sm font-medium text-gray-500 mb-3">Estatisticas de Vacancia</h3>
+        {vacStatsLoading && <p className="text-sm text-gray-500">Carregando estatisticas...</p>}
+        {vacancyStats ? (
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mb-4">
+            <dt className="text-gray-600">Taxa de Ocupacao</dt>
+            <dd className="font-medium">
+              {vacancyStats.occupancy_rate != null
+                ? `${Math.round(vacancyStats.occupancy_rate * 100)}%`
+                : vacancyStats.occupancy_percentage != null
+                  ? `${vacancyStats.occupancy_percentage}%`
+                  : '—'}
+            </dd>
+            <dt className="text-gray-600">Tempo Medio de Vacancia</dt>
+            <dd className="font-medium">
+              {vacancyStats.average_vacancy_days != null
+                ? `${vacancyStats.average_vacancy_days} dias`
+                : vacancyStats.average_vacancy_time != null
+                  ? vacancyStats.average_vacancy_time
+                  : '—'}
+            </dd>
+            <dt className="text-gray-600">Total de Imoveis Vagos</dt>
+            <dd className="font-medium">{vacancyStats.vacant_count ?? vacancyStats.total_vacant ?? '—'}</dd>
+            <dt className="text-gray-600">Total de Imoveis</dt>
+            <dd className="font-medium">{vacancyStats.total_assets ?? vacancyStats.total ?? '—'}</dd>
+          </dl>
+        ) : !vacStatsLoading ? (
+          <p className="text-sm text-gray-500 mb-4">Estatisticas indisponiveis.</p>
+        ) : null}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleProcessAlerts}
+            disabled={vacStatsProcessing}
+            className="rounded bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+          >
+            {vacStatsProcessing ? 'Processando...' : 'Processar Alertas'}
+          </button>
+          {vacStatsMsg && (
+            <p className={`text-sm ${vacStatsMsg.includes('sucesso') ? 'text-green-600' : 'text-red-600'}`}>{vacStatsMsg}</p>
+          )}
+        </div>
       </section>
 
       {/* Linked auction reference */}

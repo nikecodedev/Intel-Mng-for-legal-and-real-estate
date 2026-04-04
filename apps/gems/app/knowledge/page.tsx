@@ -48,10 +48,15 @@ export default function KnowledgePage() {
   const [searchResults, setSearchResults] = useState<KnowledgeEntry[]>([]);
   const [searching, setSearching] = useState(false);
   const [filterType, setFilterType] = useState('');
+  const [recommended, setRecommended] = useState<DocumentTemplate[]>([]);
+  const [recommendedLoading, setRecommendedLoading] = useState(false);
 
   useEffect(() => {
     if (tab === 'entries') fetchEntries();
-    else if (tab === 'templates') fetchTemplates();
+    else if (tab === 'templates') {
+      fetchTemplates();
+      fetchRecommended();
+    }
   }, [tab, filterType]);
 
   async function fetchEntries() {
@@ -81,6 +86,19 @@ export default function KnowledgePage() {
       setError(isApiError(err) ? getApiErrorMessage(err) : 'Falha ao carregar modelos');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchRecommended() {
+    setRecommendedLoading(true);
+    try {
+      const { data } = await api.get('/knowledge/templates/recommended');
+      setRecommended(data?.templates ?? data?.data ?? []);
+    } catch {
+      // silently ignore — recommended is optional
+      setRecommended([]);
+    } finally {
+      setRecommendedLoading(false);
     }
   }
 
@@ -205,6 +223,31 @@ export default function KnowledgePage() {
       {/* Templates Tab */}
       {tab === 'templates' && (
         <div>
+          {/* Recommended Templates */}
+          <div className="mb-6">
+            <h2 className="text-base font-semibold text-gray-900 mb-3">Recomendados</h2>
+            {recommendedLoading ? (
+              <p className="text-sm text-gray-500">Carregando recomendados...</p>
+            ) : recommended.length === 0 ? (
+              <p className="text-sm text-gray-500">Nenhum modelo recomendado no momento.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                {recommended.map((tpl) => (
+                  <div key={tpl.id} className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                    <h3 className="text-sm font-medium text-gray-900">{tpl.template_name}</h3>
+                    <p className="text-xs text-gray-600 mt-1">{tpl.description ?? tpl.template_type}</p>
+                    <div className="mt-2 flex items-center gap-3 text-xs text-gray-500">
+                      <span>{tpl.usage_count ?? 0} usos</span>
+                      {tpl.success_rate != null && (
+                        <span>Taxa de sucesso: {Math.round(tpl.success_rate * 100)}%</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm text-gray-600">{templatesTotal} modelos</p>
           </div>

@@ -96,7 +96,7 @@ export default function ExpenseCaptureFormPage() {
     setSubmitError('');
     setSubmitSuccess(false);
     try {
-      await api.post(`/finance/expenses/${createdExpenseId}/submit`);
+      await api.post(`/finance/expenses/${createdExpenseId}/submit`, {});
       setSubmitSuccess(true);
       setCreatedExpenseId(null);
     } catch (err: any) {

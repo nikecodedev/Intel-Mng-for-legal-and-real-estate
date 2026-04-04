@@ -34,6 +34,61 @@ interface VerificationResult {
   latest_hash: string;
 }
 
+interface Violation {
+  id: string;
+  violation_type: string;
+  detected_at: string;
+  details: string | null;
+}
+
+function ViolationsSection() {
+  const { data: violations, isLoading, error } = useQuery<Violation[]>(
+    'audit-violations',
+    async () => {
+      const res = await api.get('/audit-integrity/violations');
+      return (res.data?.data ?? res.data?.violations ?? []) as Violation[];
+    },
+    { retry: false, refetchOnWindowFocus: false }
+  );
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-6">
+      <h2 className="text-lg font-medium text-gray-900 mb-4">Violacoes de Integridade</h2>
+      {isLoading && <p className="text-sm text-gray-500">Carregando violacoes...</p>}
+      {error ? (
+        <p className="text-sm text-red-600">Falha ao carregar violacoes. Voce pode nao ter as permissoes necessarias.</p>
+      ) : null}
+      {violations && violations.length === 0 && (
+        <p className="text-sm text-green-700">Nenhuma violacao detectada.</p>
+      )}
+      {violations && violations.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200">
+                <th className="text-left py-2 pr-4 font-medium text-gray-600">ID</th>
+                <th className="text-left py-2 pr-4 font-medium text-gray-600">Tipo de Violacao</th>
+                <th className="text-left py-2 pr-4 font-medium text-gray-600">Detectado em</th>
+                <th className="text-left py-2 pr-4 font-medium text-gray-600">Detalhes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {violations.map((v) => (
+                <tr key={v.id} className="border-b border-gray-100">
+                  <td className="py-2 pr-4 font-mono text-xs">{v.id.slice(0, 8)}...</td>
+                  <td className="py-2 pr-4">{v.violation_type}</td>
+                  <td className="py-2 pr-4">{new Date(v.detected_at).toLocaleString()}</td>
+                  <td className="py-2 pr-4 text-gray-600">{v.details ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function integrityBadge(status: string) {
   switch (status) {
     case 'valid':
@@ -119,6 +174,9 @@ export default function CompliancePage() {
           <p className="mt-3 text-sm text-red-600">Falha na solicitacao de verificacao. Voce pode nao ter as permissoes necessarias.</p>
         )}
       </div>
+
+      {/* Violations Table */}
+      <ViolationsSection />
 
       {/* Verification Results */}
       {verification ? (

@@ -39,7 +39,7 @@ export default function LegalReviewPage() {
 
   const approveMutation = useMutation(
     async (id: string) => {
-      const res = await api.post(`/generated-documents/${id}/approve`);
+      const res = await api.post(`/generated-documents/${id}/approve`, {});
       return res.data;
     },
     {
@@ -51,7 +51,7 @@ export default function LegalReviewPage() {
 
   const submitReviewMutation = useMutation(
     async (docId: string) => {
-      const res = await api.post(`/generated-documents/${docId}/submit-review`);
+      const res = await api.post(`/generated-documents/${docId}/submit-review`, {});
       return res.data;
     },
     { onSuccess: () => { queryClient.invalidateQueries('generated-documents'); } }
