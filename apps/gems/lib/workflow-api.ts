@@ -59,7 +59,7 @@ export async function updateTaskStatus(
   taskId: string,
   status: string
 ): Promise<WorkflowTask> {
-  const res = await api.put(`/workflow/tasks/${taskId}/status`, { status });
+  const res = await api.patch(`/workflow/tasks/${taskId}`, { status });
   return (res.data?.data ?? res.data?.task ?? res.data) as WorkflowTask;
 }
 
@@ -85,7 +85,7 @@ export async function toggleTrigger(
   triggerId: string,
   isActive: boolean
 ): Promise<WorkflowTrigger> {
-  const res = await api.put(`/workflow/triggers/${triggerId}/active`, { is_active: isActive });
+  const res = await api.patch(`/workflow/triggers/${triggerId}`, { is_active: isActive });
   return (res.data?.data ?? res.data?.trigger ?? res.data) as WorkflowTrigger;
 }
 
