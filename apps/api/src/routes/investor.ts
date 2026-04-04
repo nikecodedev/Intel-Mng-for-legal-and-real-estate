@@ -483,4 +483,47 @@ router.get(
   })
 );
 
+// ============================================
+// Inquire / Express Interest
+// ============================================
+
+/**
+ * POST /investor/assets/:id/inquire
+ * Express interest in an asset
+ */
+router.post(
+  '/assets/:id/inquire',
+  authenticateInvestor,
+  requireInvestor,
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const investor = req.investor!;
+    const { id } = req.params;
+
+    const hasAccess = await InvestorAssetLinkModel.hasAccess(investor.id, id, investor.tenant_id);
+    if (!hasAccess) {
+      throw new AuthorizationError('Access denied to this asset');
+    }
+
+    // Audit the inquiry
+    await AuditService.log({
+      tenantId: investor.tenant_id,
+      userId: investor.id,
+      userEmail: investor.email,
+      userRole: 'INVESTOR',
+      action: AuditAction.CREATE,
+      eventType: 'investor.asset.inquire',
+      eventCategory: AuditEventCategory.DATA_MODIFICATION,
+      resourceType: 'auction_asset',
+      resourceId: id,
+      description: `Investor ${investor.email} expressed interest in asset ${id}`,
+    });
+
+    res.json({
+      success: true,
+      message: 'Interest expressed successfully',
+      data: { asset_id: id, investor_id: investor.id, inquired_at: new Date().toISOString() },
+    });
+  })
+);
+
 export default router;

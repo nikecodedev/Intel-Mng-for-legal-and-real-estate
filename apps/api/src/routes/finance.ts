@@ -10,6 +10,7 @@ import { ExpenseCaptureModel, ExpenseStatus } from '../models/expense-capture.js
 import { BankReconciliationService } from '../services/bank-reconciliation.js';
 import { AuditService, AuditAction, AuditEventCategory } from '../services/audit.js';
 import { DocumentModel } from '../models/document.js';
+import { db } from '../models/database.js';
 import { logger } from '../utils/logger.js';
 
 const router = Router();
@@ -375,6 +376,48 @@ router.get(
       total,
       limit,
       offset,
+    });
+  })
+);
+
+/**
+ * POST /finance/receivables
+ * Create account receivable
+ */
+router.post(
+  '/receivables',
+  authenticate,
+  requirePermission('finance:create'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const { client_name, original_amount_cents, invoice_due_date, notes } = req.body;
+
+    if (!client_name || !original_amount_cents) {
+      res.status(400).json({ success: false, error: 'client_name and original_amount_cents are required' });
+      return;
+    }
+
+    // Create a financial transaction first
+    const txResult = await db.query<{ id: string }>(
+      `INSERT INTO financial_transactions (tenant_id, transaction_number, transaction_type, amount_cents, currency, description, transaction_date, payment_status, due_date, created_by)
+       VALUES ($1, 'AR-' || to_char(CURRENT_TIMESTAMP, 'YYYY-MM-DD-HH24MISS'), 'RECEIVABLE', $2, 'BRL', $3, CURRENT_DATE, 'PENDING', $4, $5)
+       RETURNING id`,
+      [tenantContext.tenantId, original_amount_cents, notes || client_name, invoice_due_date || null, tenantContext.userId]
+    );
+
+    const txId = txResult.rows[0].id;
+
+    // Create the receivable record
+    const arResult = await db.query<{ id: string }>(
+      `INSERT INTO accounts_receivable (tenant_id, transaction_id, client_name, original_amount_cents, remaining_amount_cents, payment_status, invoice_due_date, notes)
+       VALUES ($1, $2, $3, $4, $4, 'PENDING', $5, $6)
+       RETURNING id`,
+      [tenantContext.tenantId, txId, client_name, original_amount_cents, invoice_due_date || null, notes || null]
+    );
+
+    res.status(201).json({
+      success: true,
+      data: { id: arResult.rows[0].id, transaction_id: txId },
     });
   })
 );
