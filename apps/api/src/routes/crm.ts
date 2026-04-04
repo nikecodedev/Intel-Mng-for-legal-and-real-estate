@@ -403,4 +403,35 @@ router.get(
   })
 );
 
+/**
+ * PUT /crm/preference-profiles/:id
+ * Update existing preference profile
+ */
+router.put(
+  '/preference-profiles/:id',
+  authenticate,
+  requirePermission('crm:update'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const { id } = req.params;
+
+    const existing = await InvestorPreferenceProfileModel.findById(id, tenantContext.tenantId);
+    if (!existing) {
+      throw new NotFoundError('Investor preference profile');
+    }
+
+    // Use createOrUpdate with the investor_user_id from the existing profile
+    const updated = await InvestorPreferenceProfileModel.createOrUpdate({
+      tenant_id: tenantContext.tenantId,
+      investor_user_id: existing.investor_user_id,
+      ...req.body,
+    });
+
+    res.json({
+      success: true,
+      profile: updated,
+    });
+  })
+);
+
 export default router;
