@@ -138,6 +138,13 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
   const [flagSeverity, setFlagSeverity] = useState('WARNING');
   const [flagLoading, setFlagLoading] = useState(false);
 
+  // Extraction edit state
+  const [editingExtraction, setEditingExtraction] = useState(false);
+  const [extProcessNumber, setExtProcessNumber] = useState('');
+  const [extCourt, setExtCourt] = useState('');
+  const [extEditLoading, setExtEditLoading] = useState(false);
+  const [extEditMsg, setExtEditMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   // CPO + extract state
   const [cpoLoading, setCpoLoading] = useState(false);
   const [extractLoading, setExtractLoading] = useState(false);
@@ -180,6 +187,32 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
     } catch (err: any) {
       setActionMsg({ type: 'error', text: err?.response?.data?.message || 'Falha ao extrair factos.' });
     } finally { setExtractLoading(false); }
+  }
+
+  function startExtractionEdit() {
+    setExtProcessNumber(ext?.process_number != null ? String(ext.process_number) : '');
+    setExtCourt(ext?.court != null ? String(ext.court) : '');
+    setEditingExtraction(true);
+    setExtEditMsg(null);
+  }
+
+  async function saveExtractionEdit() {
+    setExtEditLoading(true);
+    setExtEditMsg(null);
+    try {
+      await api.put(`/documents/${id}/extraction`, {
+        process_number: extProcessNumber,
+        court: extCourt,
+      });
+      setEditingExtraction(false);
+      setExtEditMsg({ type: 'success', text: 'Extração atualizada com sucesso.' });
+      queryClient.invalidateQueries(['legal-document', id]);
+      queryClient.invalidateQueries(['legal-document-extractions', id]);
+    } catch (err: any) {
+      setExtEditMsg({ type: 'error', text: err?.response?.data?.message || 'Falha ao atualizar extração.' });
+    } finally {
+      setExtEditLoading(false);
+    }
   }
 
   function startEdit() {
@@ -371,22 +404,80 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
 
       {ext && (
         <section className="rounded-lg border border-gray-200 bg-white p-6">
-          <h3 className="text-sm font-medium text-gray-500 mb-3">Extracted fields</h3>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-            {ext.process_number != null && <><dt className="text-gray-600">Process number</dt><dd className="font-medium">{String(ext.process_number)}</dd></>}
-            {ext.court != null && <><dt className="text-gray-600">Court</dt><dd className="font-medium">{String(ext.court)}</dd></>}
-            {ext.overall_confidence != null && <><dt className="text-gray-600">Confidence</dt><dd className="font-medium">{formatPercent(Number(ext.overall_confidence), false)}</dd></>}
-            {ext.processed_at != null && <><dt className="text-gray-600">Processed at</dt><dd className="font-medium"><DateDisplay value={ext.processed_at} style="long" /></dd></>}
-          </dl>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-gray-500">Campos Extraídos</h3>
+            {!editingExtraction && (
+              <button
+                onClick={startExtractionEdit}
+                className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-50"
+              >
+                Editar
+              </button>
+            )}
+          </div>
+
+          {extEditMsg && (
+            <div className={`mb-3 rounded-lg border p-3 text-sm ${extEditMsg.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+              {extEditMsg.text}
+            </div>
+          )}
+
+          {editingExtraction ? (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
+              <h4 className="text-sm font-medium text-blue-800">Editar Extração</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Número do Processo</label>
+                  <input
+                    value={extProcessNumber}
+                    onChange={(e) => setExtProcessNumber(e.target.value)}
+                    className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm"
+                    placeholder="ex. 0001234-56.2024.8.26.0100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Tribunal</label>
+                  <input
+                    value={extCourt}
+                    onChange={(e) => setExtCourt(e.target.value)}
+                    className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm"
+                    placeholder="ex. TJSP"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={saveExtractionEdit}
+                  disabled={extEditLoading}
+                  className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {extEditLoading ? 'Salvando...' : 'Salvar'}
+                </button>
+                <button
+                  onClick={() => { setEditingExtraction(false); setExtEditMsg(null); }}
+                  className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              {ext.process_number != null && <><dt className="text-gray-600">Número do Processo</dt><dd className="font-medium">{String(ext.process_number)}</dd></>}
+              {ext.court != null && <><dt className="text-gray-600">Tribunal</dt><dd className="font-medium">{String(ext.court)}</dd></>}
+              {ext.overall_confidence != null && <><dt className="text-gray-600">Confiança</dt><dd className="font-medium">{formatPercent(Number(ext.overall_confidence), false)}</dd></>}
+              {ext.processed_at != null && <><dt className="text-gray-600">Processado em</dt><dd className="font-medium"><DateDisplay value={ext.processed_at} style="long" /></dd></>}
+            </dl>
+          )}
           {Array.isArray(ext.parties) && ext.parties.length > 0 ? (
             <div className="mt-4">
-              <h4 className="text-sm font-medium text-gray-600 mb-2">Parties</h4>
+              <h4 className="text-sm font-medium text-gray-600 mb-2">Partes</h4>
               <PartiesTable parties={ext.parties as Array<{ name?: string; role?: string; cpf_cnpj?: string }>} />
             </div>
           ) : null}
           {Array.isArray(ext.monetary_values) && (ext.monetary_values as unknown[]).length > 0 ? (
             <div className="mt-4">
-              <h4 className="text-sm font-medium text-gray-600 mb-2">Monetary values</h4>
+              <h4 className="text-sm font-medium text-gray-600 mb-2">Valores Monetários</h4>
               <MonetaryValuesTable values={ext.monetary_values as MonetaryValue[]} />
             </div>
           ) : null}

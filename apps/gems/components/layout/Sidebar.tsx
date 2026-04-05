@@ -23,6 +23,7 @@ const navItems: NavItem[] = [
   { href: '/knowledge', label: 'Conhecimento', icon: <KnowledgeIcon />, section: 'tools' },
   { href: '/workflow', label: 'Fluxos', icon: <WorkflowIcon />, section: 'tools' },
   { href: '/compliance', label: 'Conformidade', icon: <ComplianceIcon />, section: 'tools' },
+  { href: '/intelligence', label: 'Inteligência', icon: <IntelligenceIcon />, section: 'tools' },
   { href: '/investor', label: 'Investidor', icon: <InvestorIcon />, section: 'admin', roles: ['INVESTOR'] },
   { href: '/admin', label: 'Administração', icon: <AdminIcon />, section: 'admin', roles: ['OWNER'] },
   { href: '/super-admin', label: 'Super Admin', icon: <SuperAdminIcon />, section: 'admin', roles: ['OWNER'] },
@@ -244,6 +245,14 @@ function AdminIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="8" cy="8" r="2.5" /><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.5 1.5M11.5 11.5L13 13M13 3l-1.5 1.5M4.5 11.5L3 13" />
+    </svg>
+  );
+}
+
+function IntelligenceIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="6" r="4" /><path d="M5 12h6M7 10v4M9 10v4" />
     </svg>
   );
 }

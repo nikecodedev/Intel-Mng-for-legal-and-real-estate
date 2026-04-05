@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -28,6 +29,8 @@ function getPageTitle(pathname: string): string {
     crm: 'CRM',
     workflow: 'Fluxo de Trabalho',
     compliance: 'Conformidade',
+    intelligence: 'Inteligência',
+    profile: 'Perfil',
     investor: 'Investidor',
     admin: 'Administração',
     'super-admin': 'Super Admin',
@@ -87,14 +90,14 @@ export function Header({ onMenuToggle }: { onMenuToggle?: () => void }) {
                 {formatTenantDisplay(user.tenant_name, user.tenant_id)}
               </span>
             </div>
-            <div className="hidden items-center gap-2.5 sm:flex">
+            <Link href="/profile" className="hidden items-center gap-2.5 sm:flex hover:opacity-80 transition-opacity">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white">
                 {userInitials}
               </div>
               <span className="text-sm font-medium text-gray-700 truncate max-w-[150px]" title={user.email}>
                 {formatUserDisplay(user)}
               </span>
-            </div>
+            </Link>
           </>
         )}
         <button

@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from 'react-query';
 import Link from 'next/link';
 import { StatusBadge, DateDisplay, BlockLoader } from '@/components/ui';
 import { formatBytes } from '@/lib/utils';
+import { api } from '@/lib/api';
 import {
   fetchTenantDashboard,
   suspendTenant,
@@ -18,6 +19,15 @@ export default function SuperAdminTenantDetailPage({ params }: { params: { id: s
   const queryClient = useQueryClient();
   const [showSuspend, setShowSuspend] = useState(false);
   const [suspendReason, setSuspendReason] = useState('');
+
+  // Edit tenant state
+  const [editingTenant, setEditingTenant] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editPlan, setEditPlan] = useState('');
+  const [editContactEmail, setEditContactEmail] = useState('');
+  const [editDomain, setEditDomain] = useState('');
+  const [editTenantLoading, setEditTenantLoading] = useState(false);
+  const [editTenantMsg, setEditTenantMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const { data: dashboard, isLoading, error } = useQuery(
     ['super-admin-tenant-dashboard', id],
@@ -42,6 +52,35 @@ export default function SuperAdminTenantDetailPage({ params }: { params: { id: s
       queryClient.invalidateQueries('super-admin-dashboard');
     },
   });
+
+  function startEditTenant() {
+    setEditName(tenant?.name ?? '');
+    setEditPlan(tenant?.subscription_plan ?? '');
+    setEditContactEmail(tenant?.contact_email ?? '');
+    setEditDomain(tenant?.domain ?? '');
+    setEditingTenant(true);
+    setEditTenantMsg(null);
+  }
+
+  async function saveEditTenant() {
+    setEditTenantLoading(true);
+    setEditTenantMsg(null);
+    try {
+      await api.put(`/super-admin/tenants/${id}`, {
+        name: editName,
+        subscription_plan: editPlan,
+        contact_email: editContactEmail,
+        domain: editDomain,
+      });
+      setEditingTenant(false);
+      setEditTenantMsg({ type: 'success', text: 'Tenant atualizado com sucesso.' });
+      queryClient.invalidateQueries(['super-admin-tenant-dashboard', id]);
+    } catch (err: any) {
+      setEditTenantMsg({ type: 'error', text: err?.response?.data?.message || 'Falha ao atualizar tenant.' });
+    } finally {
+      setEditTenantLoading(false);
+    }
+  }
 
   if (isLoading) return <BlockLoader message="Carregando..." />;
 
@@ -97,21 +136,94 @@ export default function SuperAdminTenantDetailPage({ params }: { params: { id: s
       </section>
 
       <section className="rounded-lg border border-gray-200 bg-white p-6">
-        <h3 className="text-sm font-medium text-gray-500 mb-3">Detalhes do Tenant</h3>
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-          <dt className="text-gray-600">ID</dt>
-          <dd className="font-mono text-xs">{tenant.id}</dd>
-          <dt className="text-gray-600">Codigo</dt>
-          <dd className="font-medium">{tenant.tenant_code ?? '—'}</dd>
-          <dt className="text-gray-600">Dominio</dt>
-          <dd className="font-medium">{tenant.domain ?? '—'}</dd>
-          <dt className="text-gray-600">Plano</dt>
-          <dd className="font-medium">{tenant.subscription_plan}</dd>
-          <dt className="text-gray-600">Contato</dt>
-          <dd className="font-medium">{tenant.contact_email ?? '—'}</dd>
-          <dt className="text-gray-600">Criado em</dt>
-          <dd className="font-medium"><DateDisplay value={tenant.created_at} style="medium" /></dd>
-        </dl>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-gray-500">Detalhes do Tenant</h3>
+          {!editingTenant && (
+            <button
+              onClick={startEditTenant}
+              className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-50"
+            >
+              Editar
+            </button>
+          )}
+        </div>
+
+        {editTenantMsg && (
+          <div className={`mb-3 rounded-lg border p-3 text-sm ${editTenantMsg.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+            {editTenantMsg.text}
+          </div>
+        )}
+
+        {editingTenant ? (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
+            <h4 className="text-sm font-medium text-blue-800">Editar Tenant</h4>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Nome</label>
+                <input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Plano de Assinatura</label>
+                <input
+                  value={editPlan}
+                  onChange={(e) => setEditPlan(e.target.value)}
+                  className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">E-mail de Contato</label>
+                <input
+                  type="email"
+                  value={editContactEmail}
+                  onChange={(e) => setEditContactEmail(e.target.value)}
+                  className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Domínio</label>
+                <input
+                  value={editDomain}
+                  onChange={(e) => setEditDomain(e.target.value)}
+                  className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={saveEditTenant}
+                disabled={editTenantLoading}
+                className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {editTenantLoading ? 'Salvando...' : 'Salvar'}
+              </button>
+              <button
+                onClick={() => { setEditingTenant(false); setEditTenantMsg(null); }}
+                className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        ) : (
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+            <dt className="text-gray-600">ID</dt>
+            <dd className="font-mono text-xs">{tenant.id}</dd>
+            <dt className="text-gray-600">Codigo</dt>
+            <dd className="font-medium">{tenant.tenant_code ?? '—'}</dd>
+            <dt className="text-gray-600">Dominio</dt>
+            <dd className="font-medium">{tenant.domain ?? '—'}</dd>
+            <dt className="text-gray-600">Plano</dt>
+            <dd className="font-medium">{tenant.subscription_plan}</dd>
+            <dt className="text-gray-600">Contato</dt>
+            <dd className="font-medium">{tenant.contact_email ?? '—'}</dd>
+            <dt className="text-gray-600">Criado em</dt>
+            <dd className="font-medium"><DateDisplay value={tenant.created_at} style="medium" /></dd>
+          </dl>
+        )}
       </section>
 
       {/* Links para Cotas e White-Label */}

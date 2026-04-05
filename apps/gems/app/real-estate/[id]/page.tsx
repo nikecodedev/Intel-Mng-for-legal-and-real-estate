@@ -66,6 +66,20 @@ export default function RealEstateAssetDetailPage({ params }: { params: { id: st
   const [vacStatsProcessing, setVacStatsProcessing] = useState(false);
   const [vacStatsMsg, setVacStatsMsg] = useState('');
 
+  // Vacancy alerts query
+  const { data: vacancyAlerts, isLoading: vacAlertsLoading } = useQuery(
+    'vacancy-alerts',
+    async () => { const r = await api.get('/assets/vacancy/alerts'); return r.data?.data ?? r.data; },
+    { staleTime: 60 * 1000, retry: false, refetchOnWindowFocus: false }
+  );
+
+  // Quality gates checks query
+  const { data: qualityChecks, isLoading: qualityChecksLoading } = useQuery(
+    ['quality-gate-checks', id],
+    async () => { const r = await api.get(`/quality-gates/checks/REAL_ESTATE_ASSET/${id}`); return r.data?.data ?? r.data; },
+    { staleTime: 60 * 1000, retry: false }
+  );
+
   const { data: asset, isLoading: assetLoading, error: assetError } = useQuery(
     ['real-estate-asset', id],
     () => fetchAssetById(id),
@@ -600,6 +614,90 @@ export default function RealEstateAssetDetailPage({ params }: { params: { id: st
           </ul>
         </section>
       )}
+
+      {/* Imóveis em Alerta (Vacancy Alerts) */}
+      <section className="rounded-lg border border-gray-200 bg-white p-6">
+        <h3 className="text-sm font-medium text-gray-500 mb-3">Imóveis em Alerta</h3>
+        {vacAlertsLoading && <p className="text-sm text-gray-500">Carregando alertas...</p>}
+        {!vacAlertsLoading && Array.isArray(vacancyAlerts) && vacancyAlerts.length > 0 ? (
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left font-medium text-gray-600">Código do Imóvel</th>
+                  <th className="px-4 py-2 text-left font-medium text-gray-600">Dias de Vacância</th>
+                  <th className="px-4 py-2 text-left font-medium text-gray-600">Última Verificação</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {vacancyAlerts.map((alert: any, i: number) => (
+                  <tr key={alert.id ?? alert.asset_id ?? i} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 font-medium text-gray-900 font-mono">
+                      {alert.asset_code ?? alert.asset_id?.slice(0, 8) ?? '—'}
+                    </td>
+                    <td className="px-4 py-2 text-gray-700">
+                      {alert.vacancy_days ?? alert.days_vacant ?? '—'}
+                    </td>
+                    <td className="px-4 py-2 text-gray-500">
+                      {alert.last_check ?? alert.checked_at ?? alert.last_checked_at
+                        ? new Date(alert.last_check ?? alert.checked_at ?? alert.last_checked_at).toLocaleDateString('pt-BR')
+                        : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : !vacAlertsLoading ? (
+          <p className="text-sm text-gray-500">Nenhum alerta de vacância no momento.</p>
+        ) : null}
+      </section>
+
+      {/* Verificações de Qualidade (Quality Gates) */}
+      <section className="rounded-lg border border-gray-200 bg-white p-6">
+        <h3 className="text-sm font-medium text-gray-500 mb-3">Verificações de Qualidade</h3>
+        {qualityChecksLoading && <p className="text-sm text-gray-500">Carregando verificações...</p>}
+        {!qualityChecksLoading && Array.isArray(qualityChecks) && qualityChecks.length > 0 ? (
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left font-medium text-gray-600">Código</th>
+                  <th className="px-4 py-2 text-left font-medium text-gray-600">Nome</th>
+                  <th className="px-4 py-2 text-left font-medium text-gray-600">Resultado</th>
+                  <th className="px-4 py-2 text-left font-medium text-gray-600">Verificado em</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {qualityChecks.map((check: any, i: number) => (
+                  <tr key={check.id ?? i} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 font-mono text-xs text-gray-900">{check.gate_code ?? '—'}</td>
+                    <td className="px-4 py-2 font-medium text-gray-900">{check.gate_name ?? '—'}</td>
+                    <td className="px-4 py-2">
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
+                        check.passed === true
+                          ? 'bg-green-100 text-green-800'
+                          : check.passed === false
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {check.passed === true ? 'Aprovado' : check.passed === false ? 'Reprovado' : '—'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 text-gray-500">
+                      {check.checked_at
+                        ? new Date(check.checked_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                        : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : !qualityChecksLoading ? (
+          <p className="text-sm text-gray-500">Nenhuma verificação de qualidade disponível.</p>
+        ) : null}
+      </section>
     </div>
   );
 }
