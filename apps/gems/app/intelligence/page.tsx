@@ -3,11 +3,15 @@
 import { useState } from 'react';
 import { api } from '@/lib/api';
 
-const RESOURCE_TYPES = ['PROCESS', 'AUCTION_ASSET', 'REAL_ESTATE_ASSET', 'DOCUMENT'] as const;
+const RESOURCE_TYPES = [
+  { value: 'document', label: 'Documento' },
+  { value: 'auction_asset', label: 'Ativo de Leilão' },
+  { value: 'auction_asset_roi', label: 'ROI de Leilão' },
+] as const;
 
 export default function IntelligencePage() {
   // Validação state
-  const [valResourceType, setValResourceType] = useState<string>('PROCESS');
+  const [valResourceType, setValResourceType] = useState<string>('document');
   const [valResourceId, setValResourceId] = useState('');
   const [valLoading, setValLoading] = useState(false);
   const [valResult, setValResult] = useState<any>(null);
@@ -100,7 +104,7 @@ export default function IntelligencePage() {
               className="rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {RESOURCE_TYPES.map((t) => (
-                <option key={t} value={t}>{t}</option>
+                <option key={t.value} value={t.value}>{t.label}</option>
               ))}
             </select>
           </div>

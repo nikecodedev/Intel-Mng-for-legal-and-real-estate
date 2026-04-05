@@ -14,6 +14,34 @@ import {
   type Tenant,
 } from '@/lib/super-admin-api';
 
+function VerifyChainButton({ tenantId }: { tenantId: string }) {
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  async function run() {
+    setLoading(true); setResult(null);
+    try {
+      const res = await api.get(`/audit-integrity/verify-chain/${tenantId}`);
+      setResult(res.data?.data ?? res.data);
+    } catch (err: any) {
+      if (err?.response?.status === 422) setResult(err.response.data?.data ?? { chain_integrity: 'invalid' });
+      else setResult({ error: err?.response?.data?.message || 'Falha' });
+    } finally { setLoading(false); }
+  }
+  return (
+    <div>
+      <button onClick={run} disabled={loading} className="rounded bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50">
+        {loading ? 'Verificando...' : 'Verificar Cadeia SHA-256'}
+      </button>
+      {result && !result.error && (
+        <p className={`mt-2 text-sm ${result.chain_integrity === 'valid' ? 'text-green-600' : 'text-red-600'}`}>
+          {result.chain_integrity === 'valid' ? 'Cadeia válida' : 'Cadeia inválida'} — {result.total_entries ?? 0} registos, {result.valid_entries ?? 0} válidos
+        </p>
+      )}
+      {result?.error && <p className="mt-2 text-sm text-red-600">{result.error}</p>}
+    </div>
+  );
+}
+
 export default function SuperAdminTenantDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
   const queryClient = useQueryClient();
@@ -242,6 +270,7 @@ export default function SuperAdminTenantDetailPage({ params }: { params: { id: s
           >
             Configurar White-Label
           </Link>
+          <VerifyChainButton tenantId={id} />
         </div>
       </section>
 
