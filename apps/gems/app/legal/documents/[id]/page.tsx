@@ -116,12 +116,7 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
   );
   const { data: extractions } = useQuery(
     ['legal-document-extractions', id],
-    async () => { const r = await api.get(`/documents/${id}/extractions`); return r.data?.data ?? r.data; },
-    { staleTime: 60 * 1000, enabled: !!id, retry: false }
-  );
-  const { data: qualityFlagsData } = useQuery(
-    ['legal-document-quality-flags', id],
-    async () => { const r = await api.get(`/documents/${id}/quality-flags`); return r.data?.data ?? r.data?.flags ?? []; },
+    async () => { const r = await api.get(`/documents/${id}/extraction`); return r.data?.data ?? r.data; },
     { staleTime: 60 * 1000, enabled: !!id, retry: false }
   );
 
@@ -161,7 +156,7 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
   async function approveCpo() {
     setCpoLoading(true);
     try {
-      await api.post(`/documents/${id}/approve-cpo`, {});
+      await api.post(`/documents/${id}/approve`, {});
       setActionMsg({ type: 'success', text: 'CPO aprovado.' });
       queryClient.invalidateQueries(['legal-document', id]);
     } catch (err: any) {
@@ -173,7 +168,7 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
     if (!rejectCpoReason.trim()) { setActionMsg({ type: 'error', text: 'Informe o motivo.' }); return; }
     setCpoLoading(true);
     try {
-      await api.post(`/documents/${id}/reject-cpo`, { reason: rejectCpoReason });
+      await api.put(`/documents/${id}`, { status_cpo: 'VERMELHO', rejection_reason: rejectCpoReason });
       setActionMsg({ type: 'success', text: 'CPO rejeitado.' });
       setShowRejectCpo(false); setRejectCpoReason('');
       queryClient.invalidateQueries(['legal-document', id]);
@@ -205,7 +200,7 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
     setExtEditLoading(true);
     setExtEditMsg(null);
     try {
-      await api.post(`/documents/${id}/extraction-corrections`, {
+      await api.put(`/documents/${id}/extraction`, {
         process_number: extProcessNumber,
         court: extCourt,
       });
