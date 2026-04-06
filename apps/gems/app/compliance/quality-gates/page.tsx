@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api, getApiErrorMessage, isApiError } from '@/lib/api';
+import { fetchQualityGateByCode } from '@/lib/quality-gates-api';
 
 interface QualityGate {
   id: string;
@@ -122,8 +123,8 @@ export default function QualityGatesPage() {
               setSearchError(null);
               setSearchResult(null);
               try {
-                const { data } = await api.get(`/quality-gates/code/${encodeURIComponent(searchCode.trim())}`);
-                setSearchResult(data?.gate ?? data?.data ?? data);
+                const gate = await fetchQualityGateByCode(searchCode.trim());
+                setSearchResult(gate);
               } catch (err) {
                 setSearchError(isApiError(err) ? getApiErrorMessage(err) : 'Portão não encontrado.');
               } finally {

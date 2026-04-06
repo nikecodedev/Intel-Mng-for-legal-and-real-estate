@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery } from 'react-query';
 import Link from 'next/link';
-import { api } from '@/lib/api';
+import { fetchTemplateById, fetchTemplateMetrics, recordTemplateUse, recordTemplateOutcome } from '@/lib/knowledge-api';
 
 export default function TemplateDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
@@ -11,19 +11,13 @@ export default function TemplateDetailPage({ params }: { params: { id: string } 
   const [outcomeForm, setOutcomeForm] = useState({ outcome_type: 'SUCCESS', outcome_notes: '' });
   const [outcomeMsg, setOutcomeMsg] = useState('');
 
-  const { data: template, isLoading } = useQuery(['knowledge-template', id], async () => {
-    const res = await api.get(`/knowledge/templates/${id}`);
-    return res.data?.template ?? res.data?.data ?? res.data;
-  }, { staleTime: 60_000 });
+  const { data: template, isLoading } = useQuery(['knowledge-template', id], () => fetchTemplateById(id), { staleTime: 60_000 });
 
-  const { data: metrics } = useQuery(['knowledge-template-metrics', id], async () => {
-    const res = await api.get(`/knowledge/templates/${id}/metrics`);
-    return res.data?.metrics ?? res.data?.data ?? null;
-  }, { staleTime: 60_000, retry: false });
+  const { data: metrics } = useQuery(['knowledge-template-metrics', id], () => fetchTemplateMetrics(id), { staleTime: 60_000, retry: false });
 
   async function recordUse() {
     try {
-      await api.post(`/knowledge/templates/${id}/use`, {});
+      await recordTemplateUse(id);
       setUseMsg('Uso registrado.');
     } catch { setUseMsg('Falha.'); }
   }
@@ -31,7 +25,7 @@ export default function TemplateDetailPage({ params }: { params: { id: string } 
   async function recordOutcome(e: React.FormEvent) {
     e.preventDefault();
     try {
-      await api.post(`/knowledge/templates/${id}/outcome`, outcomeForm);
+      await recordTemplateOutcome(id, outcomeForm);
       setOutcomeMsg('Resultado registrado.');
     } catch { setOutcomeMsg('Falha.'); }
   }
