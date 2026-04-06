@@ -140,7 +140,7 @@ export async function fetchSanitationQueue(params: { limit?: number; offset?: nu
 }
 
 export async function resolveFlag(flagId: string, body: { resolution_action: string; resolution_notes?: string }): Promise<void> {
-  await api.post(`/documents/${flagId}/resolve-flag`, body);
+  await api.post(`/documents/sanitation-queue/${flagId}/resolve`, body);
 }
 
 export async function escalateFlag(flagId: string, body: { notes?: string } = {}): Promise<void> {
