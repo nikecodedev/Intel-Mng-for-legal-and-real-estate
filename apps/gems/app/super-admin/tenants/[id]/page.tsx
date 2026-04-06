@@ -14,6 +14,34 @@ import {
   type Tenant,
 } from '@/lib/super-admin-api';
 
+function QuotaCheckButton({ tenantId }: { tenantId: string }) {
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  async function run() {
+    setLoading(true); setResult(null);
+    try {
+      const res = await api.get(`/super-admin/tenants/${tenantId}/quotas/check`);
+      setResult(res.data?.data ?? res.data);
+    } catch (err: any) {
+      setResult({ error: err?.response?.data?.message || 'Falha ao verificar quotas.' });
+    } finally { setLoading(false); }
+  }
+  return (
+    <div>
+      <button onClick={run} disabled={loading} className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
+        {loading ? 'Verificando...' : 'Verificar Quotas'}
+      </button>
+      {result && !result.error && (
+        <p className={`mt-2 text-sm ${result.compliant ? 'text-green-600' : 'text-red-600'}`}>
+          {result.compliant ? 'Quotas em conformidade' : 'Quotas fora de conformidade'}
+          {result.details && <span className="text-gray-500 ml-1">— {typeof result.details === 'string' ? result.details : JSON.stringify(result.details)}</span>}
+        </p>
+      )}
+      {result?.error && <p className="mt-2 text-sm text-red-600">{result.error}</p>}
+    </div>
+  );
+}
+
 function VerifyChainButton({ tenantId }: { tenantId: string }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
@@ -271,6 +299,7 @@ export default function SuperAdminTenantDetailPage({ params }: { params: { id: s
             Configurar White-Label
           </Link>
           <VerifyChainButton tenantId={id} />
+          <QuotaCheckButton tenantId={id} />
         </div>
       </section>
 

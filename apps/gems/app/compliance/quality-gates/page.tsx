@@ -47,6 +47,12 @@ export default function QualityGatesPage() {
   const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
   const [checking, setChecking] = useState(false);
 
+  // Buscar por Código
+  const [searchCode, setSearchCode] = useState('');
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchResult, setSearchResult] = useState<QualityGate | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
   useEffect(() => {
     fetchGates();
   }, [filterType]);
@@ -95,6 +101,59 @@ export default function QualityGatesPage() {
           <p className="text-sm text-red-700">{error}</p>
         </div>
       )}
+
+      {/* Buscar por Código */}
+      <div className="rounded-lg border border-gray-200 bg-white p-4">
+        <h2 className="text-sm font-medium text-gray-700 mb-2">Buscar por Código</h2>
+        <div className="flex items-end gap-3">
+          <div className="flex-1">
+            <input
+              type="text"
+              value={searchCode}
+              onChange={(e) => setSearchCode(e.target.value)}
+              placeholder="Ex: GATE_001"
+              className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <button
+            onClick={async () => {
+              if (!searchCode.trim()) return;
+              setSearchLoading(true);
+              setSearchError(null);
+              setSearchResult(null);
+              try {
+                const { data } = await api.get(`/quality-gates/code/${encodeURIComponent(searchCode.trim())}`);
+                setSearchResult(data?.gate ?? data?.data ?? data);
+              } catch (err) {
+                setSearchError(isApiError(err) ? getApiErrorMessage(err) : 'Portão não encontrado.');
+              } finally {
+                setSearchLoading(false);
+              }
+            }}
+            disabled={searchLoading || !searchCode.trim()}
+            className="rounded bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {searchLoading ? 'Buscando...' : 'Buscar'}
+          </button>
+        </div>
+        {searchError && (
+          <p className="mt-2 text-sm text-red-600">{searchError}</p>
+        )}
+        {searchResult && (
+          <div className="mt-3 rounded-lg border border-indigo-200 bg-indigo-50 p-4">
+            <h3 className="text-sm font-medium text-indigo-800 mb-2">{searchResult.gate_code} — {searchResult.gate_name}</h3>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+              <dt className="text-gray-600">Tipo</dt><dd className="font-medium">{searchResult.gate_type}</dd>
+              <dt className="text-gray-600">Categoria</dt><dd className="font-medium">{searchResult.gate_category ?? '-'}</dd>
+              <dt className="text-gray-600">Bloqueante</dt><dd className="font-medium">{searchResult.is_blocking ? 'Sim' : 'Não'}</dd>
+              <dt className="text-gray-600">Obrigatório</dt><dd className="font-medium">{searchResult.is_mandatory ? 'Sim' : 'Não'}</dd>
+              <dt className="text-gray-600">Ativo</dt><dd className="font-medium">{searchResult.is_active ? 'Sim' : 'Não'}</dd>
+              <dt className="text-gray-600">Ação de Falha</dt><dd className="font-medium">{searchResult.failure_action ?? '-'}</dd>
+            </dl>
+            {searchResult.description && <p className="mt-2 text-sm text-gray-700">{searchResult.description}</p>}
+          </div>
+        )}
+      </div>
 
       {/* Filter + Count */}
       <div className="flex items-center justify-between">

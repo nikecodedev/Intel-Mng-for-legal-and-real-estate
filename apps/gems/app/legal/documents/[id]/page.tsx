@@ -298,6 +298,32 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
           <button onClick={() => setShowFlagForm(true)} className="rounded border border-amber-300 px-3 py-1.5 text-sm text-amber-700 hover:bg-amber-50">Flag</button>
           <button onClick={() => setShowDeleteConfirm(true)} className="rounded border border-red-300 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50">Excluir</button>
           <Link href={`/legal/documents/${id}/view`} className="rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700">Ver fonte</Link>
+          <a
+            href={`${(api.defaults as any).baseURL ?? '/api/v1'}/documents/${id}/secure-view`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded bg-teal-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-teal-700"
+            onClick={async (e) => {
+              e.preventDefault();
+              try {
+                const res = await api.get(`/documents/${id}/secure-view`);
+                const url = res.data?.url ?? res.data?.data?.url;
+                if (url) window.open(url, '_blank');
+                else setActionMsg({ type: 'success', text: 'Visualização segura carregada.' });
+              } catch (err: any) {
+                setActionMsg({ type: 'error', text: err?.response?.data?.message || 'Falha na visualização segura.' });
+              }
+            }}
+          >
+            Visualização Segura
+          </a>
+          <button
+            disabled
+            title="Download desativado (DLP)"
+            className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-400 cursor-not-allowed opacity-50"
+          >
+            Download
+          </button>
         </div>
       </div>
 
