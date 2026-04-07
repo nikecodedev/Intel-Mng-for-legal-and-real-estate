@@ -48,6 +48,22 @@ const createTransactionSchema = z.object({
   ),
 });
 
+const updateTransactionSchema = z.object({
+  params: z.object({
+    id: z.string().uuid(),
+  }),
+  body: z.object({
+    description: z.string().min(1).optional(),
+    notes: z.string().optional(),
+    payment_status: z.enum(['PENDING', 'PAID', 'PARTIAL', 'OVERDUE', 'CANCELLED']).optional(),
+    payment_method: z.string().optional(),
+    payment_reference: z.string().optional(),
+    vendor_name: z.string().optional(),
+    due_date: z.string().date().optional(),
+    tags: z.array(z.string()).optional(),
+  }),
+});
+
 const markPaymentSchema = z.object({
   params: z.object({
     id: z.string().uuid(),
@@ -219,6 +235,46 @@ router.get(
     if (!transaction) {
       throw new NotFoundError('Financial transaction');
     }
+
+    res.json({
+      success: true,
+      transaction,
+    });
+  })
+);
+
+/**
+ * PUT /finance/transactions/:id
+ * Update transaction fields (description, notes, payment_status, etc.)
+ */
+router.put(
+  '/transactions/:id',
+  authenticate,
+  requirePermission('finance:update'),
+  validateRequest(updateTransactionSchema),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const { id } = req.params;
+    const userId = req.user!.id;
+
+    const transaction = await FinancialTransactionModel.update(id, tenantContext.tenantId, req.body);
+
+    await AuditService.log({
+      tenantId: tenantContext.tenantId,
+      userId,
+      userEmail: req.user!.email,
+      userRole: tenantContext.role,
+      action: AuditAction.UPDATE,
+      eventType: 'finance.transaction.update',
+      eventCategory: AuditEventCategory.DATA_MODIFICATION,
+      resourceType: 'financial_transaction',
+      resourceId: transaction.id,
+      description: `Updated transaction ${transaction.transaction_number}`,
+      details: req.body,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || undefined,
+      requestId: req.headers['x-request-id'] as string | undefined,
+    });
 
     res.json({
       success: true,

@@ -88,6 +88,22 @@ export default function ProfilePage() {
 
       {userData && (
         <div className="space-y-6">
+          {/* Avatar + Name header */}
+          <section className="rounded-lg border border-gray-200 bg-white p-6 flex items-center gap-5">
+            <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-700 text-2xl font-bold text-white shadow-lg">
+              {(userData.first_name?.[0] ?? '').toUpperCase()}{(userData.last_name?.[0] ?? '').toUpperCase()}
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">
+                {[userData.first_name, userData.last_name].filter(Boolean).join(' ') || 'Sem nome'}
+              </h2>
+              <p className="text-sm text-gray-500">{userData.email ?? ''}</p>
+              <span className="mt-1 inline-block rounded-full bg-blue-100 px-3 py-0.5 text-xs font-medium text-blue-700">
+                {userData.role ?? 'Papel desconhecido'}
+              </span>
+            </div>
+          </section>
+
           {/* User info (read-only) */}
           <section className="rounded-lg border border-gray-200 bg-white p-6">
             <h2 className="text-base font-semibold text-gray-900 mb-4">Informacoes do Usuario</h2>

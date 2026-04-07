@@ -81,6 +81,7 @@ export interface UpdateFinancialTransactionInput {
   currency?: string;
   transaction_date?: string;
   due_date?: string;
+  payment_status?: 'PENDING' | 'PAID' | 'PARTIAL' | 'CANCELLED' | 'OVERDUE';
   payment_method?: string;
   payment_reference?: string;
   description?: string;
@@ -387,6 +388,10 @@ export class FinancialTransactionModel {
     if (input.due_date !== undefined) {
       updates.push(`due_date = $${paramCount++}`);
       values.push(input.due_date || null);
+    }
+    if (input.payment_status !== undefined) {
+      updates.push(`payment_status = $${paramCount++}`);
+      values.push(input.payment_status);
     }
     if (input.payment_method !== undefined) {
       updates.push(`payment_method = $${paramCount++}`);

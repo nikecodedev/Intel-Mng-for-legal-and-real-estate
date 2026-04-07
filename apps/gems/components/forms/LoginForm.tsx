@@ -43,7 +43,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
     <form onSubmit={handleSubmit} className="space-y-5">
       <div>
         <label htmlFor="login-email" className="block text-sm font-medium text-slate-300 mb-1.5">
-          Email
+          E-mail
         </label>
         <input
           id="login-email"
@@ -52,13 +52,13 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          placeholder="you@company.com"
+          placeholder="voce@empresa.com"
           className="block w-full rounded-lg border border-white/10 bg-white/5 px-3.5 py-2.5 text-sm text-white placeholder-slate-500 shadow-sm transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
         />
       </div>
       <div>
         <label htmlFor="login-password" className="block text-sm font-medium text-slate-300 mb-1.5">
-          Password
+          Senha
         </label>
         <input
           id="login-password"
@@ -67,7 +67,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          placeholder="Enter your password"
+          placeholder="Digite sua senha"
           className="block w-full rounded-lg border border-white/10 bg-white/5 px-3.5 py-2.5 text-sm text-white placeholder-slate-500 shadow-sm transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
         />
       </div>
@@ -79,10 +79,10 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
             onChange={(e) => setRememberMe(e.target.checked)}
             className="rounded border-white/20 bg-white/5 text-blue-600 focus:ring-blue-500"
           />
-          Remember me
+          Lembrar de mim
         </label>
         <Link href="/forgot-password" className="text-sm font-medium text-blue-400 hover:text-blue-300 transition-colors">
-          Forgot password?
+          Esqueceu a senha?
         </Link>
       </div>
       {error && (
@@ -98,10 +98,10 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
         {loading ? (
           <span className="flex items-center justify-center gap-2">
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-            Signing in...
+            Entrando...
           </span>
         ) : (
-          'Sign in'
+          'Entrar'
         )}
       </button>
     </form>

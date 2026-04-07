@@ -126,6 +126,23 @@ export function createTransaction(input: CreateTransactionInput): Promise<Financ
   });
 }
 
+export interface UpdateTransactionInput {
+  description?: string;
+  notes?: string;
+  payment_status?: PaymentStatus;
+  payment_method?: string;
+  vendor_name?: string;
+  due_date?: string;
+  tags?: string[];
+}
+
+export function updateTransaction(id: string, input: UpdateTransactionInput): Promise<FinancialTransaction> {
+  return api.put<TransactionResponse>(`/finance/transactions/${id}`, input).then((r) => {
+    if (!r.data?.success || !r.data?.transaction) throw new Error('Invalid response');
+    return r.data.transaction;
+  });
+}
+
 export function markPayment(
   transactionId: string,
   body: { paid_date: string; payment_method: string; payment_reference?: string; proof_document_id: string }
