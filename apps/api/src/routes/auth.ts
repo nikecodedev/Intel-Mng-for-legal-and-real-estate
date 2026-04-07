@@ -543,4 +543,110 @@ router.post(
   })
 );
 
+/**
+ * PUT /auth/me
+ * Update current user's profile (first_name, last_name)
+ */
+const updateProfileSchema = z.object({
+  body: z.object({
+    first_name: z.string().min(1).max(100).optional(),
+    last_name: z.string().min(1).max(100).optional(),
+  }),
+});
+
+router.put(
+  '/me',
+  authenticate,
+  validateRequest(updateProfileSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const user = req.user?.user;
+    if (!user) throw new NotFoundError('User');
+
+    const { first_name, last_name } = req.body;
+    const fields: string[] = [];
+    const values: unknown[] = [];
+    let idx = 1;
+
+    if (first_name !== undefined) { fields.push(`first_name = $${idx++}`); values.push(first_name); }
+    if (last_name !== undefined) { fields.push(`last_name = $${idx++}`); values.push(last_name); }
+
+    if (fields.length === 0) {
+      res.json({ success: true, message: 'Nenhuma alteração.' });
+      return;
+    }
+
+    fields.push(`updated_at = CURRENT_TIMESTAMP`);
+    values.push(user.id);
+
+    const result = await db.query(
+      `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} AND is_active = true RETURNING id, email, first_name, last_name`,
+      values
+    );
+
+    if (result.rows.length === 0) throw new NotFoundError('User');
+
+    const updated = result.rows[0] as { id: string; email: string; first_name: string; last_name: string };
+    logger.info('Profile updated', { userId: user.id });
+
+    res.json({
+      success: true,
+      message: 'Perfil atualizado com sucesso.',
+      data: { user: updated },
+    });
+  })
+);
+
+/**
+ * POST /auth/change-password
+ * Change password for the currently authenticated user (requires current password)
+ */
+const changePasswordSchema = z.object({
+  body: z.object({
+    current_password: z.string().min(1, 'Senha atual é obrigatória'),
+    new_password: z.string()
+      .min(8, 'A nova senha deve ter pelo menos 8 caracteres')
+      .regex(/[A-Z]/, 'A nova senha deve conter pelo menos uma letra maiúscula')
+      .regex(/[a-z]/, 'A nova senha deve conter pelo menos uma letra minúscula')
+      .regex(/[0-9]/, 'A nova senha deve conter pelo menos um número'),
+  }),
+});
+
+router.post(
+  '/change-password',
+  authenticate,
+  validateRequest(changePasswordSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const user = req.user?.user;
+    if (!user) throw new NotFoundError('User');
+
+    const { current_password, new_password } = req.body;
+
+    // Fetch current hash
+    const userRow = await db.query(
+      'SELECT password_hash FROM users WHERE id = $1 AND is_active = true LIMIT 1',
+      [user.id]
+    );
+    if (userRow.rows.length === 0) throw new NotFoundError('User');
+
+    const { password_hash } = userRow.rows[0] as { password_hash: string };
+    const valid = await AuthService.verifyPassword(current_password, password_hash);
+    if (!valid) {
+      throw new AuthenticationError('Senha atual incorreta.');
+    }
+
+    const newHash = await AuthService.hashPassword(new_password);
+    await db.query(
+      'UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [newHash, user.id]
+    );
+
+    logger.info('Password changed via profile', { userId: user.id });
+
+    res.json({
+      success: true,
+      message: 'Senha alterada com sucesso.',
+    });
+  })
+);
+
 export default router;

@@ -30,9 +30,9 @@ function MonetaryValuesTable({ values }: { values: MonetaryValue[] }) {
           <thead className="bg-gray-50">
             <tr>
               <th className="px-4 py-2 text-left font-medium text-gray-600">#</th>
-              <th className="px-4 py-2 text-left font-medium text-gray-600">Value</th>
-              <th className="px-4 py-2 text-left font-medium text-gray-600">Currency</th>
-              <th className="px-4 py-2 text-left font-medium text-gray-600">Description</th>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">Valor</th>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">Moeda</th>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">Descricao</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -51,10 +51,10 @@ function MonetaryValuesTable({ values }: { values: MonetaryValue[] }) {
       </div>
       {totalPages > 1 ? (
         <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
-          <span>{values.length} value(s) — page {page + 1} of {totalPages}</span>
+          <span>{values.length} valor(es) — pagina {page + 1} de {totalPages}</span>
           <div className="flex gap-1">
-            <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="px-2 py-1 rounded border border-gray-300 disabled:opacity-30 hover:bg-gray-100">Prev</button>
-            <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="px-2 py-1 rounded border border-gray-300 disabled:opacity-30 hover:bg-gray-100">Next</button>
+            <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="px-2 py-1 rounded border border-gray-300 disabled:opacity-30 hover:bg-gray-100">Anterior</button>
+            <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="px-2 py-1 rounded border border-gray-300 disabled:opacity-30 hover:bg-gray-100">Proximo</button>
           </div>
         </div>
       ) : null}
@@ -73,8 +73,8 @@ function PartiesTable({ parties }: { parties: Array<{ name?: string; role?: stri
         <table className="min-w-full divide-y divide-gray-200 text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-2 text-left font-medium text-gray-600">Name</th>
-              <th className="px-4 py-2 text-left font-medium text-gray-600">Role</th>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">Nome</th>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">Funcao</th>
               <th className="px-4 py-2 text-left font-medium text-gray-600">CPF/CNPJ</th>
             </tr>
           </thead>
@@ -91,10 +91,10 @@ function PartiesTable({ parties }: { parties: Array<{ name?: string; role?: stri
       </div>
       {totalPages > 1 ? (
         <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
-          <span>{parties.length} partie(s) — page {page + 1} of {totalPages}</span>
+          <span>{parties.length} parte(s) — pagina {page + 1} de {totalPages}</span>
           <div className="flex gap-1">
-            <button onClick={() => setPage(pp => Math.max(0, pp - 1))} disabled={page === 0} className="px-2 py-1 rounded border border-gray-300 disabled:opacity-30 hover:bg-gray-100">Prev</button>
-            <button onClick={() => setPage(pp => Math.min(totalPages - 1, pp + 1))} disabled={page >= totalPages - 1} className="px-2 py-1 rounded border border-gray-300 disabled:opacity-30 hover:bg-gray-100">Next</button>
+            <button onClick={() => setPage(pp => Math.max(0, pp - 1))} disabled={page === 0} className="px-2 py-1 rounded border border-gray-300 disabled:opacity-30 hover:bg-gray-100">Anterior</button>
+            <button onClick={() => setPage(pp => Math.min(totalPages - 1, pp + 1))} disabled={page >= totalPages - 1} className="px-2 py-1 rounded border border-gray-300 disabled:opacity-30 hover:bg-gray-100">Proximo</button>
           </div>
         </div>
       ) : null}
@@ -131,12 +131,8 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  // Quality flag state
-  const [showFlagForm, setShowFlagForm] = useState(false);
-  const [flagType, setFlagType] = useState('MANUAL_REVIEW');
-  const [flagDesc, setFlagDesc] = useState('');
-  const [flagSeverity, setFlagSeverity] = useState('WARNING');
-  const [flagLoading, setFlagLoading] = useState(false);
+  // Reprocess state
+  const [reprocessLoading, setReprocessLoading] = useState(false);
 
   // Extraction edit state
   const [editingExtraction, setEditingExtraction] = useState(false);
@@ -181,11 +177,11 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
     setExtractLoading(true);
     try {
       await api.post(`/documents/${id}/reprocess`, {});
-      setActionMsg({ type: 'success', text: 'Extração de factos iniciada.' });
+      setActionMsg({ type: 'success', text: 'Extração de fatos iniciada.' });
       queryClient.invalidateQueries(['legal-document-facts', id]);
       queryClient.invalidateQueries(['legal-document-extractions', id]);
     } catch (err: any) {
-      setActionMsg({ type: 'error', text: err?.response?.data?.message || 'Falha ao extrair factos.' });
+      setActionMsg({ type: 'error', text: err?.response?.data?.message || 'Falha ao extrair fatos.' });
     } finally { setExtractLoading(false); }
   }
 
@@ -229,10 +225,10 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
     try {
       await api.put(`/documents/${id}`, { title: editTitle, document_type: editType, notes: editNotes });
       setEditing(false);
-      setActionMsg({ type: 'success', text: 'Metadata updated.' });
+      setActionMsg({ type: 'success', text: 'Metadados atualizados.' });
       queryClient.invalidateQueries(['legal-document', id]);
     } catch (err: any) {
-      setActionMsg({ type: 'error', text: err?.response?.data?.message || 'Update failed.' });
+      setActionMsg({ type: 'error', text: err?.response?.data?.message || 'Falha ao atualizar.' });
     } finally {
       setEditLoading(false);
     }
@@ -244,26 +240,25 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
       await api.delete(`/documents/${id}`);
       router.push('/legal');
     } catch (err: any) {
-      setActionMsg({ type: 'error', text: err?.response?.data?.message || 'Delete failed.' });
+      setActionMsg({ type: 'error', text: err?.response?.data?.message || 'Falha ao excluir.' });
       setShowDeleteConfirm(false);
     } finally {
       setDeleteLoading(false);
     }
   }
 
-  async function submitFlag() {
-    setFlagLoading(true);
+  async function reprocessDocument() {
+    setReprocessLoading(true);
     try {
-      // Quality flags are created automatically by the system; manual creation uses reprocess
       await api.post(`/documents/${id}/reprocess`, {});
-      setShowFlagForm(false);
-      setFlagDesc('');
-      setActionMsg({ type: 'success', text: 'Quality flag submitted.' });
+      setActionMsg({ type: 'success', text: 'Documento enviado para reprocessamento. As flags de qualidade serao geradas automaticamente.' });
       queryClient.invalidateQueries(['legal-document', id]);
+      queryClient.invalidateQueries(['legal-document-facts', id]);
+      queryClient.invalidateQueries(['legal-document-extractions', id]);
     } catch (err: any) {
-      setActionMsg({ type: 'error', text: err?.response?.data?.message || 'Flag submission failed.' });
+      setActionMsg({ type: 'error', text: err?.response?.data?.message || 'Falha ao reprocessar documento.' });
     } finally {
-      setFlagLoading(false);
+      setReprocessLoading(false);
     }
   }
 
@@ -295,28 +290,17 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
           <button onClick={() => setShowRejectCpo(true)} className="rounded border border-orange-300 px-3 py-1.5 text-sm text-orange-700 hover:bg-orange-50">Rejeitar CPO</button>
           <button onClick={extractFacts} disabled={extractLoading} className="rounded border border-indigo-300 px-3 py-1.5 text-sm text-indigo-700 hover:bg-indigo-50 disabled:opacity-50">{extractLoading ? 'Extraindo...' : 'Re-extrair Factos'}</button>
           <button onClick={startEdit} className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Editar</button>
-          <button onClick={() => setShowFlagForm(true)} className="rounded border border-amber-300 px-3 py-1.5 text-sm text-amber-700 hover:bg-amber-50">Flag</button>
+          <button onClick={reprocessDocument} disabled={reprocessLoading} className="rounded border border-amber-300 px-3 py-1.5 text-sm text-amber-700 hover:bg-amber-50 disabled:opacity-50">{reprocessLoading ? 'Reprocessando...' : 'Reprocessar Documento'}</button>
           <button onClick={() => setShowDeleteConfirm(true)} className="rounded border border-red-300 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50">Excluir</button>
           <Link href={`/legal/documents/${id}/view`} className="rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700">Ver fonte</Link>
-          <a
-            href={`${(api.defaults as any).baseURL ?? '/api/v1'}/documents/${id}/secure-view`}
+          <Link
+            href={`/legal/documents/${id}/view`}
             target="_blank"
             rel="noopener noreferrer"
             className="rounded bg-teal-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-teal-700"
-            onClick={async (e) => {
-              e.preventDefault();
-              try {
-                const res = await api.get(`/documents/${id}/secure-view`);
-                const url = res.data?.url ?? res.data?.data?.url;
-                if (url) window.open(url, '_blank');
-                else setActionMsg({ type: 'success', text: 'Visualização segura carregada.' });
-              } catch (err: any) {
-                setActionMsg({ type: 'error', text: err?.response?.data?.message || 'Falha na visualização segura.' });
-              }
-            }}
           >
-            Visualização Segura
-          </a>
+            Visualizacao Segura
+          </Link>
           <button
             disabled
             title="Download desativado (DLP)"
@@ -370,61 +354,29 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
           <input value={rejectCpoReason} onChange={(e) => setRejectCpoReason(e.target.value)} placeholder="Motivo da rejeição..." className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" />
           <div className="flex gap-2">
             <button onClick={rejectCpo} disabled={cpoLoading || !rejectCpoReason.trim()} className="rounded bg-orange-600 px-4 py-1.5 text-sm text-white hover:bg-orange-700 disabled:opacity-50">{cpoLoading ? 'Rejeitando...' : 'Confirmar Rejeição'}</button>
-            <button onClick={() => { setShowRejectCpo(false); setRejectCpoReason(''); }} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Cancelarar</button>
+            <button onClick={() => { setShowRejectCpo(false); setRejectCpoReason(''); }} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Cancelar</button>
           </div>
         </div>
       )}
 
-      {/* Submit quality flag form */}
-      {showFlagForm && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3">
-          <h3 className="text-sm font-medium text-amber-800">Submit Quality Flag</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Type</label>
-              <select value={flagType} onChange={(e) => setFlagType(e.target.value)} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm">
-                <option value="MANUAL_REVIEW">Manual Review</option>
-                <option value="DATA_QUALITY">Data Quality</option>
-                <option value="OCR_ERROR">OCR Error</option>
-                <option value="MISSING_DATA">Missing Data</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Severity</label>
-              <select value={flagSeverity} onChange={(e) => setFlagSeverity(e.target.value)} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm">
-                <option value="INFO">Info</option>
-                <option value="WARNING">Warning</option>
-                <option value="ERROR">Error</option>
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs text-gray-600 mb-1">Description</label>
-            <textarea value={flagDesc} onChange={(e) => setFlagDesc(e.target.value)} rows={2} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" placeholder="Describe the issue..." />
-          </div>
-          <div className="flex gap-2">
-            <button onClick={submitFlag} disabled={flagLoading || !flagDesc.trim()} className="rounded bg-amber-600 px-4 py-1.5 text-sm text-white hover:bg-amber-700 disabled:opacity-50">{flagLoading ? 'Enviando...' : 'Enviar Flag'}</button>
-            <button onClick={() => setShowFlagForm(false)} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Cancelar</button>
-          </div>
-        </div>
-      )}
+      {/* Info: quality flags are generated automatically on reprocess */}
 
       <section className="rounded-lg border border-gray-200 bg-white p-6">
-        <h3 className="text-sm font-medium text-gray-500 mb-3">Document</h3>
+        <h3 className="text-sm font-medium text-gray-500 mb-3">Documento</h3>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-          <dt className="text-gray-600">Number</dt><dd className="font-medium">{document.document_number}</dd>
-          <dt className="text-gray-600">Type</dt><dd className="font-medium">{document.document_type}</dd>
+          <dt className="text-gray-600">Numero</dt><dd className="font-medium">{document.document_number}</dd>
+          <dt className="text-gray-600">Tipo</dt><dd className="font-medium">{document.document_type}</dd>
           <dt className="text-gray-600">Status (CPO)</dt><dd className="font-medium"><StatusBadge variant="cpo" value={document.status_cpo} /></dd>
-          <dt className="text-gray-600">OCR confidence</dt>
+          <dt className="text-gray-600">Confianca OCR</dt>
           <dd className="font-medium flex items-center gap-2">
             {document.ocr_confidence != null ? formatPercent(Number(document.ocr_confidence), false) : '—'}
             {quality_flags && (quality_flags as QualityFlag[]).some((f) => f.flag_type === 'OCR_VISION_FALLBACK_USED') && (
               <span className="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">
-                OCR Fallback used (Gemini Vision)
+                Fallback OCR utilizado (Gemini Vision)
               </span>
             )}
           </dd>
-          <dt className="text-gray-600">Created</dt><dd className="font-medium"><DateDisplay value={document.created_at} style="long" /></dd>
+          <dt className="text-gray-600">Criado em</dt><dd className="font-medium"><DateDisplay value={document.created_at} style="long" /></dd>
         </dl>
       </section>
 
@@ -571,11 +523,11 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
       })()}
 
       <section className="rounded-lg border border-gray-200 bg-white p-6">
-        <h3 className="text-sm font-medium text-gray-500 mb-3">All extracted facts</h3>
+        <h3 className="text-sm font-medium text-gray-500 mb-3">Todos os fatos extraidos</h3>
         {factsLoading ? (
-          <p className="text-sm text-gray-500">Loading facts…</p>
+          <p className="text-sm text-gray-500">Carregando fatos...</p>
         ) : facts.length === 0 ? (
-          <p className="text-sm text-gray-500">No facts extracted yet.</p>
+          <p className="text-sm text-gray-500">Nenhum fato extraido ainda.</p>
         ) : (
           <ul className="space-y-2">
             {facts.map((f: DocumentFact) => (
@@ -592,13 +544,13 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
 
       {quality_flags && quality_flags.length > 0 && (
         <section className="rounded-lg border border-amber-200 bg-amber-50 p-6">
-          <h3 className="text-sm font-medium text-amber-800 mb-3">Quality flags</h3>
+          <h3 className="text-sm font-medium text-amber-800 mb-3">Flags de qualidade</h3>
           <ul className="space-y-2">
             {(quality_flags as QualityFlag[]).map((f) => (
               <li key={f.id} className="text-sm">
                 <span className="font-medium">{f.flag_type}</span> ({f.severity}): {f.flag_message}
                 {f.severity === 'ERROR' && (
-                  <span className="ml-2 inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">BLOCKING</span>
+                  <span className="ml-2 inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">BLOQUEANTE</span>
                 )}
                 <span className="text-amber-700 ml-2">— {f.queue_status}</span>
               </li>
@@ -610,24 +562,24 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
       {/* OCR Extractions */}
       {extractions && (
         <section className="rounded-lg border border-gray-200 bg-white p-6">
-          <h3 className="text-sm font-medium text-gray-500 mb-3">OCR Extractions</h3>
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Extracoes OCR</h3>
           {Array.isArray(extractions) ? (
             extractions.length === 0 ? (
-              <p className="text-sm text-gray-500">No extractions available.</p>
+              <p className="text-sm text-gray-500">Nenhuma extracao disponivel.</p>
             ) : (
               <div className="overflow-x-auto rounded-lg border border-gray-200">
                 <table className="min-w-full divide-y divide-gray-200 text-sm">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-2 text-left font-medium text-gray-600">Field</th>
-                      <th className="px-4 py-2 text-left font-medium text-gray-600">Value</th>
-                      <th className="px-4 py-2 text-left font-medium text-gray-600">Confidence</th>
+                      <th className="px-4 py-2 text-left font-medium text-gray-600">Campo</th>
+                      <th className="px-4 py-2 text-left font-medium text-gray-600">Valor</th>
+                      <th className="px-4 py-2 text-left font-medium text-gray-600">Confianca</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {(extractions as Array<{ field?: string; value?: unknown; confidence?: number }>).map((ex, i) => (
                       <tr key={i} className="hover:bg-gray-50">
-                        <td className="px-4 py-2 font-medium text-gray-900">{ex.field ?? `Field ${i + 1}`}</td>
+                        <td className="px-4 py-2 font-medium text-gray-900">{ex.field ?? `Campo ${i + 1}`}</td>
                         <td className="px-4 py-2 text-gray-700">{typeof ex.value === 'object' ? JSON.stringify(ex.value) : String(ex.value ?? '')}</td>
                         <td className="px-4 py-2 text-gray-500">{ex.confidence != null ? `${Math.round(ex.confidence * 100)}%` : '-'}</td>
                       </tr>
