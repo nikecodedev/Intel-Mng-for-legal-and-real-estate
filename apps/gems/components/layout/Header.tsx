@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useQuery } from 'react-query';
+import { api } from '@/lib/api';
 
 function formatUserDisplay(user: { email: string; first_name?: string | null; last_name?: string | null }): string {
   const first = user.first_name?.trim();
@@ -53,6 +55,15 @@ export function Header({ onMenuToggle }: { onMenuToggle?: () => void }) {
     router.push('/login');
   };
 
+  // Fetch avatar from /auth/me
+  const { data: meData } = useQuery('header-auth-me', async () => {
+    const res = await api.get('/auth/me');
+    const d = res.data?.data ?? res.data;
+    return d?.user ?? d;
+  }, { staleTime: 5 * 60 * 1000, retry: false, enabled: !!user });
+
+  const avatarUrl = meData?.avatar_url ?? null;
+
   const userInitials = (() => {
     if (!user) return '?';
     const first = user.first_name?.trim()?.[0] ?? '';
@@ -91,9 +102,13 @@ export function Header({ onMenuToggle }: { onMenuToggle?: () => void }) {
               </span>
             </div>
             <Link href="/profile" className="hidden items-center gap-2.5 sm:flex hover:opacity-80 transition-opacity">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white">
-                {userInitials}
-              </div>
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Avatar" className="h-8 w-8 rounded-full object-cover ring-1 ring-gray-200" />
+              ) : (
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white">
+                  {userInitials}
+                </div>
+              )}
               <span className="text-sm font-medium text-gray-700 truncate max-w-[150px]" title={user.email}>
                 {formatUserDisplay(user)}
               </span>
