@@ -7,6 +7,10 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 const financeNav = [
   { href: '/finance', label: 'Visão Geral' },
   { href: '/finance/transactions', label: 'Transações' },
+  { href: '/finance/treasury', label: 'Tesouraria' },
+  { href: '/finance/roi', label: 'ROI' },
+  { href: '/finance/reports', label: 'Relatórios' },
+  { href: '/finance/approvals', label: 'Aprovações' },
   { href: '/finance/expenses', label: 'Despesas' },
   { href: '/finance/receivables', label: 'Recebíveis' },
   { href: '/finance/payables', label: 'Contas a Pagar' },
