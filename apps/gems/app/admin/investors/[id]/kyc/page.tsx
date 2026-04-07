@@ -123,7 +123,31 @@ export default function InvestorKycPage({ params }: { params: { id: string } }) 
             <dt className="text-gray-600">Ticket Máximo</dt><dd className="font-medium">{kyc.ticket_max != null ? `R$ ${Number(kyc.ticket_max).toLocaleString('pt-BR')}` : '-'}</dd>
             <dt className="text-gray-600">Fonte de Recursos</dt><dd className="font-medium">{kyc.funding_source ?? '-'}</dd>
           </dl>
-          {kyc.rejection_reason && <p className="text-sm text-red-600">Motivo da rejeição: {kyc.rejection_reason}</p>}
+          {/* Validade KYC — 24 meses */}
+          {kyc.created_at && (() => {
+            const created = new Date(kyc.created_at);
+            const expiry = new Date(created);
+            expiry.setMonth(expiry.getMonth() + 24);
+            const now = new Date();
+            const daysUntilExpiry = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+            const isExpired = daysUntilExpiry <= 0;
+            const isNearExpiry = daysUntilExpiry > 0 && daysUntilExpiry <= 30;
+            return (
+              <div className={`rounded-md p-3 text-sm ${isExpired ? 'bg-red-50 border border-red-200' : isNearExpiry ? 'bg-yellow-50 border border-yellow-200' : 'bg-gray-50 border border-gray-200'}`}>
+                <p className="text-gray-700">
+                  <strong>Validade KYC:</strong> {expiry.toLocaleDateString('pt-BR')} ({daysUntilExpiry > 0 ? `${daysUntilExpiry} dias restantes` : 'Expirado'})
+                </p>
+                {isNearExpiry && (
+                  <p className="mt-1 text-yellow-700 font-medium">KYC expira em {daysUntilExpiry} dias — renovacao necessaria</p>
+                )}
+                {isExpired && (
+                  <p className="mt-1 text-red-700 font-medium">KYC expirado — renovacao obrigatoria</p>
+                )}
+              </div>
+            );
+          })()}
+
+          {kyc.rejection_reason && <p className="text-sm text-red-600">Motivo da rejeicao: {kyc.rejection_reason}</p>}
 
           {kyc.status === 'PENDING' && (
             <div className="flex items-center gap-3 pt-2 border-t border-gray-200">

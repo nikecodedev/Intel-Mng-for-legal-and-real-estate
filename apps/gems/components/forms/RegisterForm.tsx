@@ -4,13 +4,14 @@ import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getApiErrorMessage } from '@/lib/api';
 
-const PASSWORD_RULES = 'Mínimo 8 caracteres, uma maiúscula, uma minúscula e um número.';
+const PASSWORD_RULES = 'Minimo 12 caracteres, uma maiuscula, uma minuscula, um numero e um simbolo.';
 
 function validatePassword(pwd: string): string | null {
-  if (pwd.length < 8) return 'A senha deve ter pelo menos 8 caracteres.';
-  if (!/[A-Z]/.test(pwd)) return 'A senha deve conter pelo menos uma letra maiúscula.';
-  if (!/[a-z]/.test(pwd)) return 'A senha deve conter pelo menos uma letra minúscula.';
-  if (!/[0-9]/.test(pwd)) return 'A senha deve conter pelo menos um número.';
+  if (pwd.length < 12) return 'A senha deve ter pelo menos 12 caracteres.';
+  if (!/[A-Z]/.test(pwd)) return 'A senha deve conter pelo menos uma letra maiuscula.';
+  if (!/[a-z]/.test(pwd)) return 'A senha deve conter pelo menos uma letra minuscula.';
+  if (!/[0-9]/.test(pwd)) return 'A senha deve conter pelo menos um numero.';
+  if (!/[^A-Za-z0-9]/.test(pwd)) return 'A senha deve conter pelo menos um simbolo especial (ex: !@#$%&*).';
   return null;
 }
 

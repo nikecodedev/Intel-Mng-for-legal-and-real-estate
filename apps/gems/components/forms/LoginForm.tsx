@@ -11,6 +11,7 @@ interface LoginFormProps {
 
 export function LoginForm({ onSuccess }: LoginFormProps) {
   const { login } = useAuth();
+  const [subdomain, setSubdomain] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -26,7 +27,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
     setLoading(true);
     abortRef.current = new AbortController();
     try {
-      await login(email, password, rememberMe);
+      await login(email, password, rememberMe, subdomain);
       onSuccess?.();
     } catch (err) {
       if (!abortRef.current?.signal.aborted) {
@@ -41,6 +42,20 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      <div>
+        <label htmlFor="login-subdomain" className="block text-sm font-medium text-slate-300 mb-1.5">
+          Subdominio
+        </label>
+        <input
+          id="login-subdomain"
+          type="text"
+          autoComplete="organization"
+          value={subdomain}
+          onChange={(e) => setSubdomain(e.target.value)}
+          placeholder="ex: gruporacional"
+          className="block w-full rounded-lg border border-white/10 bg-white/5 px-3.5 py-2.5 text-sm text-white placeholder-slate-500 shadow-sm transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
+        />
+      </div>
       <div>
         <label htmlFor="login-email" className="block text-sm font-medium text-slate-300 mb-1.5">
           E-mail

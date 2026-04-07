@@ -74,8 +74,37 @@ function InterestButtons({ matchId, currentInterest }: { matchId: string; curren
   );
 }
 
+function SendProposalButton({ investorId, disabled }: { investorId: string; disabled: boolean }) {
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState('');
+  async function run() {
+    setLoading(true); setMsg('');
+    try {
+      await api.post(`/crm/proposals`, { investor_id: investorId });
+      setMsg('Proposta enviada.');
+    } catch { setMsg('Falhou.'); }
+    finally { setLoading(false); }
+  }
+  return (
+    <span className="inline-flex items-center gap-1">
+      <button onClick={run} disabled={loading || disabled} className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50" title={disabled ? 'Bloqueado: perfil de risco ALTO' : ''}>
+        {loading ? 'Enviando...' : 'Enviar Proposta'}
+      </button>
+      {msg && <span className="text-xs text-gray-600">{msg}</span>}
+    </span>
+  );
+}
+
 export default function AdminInvestorDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
+
+  // Fetch KYC to check risk profile
+  const { data: kycData } = useQuery(['crm-kyc-risk', id], async () => {
+    const res = await api.get(`/crm/kyc/${id}`);
+    return (res.data?.kyc ?? res.data?.data ?? res.data) as { risk_profile?: string } | null;
+  }, { staleTime: 60_000, retry: false });
+
+  const isHighRisk = kycData?.risk_profile === 'ALTO';
 
   const { data: investor, isLoading: invLoading, error: invError } = useQuery(
     ['crm-investor', id],
@@ -109,15 +138,31 @@ export default function AdminInvestorDetailPage({ params }: { params: { id: stri
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900">{name}</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-semibold text-gray-900">{name}</h2>
+          {isHighRisk && (
+            <span className="inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700 ring-1 ring-red-300">
+              RISCO ALTO
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
           <Link href={`/admin/investors/${id}/kyc`} className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">KYC</Link>
-          <Link href={`/admin/investors/${id}/preferences`} className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Preferências</Link>
+          <Link href={`/admin/investors/${id}/preferences`} className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Preferencias</Link>
           <FindMatchesButton investorId={id} />
           <AutoNotifyButton investorId={id} />
-          <Link href="/admin/investors" className="text-sm text-blue-600 hover:underline">← Voltar</Link>
+          <SendProposalButton investorId={id} disabled={isHighRisk} />
+          <Link href="/admin/investors" className="text-sm text-blue-600 hover:underline">Voltar</Link>
         </div>
       </div>
+
+      {isHighRisk && (
+        <div className="rounded-lg border border-red-300 bg-red-50 p-4">
+          <p className="text-sm text-red-700 font-medium">
+            Atencao: Este investidor possui perfil de risco ALTO. O envio de propostas esta bloqueado ate que o perfil de risco seja reavaliado.
+          </p>
+        </div>
+      )}
 
       <section className="rounded-lg border border-gray-200 bg-white p-6">
         <h3 className="text-sm font-medium text-gray-500 mb-3">Detalhes do investidor</h3>

@@ -133,7 +133,7 @@ export default function KnowledgePage() {
   }
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'entries', label: 'Registros' },
+    { key: 'entries', label: 'Biblioteca' },
     { key: 'templates', label: 'Modelos' },
     { key: 'search', label: 'Pesquisar' },
   ];
@@ -148,6 +148,9 @@ export default function KnowledgePage() {
           </Link>
           <Link href="/knowledge/templates/new" className="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
             Novo Template
+          </Link>
+          <Link href="/knowledge/theses" className="rounded bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700">
+            Teses
           </Link>
         </div>
       </div>

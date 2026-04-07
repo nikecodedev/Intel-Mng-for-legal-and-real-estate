@@ -32,6 +32,7 @@ export default function RoiPage() {
       <div>
         <h2 className="text-lg font-semibold text-gray-900">ROI por Projeto</h2>
         <p className="text-sm text-gray-500">Retorno sobre investimento por projeto ou ativo</p>
+        <p className="text-xs text-amber-600 mt-1">Nota: O recalculo automatico de ROI e acionado a cada nova transacao financeira vinculada ao ativo.</p>
       </div>
 
       {error || !entries?.length ? (

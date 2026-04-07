@@ -1,17 +1,28 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useMutation, useQueryClient } from 'react-query';
 import Link from 'next/link';
 import { uploadDocument, getApiErrorMessage } from '@/lib/legal-api';
+import { api } from '@/lib/api';
 
 export default function LegalUploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [documentType, setDocumentType] = useState('CONTRACT');
+  const [linkedCase, setLinkedCase] = useState('');
+  const [relatedParty, setRelatedParty] = useState('');
+  const [cases, setCases] = useState<{ id: string; case_number?: string; title?: string }[]>([]);
   const [progress, setProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    api.get('/documents', { params: { limit: 200 } }).then(({ data }) => {
+      const list = data?.documents ?? data?.data ?? [];
+      setCases(list);
+    }).catch(() => {});
+  }, []);
 
   const uploadMutation = useMutation({
     mutationFn: async () => {
@@ -22,6 +33,8 @@ export default function LegalUploadPage() {
       form.append('file', file);
       form.append('title', title || file.name);
       form.append('document_type', documentType);
+      if (linkedCase) form.append('process_id', linkedCase);
+      if (relatedParty) form.append('related_party', relatedParty);
       return uploadDocument(form, setProgress);
     },
     onSuccess: () => {
@@ -43,10 +56,10 @@ export default function LegalUploadPage() {
   return (
     <div className="max-w-xl space-y-6">
       <div className="rounded-lg border border-gray-200 bg-white p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">Upload document</h2>
+        <h2 className="text-lg font-medium text-gray-900 mb-4">Upload de Documento</h2>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">File</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Arquivo</label>
             <input
               ref={fileInputRef}
               type="file"
@@ -61,28 +74,53 @@ export default function LegalUploadPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Titulo</label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Document title"
+              placeholder="Titulo do documento"
               className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
               disabled={isUploading}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Document type</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Processo Vinculado</label>
+            <select
+              value={linkedCase}
+              onChange={(e) => setLinkedCase(e.target.value)}
+              className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+              disabled={isUploading}
+            >
+              <option value="">-- Nenhum --</option>
+              {cases.map((c) => (
+                <option key={c.id} value={c.id}>{c.case_number ?? c.title ?? c.id.slice(0, 8)}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Parte Relacionada</label>
+            <input
+              type="text"
+              value={relatedParty}
+              onChange={(e) => setRelatedParty(e.target.value)}
+              placeholder="Nome da parte relacionada"
+              className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+              disabled={isUploading}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Documento</label>
             <select
               value={documentType}
               onChange={(e) => setDocumentType(e.target.value)}
               className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
               disabled={isUploading}
             >
-              <option value="CONTRACT">Contract</option>
+              <option value="CONTRACT">Contrato</option>
               <option value="JUDICIAL">Judicial</option>
-              <option value="NOTARY">Notary</option>
-              <option value="OTHER">Other</option>
+              <option value="NOTARY">Cartorio</option>
+              <option value="OTHER">Outro</option>
             </select>
           </div>
           {isUploading && (
@@ -99,7 +137,7 @@ export default function LegalUploadPage() {
             disabled={!file || isUploading}
             className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            {isUploading ? 'Uploading…' : 'Upload'}
+            {isUploading ? 'Enviando...' : 'Enviar'}
           </button>
         </div>
         {uploadMutation.isError && (

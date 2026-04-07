@@ -32,6 +32,9 @@ export default function RealEstateAssetDetailPage({ params }: { params: { id: st
   // State transition form state
   const [transitionState, setTransitionState] = useState('');
   const [transitionReason, setTransitionReason] = useState('');
+  const [transitionJustification, setTransitionJustification] = useState('');
+  const [transitionDocRef, setTransitionDocRef] = useState('');
+  const [transitionEffectiveDate, setTransitionEffectiveDate] = useState('');
   const [transitionLoading, setTransitionLoading] = useState(false);
   const [transitionError, setTransitionError] = useState('');
   const [transitionSuccess, setTransitionSuccess] = useState('');
@@ -191,6 +194,18 @@ export default function RealEstateAssetDetailPage({ params }: { params: { id: st
       setTransitionError('Selecione um estado destino.');
       return;
     }
+    if (transitionJustification.length < 100) {
+      setTransitionError('A justificativa deve ter no minimo 100 caracteres.');
+      return;
+    }
+    if (transitionEffectiveDate) {
+      const eff = new Date(transitionEffectiveDate);
+      const today = new Date(); today.setHours(23, 59, 59, 999);
+      if (eff > today) {
+        setTransitionError('A data efetiva nao pode ser futura.');
+        return;
+      }
+    }
     setTransitionLoading(true);
     setTransitionError('');
     setTransitionSuccess('');
@@ -198,10 +213,16 @@ export default function RealEstateAssetDetailPage({ params }: { params: { id: st
       await api.post(`/assets/${id}/transition`, {
         to_state: transitionState,
         reason: transitionReason,
+        justification: transitionJustification,
+        document_reference: transitionDocRef || undefined,
+        effective_date: transitionEffectiveDate || undefined,
       });
       setTransitionSuccess(`Transicionado para ${transitionState} com sucesso.`);
       setTransitionState('');
       setTransitionReason('');
+      setTransitionJustification('');
+      setTransitionDocRef('');
+      setTransitionEffectiveDate('');
       queryClient.invalidateQueries(['real-estate-asset', id]);
       queryClient.invalidateQueries(['real-estate-cost-breakdown', id]);
     } catch (err: any) {
@@ -357,9 +378,44 @@ export default function RealEstateAssetDetailPage({ params }: { params: { id: st
                 placeholder="Motivo da transicao"
                 className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Justificativa (min. 100 caracteres) *</label>
+              <textarea
+                value={transitionJustification}
+                onChange={(e) => setTransitionJustification(e.target.value)}
+                placeholder="Descreva a justificativa detalhada para a transicao de status..."
+                rows={3}
+                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="text-xs text-gray-400 mt-1">{transitionJustification.length}/100 caracteres</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Documento Comprobatorio</label>
+                <input
+                  type="text"
+                  value={transitionDocRef}
+                  onChange={(e) => setTransitionDocRef(e.target.value)}
+                  placeholder="Referencia do documento"
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Data Efetiva (nao futura)</label>
+                <input
+                  type="date"
+                  value={transitionEffectiveDate}
+                  onChange={(e) => setTransitionEffectiveDate(e.target.value)}
+                  max={new Date().toISOString().split('T')[0]}
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            <div>
               <button
                 onClick={handleTransition}
-                disabled={transitionLoading || !transitionState}
+                disabled={transitionLoading || !transitionState || transitionJustification.length < 100}
                 className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {transitionLoading ? 'Transicionando...' : 'Transicionar'}

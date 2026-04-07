@@ -13,7 +13,7 @@ const TRANSACTION_TYPES: TransactionType[] = ['PAYABLE', 'RECEIVABLE', 'EXPENSE'
 export default function NewTransactionPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [form, setForm] = useState<CreateTransactionInput & { amount: string }>({
+  const [form, setForm] = useState<CreateTransactionInput & { amount: string; bank_account: string; receipt_reference: string }>({
     transaction_type: 'PAYABLE',
     amount: '',
     amount_cents: 0,
@@ -26,6 +26,8 @@ export default function NewTransactionPage() {
     payment_method: '',
     due_date: '',
     notes: '',
+    bank_account: '',
+    receipt_reference: '',
   });
 
   const { data: assetsData } = useQuery('real-estate-assets', () => fetchAssets({ limit: 200 }), { staleTime: 60 * 1000 });
@@ -51,6 +53,8 @@ export default function NewTransactionPage() {
       if (form.vendor_name?.trim()) payload.vendor_name = form.vendor_name.trim();
       if (form.payment_method?.trim()) payload.payment_method = form.payment_method.trim();
       if (form.notes?.trim()) payload.notes = form.notes.trim();
+      if (form.bank_account?.trim()) (payload as any).bank_account = form.bank_account.trim();
+      if (form.receipt_reference?.trim()) (payload as any).receipt_reference = form.receipt_reference.trim();
       return createTransaction(payload);
     },
     onSuccess: (data) => {
@@ -84,7 +88,13 @@ export default function NewTransactionPage() {
 
     const hasLink = !!(form.process_id?.trim() || form.real_estate_asset_id || form.client_id?.trim());
     if (!hasLink) {
-      setClientError('At least one link (Case, Asset, or Client) is required.');
+      setClientError('Pelo menos um vinculo (Processo, Ativo ou Cliente) e obrigatorio.');
+      return;
+    }
+
+    const amountVal = parseFloat(form.amount || '0');
+    if (amountVal > 500 && !form.receipt_reference?.trim()) {
+      setClientError('Para valores acima de R$ 500, o comprovante e obrigatorio.');
       return;
     }
 
@@ -230,18 +240,46 @@ export default function NewTransactionPage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Payment method</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Forma de Pagamento</label>
           <input
             type="text"
             value={form.payment_method}
             onChange={(e) => setForm((f) => ({ ...f, payment_method: e.target.value }))}
-            placeholder="e.g. PIX, Transfer"
+            placeholder="ex: PIX, Transferencia"
             className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Conta Bancaria</label>
+          <select
+            value={form.bank_account}
+            onChange={(e) => setForm((f) => ({ ...f, bank_account: e.target.value }))}
+            className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+          >
+            <option value="">-- Selecione --</option>
+            <option value="CONTA_PRINCIPAL">Conta Principal</option>
+            <option value="CONTA_ESCROW">Conta Escrow</option>
+            <option value="CONTA_INVESTIMENTO">Conta Investimento</option>
+            <option value="CONTA_OPERACIONAL">Conta Operacional</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Comprovante {parseFloat(form.amount || '0') > 500 && <span className="text-red-500">* (obrigatorio acima de R$ 500)</span>}
+          </label>
+          <input
+            type="text"
+            value={form.receipt_reference}
+            onChange={(e) => setForm((f) => ({ ...f, receipt_reference: e.target.value }))}
+            placeholder="Referencia ou ID do comprovante"
+            className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Observacoes</label>
           <textarea
             value={form.notes}
             onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}

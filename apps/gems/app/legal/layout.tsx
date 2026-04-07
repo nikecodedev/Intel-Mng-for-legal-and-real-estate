@@ -8,7 +8,8 @@ const legalNav = [
   { href: '/legal', label: 'Documentos' },
   { href: '/legal/cases', label: 'Processos' },
   { href: '/legal/upload', label: 'Upload' },
-  { href: '/legal/sanitation', label: 'Fila de Saneamento' },
+  { href: '/legal/sanitation', label: 'Revisao de Documentos Amarelos' },
+  { href: '/legal/deadlines', label: 'Prazos e Agenda' },
   { href: '/legal/review', label: 'Revisão' },
   { href: '/legal/generate', label: 'Gerar' },
 ];
