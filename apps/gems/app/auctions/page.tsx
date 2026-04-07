@@ -57,7 +57,8 @@ export default function AuctionsListPage() {
   if (assets.length === 0) {
     return (
       <div className="space-y-4">
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-3">
+          <Link href="/auctions/pipeline" className="rounded border border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50">Funil MPGA</Link>
           <Link href="/auctions/new" className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Novo Leilão</Link>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">
@@ -69,7 +70,8 @@ export default function AuctionsListPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-3">
+        <Link href="/auctions/pipeline" className="rounded border border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50">Funil MPGA</Link>
         <Link href="/auctions/new" className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Novo Leilão</Link>
       </div>
       <DataTable<AuctionAsset>

@@ -256,6 +256,14 @@ export default function RealEstateAssetDetailPage({ params }: { params: { id: st
         </Link>
       </div>
 
+      {/* Sub-páginas */}
+      <div className="flex gap-2 flex-wrap">
+        <Link href={`/real-estate/${id}/legal`} className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Regularização</Link>
+        <Link href={`/real-estate/${id}/works`} className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Obras e Reformas</Link>
+        <Link href={`/real-estate/${id}/liabilities`} className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Passivos</Link>
+        <Link href={`/real-estate/${id}/commercial`} className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Venda / Locação</Link>
+      </div>
+
       {/* Basic info */}
       <section className="rounded-lg border border-gray-200 bg-white p-6">
         <h3 className="text-sm font-medium text-gray-500 mb-3">Imovel</h3>

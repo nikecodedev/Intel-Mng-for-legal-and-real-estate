@@ -3,7 +3,18 @@
  * Align with backend API responses where applicable.
  */
 
-export type UserRole = 'OWNER' | 'REVISOR' | 'OPERATIONAL' | 'INVESTOR';
+export type UserRole =
+  | 'OWNER'
+  | 'ADMIN'
+  | 'ADVOGADO'
+  | 'ADVOGADO_SENIOR'
+  | 'ANALISTA_LEILOES'
+  | 'GESTOR_IMOBILIARIO'
+  | 'FINANCEIRO'
+  | 'INVESTOR'
+  // Legacy roles (backward compatibility)
+  | 'REVISOR'
+  | 'OPERATIONAL';
 
 export interface User {
   id: string;

@@ -15,17 +15,17 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { href: '/dashboard', label: 'Painel', icon: <DashboardIcon />, section: 'main' },
-  { href: '/legal', label: 'Jurídico', icon: <LegalIcon />, section: 'main' },
-  { href: '/auctions', label: 'Leilões', icon: <AuctionsIcon />, section: 'main' },
-  { href: '/real-estate', label: 'Imóveis', icon: <RealEstateIcon />, section: 'main' },
-  { href: '/finance', label: 'Financeiro', icon: <FinanceIcon />, section: 'main' },
+  { href: '/legal', label: 'Jurídico', icon: <LegalIcon />, section: 'main', roles: ['OWNER', 'ADMIN', 'ADVOGADO', 'ADVOGADO_SENIOR'] },
+  { href: '/auctions', label: 'Leilões', icon: <AuctionsIcon />, section: 'main', roles: ['OWNER', 'ADMIN', 'ANALISTA_LEILOES'] },
+  { href: '/real-estate', label: 'Imóveis', icon: <RealEstateIcon />, section: 'main', roles: ['OWNER', 'ADMIN', 'GESTOR_IMOBILIARIO'] },
+  { href: '/finance', label: 'Financeiro', icon: <FinanceIcon />, section: 'main', roles: ['OWNER', 'ADMIN', 'FINANCEIRO'] },
   { href: '/crm', label: 'CRM', icon: <CRMIcon />, section: 'main' },
   { href: '/knowledge', label: 'Conhecimento', icon: <KnowledgeIcon />, section: 'tools' },
   { href: '/workflow', label: 'Fluxos', icon: <WorkflowIcon />, section: 'tools' },
   { href: '/compliance', label: 'Conformidade', icon: <ComplianceIcon />, section: 'tools' },
   { href: '/intelligence', label: 'Inteligência', icon: <IntelligenceIcon />, section: 'tools' },
   { href: '/investor', label: 'Investidor', icon: <InvestorIcon />, section: 'admin', roles: ['INVESTOR'] },
-  { href: '/admin', label: 'Administração', icon: <AdminIcon />, section: 'admin', roles: ['OWNER'] },
+  { href: '/admin', label: 'Administração', icon: <AdminIcon />, section: 'admin', roles: ['OWNER', 'ADMIN'] },
   { href: '/super-admin', label: 'Super Admin', icon: <SuperAdminIcon />, section: 'admin', roles: ['OWNER'] },
 ];
 

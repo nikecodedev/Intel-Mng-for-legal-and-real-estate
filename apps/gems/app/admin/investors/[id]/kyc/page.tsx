@@ -11,7 +11,12 @@ interface KycData {
   id_document_type?: string;
   id_document_number?: string;
   tax_id?: string;
+  cpf_cnpj?: string;
   address?: string;
+  risk_profile?: string;
+  ticket_min?: number;
+  ticket_max?: number;
+  funding_source?: string;
   status: string;
   rejection_reason?: string;
   created_at: string;
@@ -27,7 +32,17 @@ export default function InvestorKycPage({ params }: { params: { id: string } }) 
   }, { staleTime: 60_000, retry: false });
 
   // KYC form state
-  const [form, setForm] = useState({ id_document_type: 'CPF', id_document_number: '', tax_id: '', address: '' });
+  const [form, setForm] = useState({
+    id_document_type: 'CPF',
+    id_document_number: '',
+    tax_id: '',
+    cpf_cnpj: '',
+    address: '',
+    risk_profile: 'BAIXO',
+    ticket_min: '',
+    ticket_max: '',
+    funding_source: 'NACIONAL',
+  });
   const [submitLoading, setSubmitLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -40,7 +55,12 @@ export default function InvestorKycPage({ params }: { params: { id: string } }) 
     e.preventDefault();
     setSubmitLoading(true); setError(''); setSuccess('');
     try {
-      await api.post('/crm/kyc', { investor_id: id, ...form });
+      await api.post('/crm/kyc', {
+        investor_id: id,
+        ...form,
+        ticket_min: form.ticket_min ? Number(form.ticket_min) : undefined,
+        ticket_max: form.ticket_max ? Number(form.ticket_max) : undefined,
+      });
       setSuccess('KYC enviado.');
       queryClient.invalidateQueries(['crm-kyc', id]);
     } catch (err: any) {
@@ -95,8 +115,13 @@ export default function InvestorKycPage({ params }: { params: { id: string } }) 
             <dd><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${kyc.status === 'APPROVED' ? 'bg-green-100 text-green-700' : kyc.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>{kyc.status}</span></dd>
             <dt className="text-gray-600">Tipo de Documento</dt><dd className="font-medium">{kyc.id_document_type ?? '-'}</dd>
             <dt className="text-gray-600">Número do Documento</dt><dd className="font-medium">{kyc.id_document_number ?? '-'}</dd>
-            <dt className="text-gray-600">CPF/CNPJ</dt><dd className="font-medium">{kyc.tax_id ?? '-'}</dd>
+            <dt className="text-gray-600">Tax ID</dt><dd className="font-medium">{kyc.tax_id ?? '-'}</dd>
+            <dt className="text-gray-600">CPF/CNPJ</dt><dd className="font-medium">{kyc.cpf_cnpj ?? '-'}</dd>
             <dt className="text-gray-600">Endereço</dt><dd className="font-medium">{kyc.address ?? '-'}</dd>
+            <dt className="text-gray-600">Perfil de Risco</dt><dd className="font-medium">{kyc.risk_profile ?? '-'}</dd>
+            <dt className="text-gray-600">Ticket Mínimo</dt><dd className="font-medium">{kyc.ticket_min != null ? `R$ ${Number(kyc.ticket_min).toLocaleString('pt-BR')}` : '-'}</dd>
+            <dt className="text-gray-600">Ticket Máximo</dt><dd className="font-medium">{kyc.ticket_max != null ? `R$ ${Number(kyc.ticket_max).toLocaleString('pt-BR')}` : '-'}</dd>
+            <dt className="text-gray-600">Fonte de Recursos</dt><dd className="font-medium">{kyc.funding_source ?? '-'}</dd>
           </dl>
           {kyc.rejection_reason && <p className="text-sm text-red-600">Motivo da rejeição: {kyc.rejection_reason}</p>}
 
@@ -123,12 +148,36 @@ export default function InvestorKycPage({ params }: { params: { id: string } }) 
               <input value={form.id_document_number} onChange={e => setForm(p => ({ ...p, id_document_number: e.target.value }))} required className="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Tax ID (CPF/CNPJ)</label>
+              <label className="block text-xs text-gray-600 mb-1">Tax ID</label>
               <input value={form.tax_id} onChange={e => setForm(p => ({ ...p, tax_id: e.target.value }))} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">CPF/CNPJ</label>
+              <input value={form.cpf_cnpj} onChange={e => setForm(p => ({ ...p, cpf_cnpj: e.target.value }))} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="000.000.000-00 ou 00.000.000/0000-00" />
             </div>
             <div>
               <label className="block text-xs text-gray-600 mb-1">Endereço</label>
               <input value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Perfil de Risco</label>
+              <select value={form.risk_profile} onChange={e => setForm(p => ({ ...p, risk_profile: e.target.value }))} className="w-full rounded border border-gray-300 px-3 py-2 text-sm">
+                <option value="BAIXO">Baixo</option><option value="MEDIO">Médio</option><option value="ALTO">Alto</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Ticket Mínimo (R$)</label>
+              <input type="number" value={form.ticket_min} onChange={e => setForm(p => ({ ...p, ticket_min: e.target.value }))} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="0,00" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Ticket Máximo (R$)</label>
+              <input type="number" value={form.ticket_max} onChange={e => setForm(p => ({ ...p, ticket_max: e.target.value }))} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="0,00" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs text-gray-600 mb-1">Fonte de Recursos</label>
+              <select value={form.funding_source} onChange={e => setForm(p => ({ ...p, funding_source: e.target.value }))} className="w-full rounded border border-gray-300 px-3 py-2 text-sm">
+                <option value="NACIONAL">Nacional</option><option value="ESTRANGEIRO">Estrangeiro</option><option value="PLD_FT">PLD/FT</option>
+              </select>
             </div>
           </div>
           <button type="submit" disabled={submitLoading} className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">{submitLoading ? 'Enviando...' : 'Enviar KYC'}</button>
