@@ -134,6 +134,12 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
   // Reprocess state
   const [reprocessLoading, setReprocessLoading] = useState(false);
 
+  // Flag form state
+  const [flagType, setFlagType] = useState('');
+  const [flagSeverity, setFlagSeverity] = useState<'INFO' | 'WARNING' | 'ERROR'>('INFO');
+  const [flagDesc, setFlagDesc] = useState('');
+  const [flagLoading, setFlagLoading] = useState(false);
+
   // Extraction edit state
   const [editingExtraction, setEditingExtraction] = useState(false);
   const [extProcessNumber, setExtProcessNumber] = useState('');
@@ -259,6 +265,30 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
       setActionMsg({ type: 'error', text: err?.response?.data?.message || 'Falha ao reprocessar documento.' });
     } finally {
       setReprocessLoading(false);
+    }
+  }
+
+  async function submitFlag() {
+    if (!flagType.trim() || !flagDesc.trim()) {
+      setActionMsg({ type: 'error', text: 'Preencha tipo e descricao da flag.' });
+      return;
+    }
+    setFlagLoading(true);
+    try {
+      await api.post(`/documents/${id}/quality-flags`, {
+        flag_type: flagType.trim(),
+        severity: flagSeverity,
+        description: flagDesc.trim(),
+      });
+      setActionMsg({ type: 'success', text: 'Flag de qualidade criada com sucesso.' });
+      setFlagType('');
+      setFlagDesc('');
+      setFlagSeverity('INFO');
+      queryClient.invalidateQueries(['legal-document', id]);
+    } catch (err: any) {
+      setActionMsg({ type: 'error', text: err?.response?.data?.message || 'Falha ao criar flag de qualidade.' });
+    } finally {
+      setFlagLoading(false);
     }
   }
 
@@ -558,6 +588,53 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
           </ul>
         </section>
       )}
+
+      {/* Formulario de Flag de Qualidade */}
+      <section className="rounded-lg border border-gray-200 bg-white p-6">
+        <h3 className="text-sm font-medium text-gray-500 mb-3">Adicionar Flag de Qualidade</h3>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Tipo da Flag</label>
+              <input
+                value={flagType}
+                onChange={(e) => setFlagType(e.target.value)}
+                placeholder="ex. DADOS_INCOMPLETOS"
+                className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Severidade</label>
+              <select
+                value={flagSeverity}
+                onChange={(e) => setFlagSeverity(e.target.value as 'INFO' | 'WARNING' | 'ERROR')}
+                className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm"
+              >
+                <option value="INFO">INFO</option>
+                <option value="WARNING">WARNING</option>
+                <option value="ERROR">ERROR</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Descricao</label>
+            <textarea
+              value={flagDesc}
+              onChange={(e) => setFlagDesc(e.target.value)}
+              rows={2}
+              placeholder="Descreva o problema encontrado..."
+              className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm"
+            />
+          </div>
+          <button
+            onClick={submitFlag}
+            disabled={flagLoading || !flagType.trim() || !flagDesc.trim()}
+            className="rounded bg-amber-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+          >
+            {flagLoading ? 'Criando...' : 'Criar Flag'}
+          </button>
+        </div>
+      </section>
 
       {/* OCR Extractions */}
       {extractions && (

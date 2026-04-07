@@ -732,6 +732,64 @@ router.post(
 );
 
 /**
+ * POST /documents/:id/quality-flags
+ * Criar flag de qualidade manualmente para um documento
+ */
+const createQualityFlagSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    flag_type: z.string().min(1).max(100),
+    severity: z.enum(['INFO', 'WARNING', 'ERROR']),
+    description: z.string().min(1).max(2000),
+  }),
+});
+
+router.post(
+  '/:id/quality-flags',
+  authenticate,
+  requirePermission('documents:update'),
+  validateRequest(createQualityFlagSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { tenantId, userId } = getTenantContext(req);
+    const { id } = req.params;
+    const { flag_type, severity, description } = req.body;
+
+    const document = await DocumentModel.findById(id, tenantId);
+    if (!document) {
+      throw new NotFoundError('Document');
+    }
+
+    const flag = await DocumentQualityFlagModel.createDirect({
+      tenant_id: tenantId,
+      document_id: id,
+      flag_type: flag_type as any,
+      flag_code: `MANUAL_${flag_type.toUpperCase().replace(/\s+/g, '_')}`,
+      severity: severity as any,
+      flag_message: description,
+      flag_details: { created_by: userId, manual: true },
+    });
+
+    await AuditService.logDataChange(
+      tenantId,
+      AuditAction.CREATE,
+      'document_quality_flag',
+      flag.id,
+      userId,
+      req.user!.email,
+      req.context?.role,
+      req,
+      { flag_type, severity, document_id: id },
+      document.document_number
+    );
+
+    res.status(201).json({
+      success: true,
+      data: formatQualityFlagResponse(flag),
+    });
+  })
+);
+
+/**
  * GET /documents/:id
  * Get document by ID
  */

@@ -152,12 +152,13 @@ export default function AuctionDetailPage({ params }: { params: { id: string } }
   // --- Bid state & mutation ---
   const [bidAmountStr, setBidAmountStr] = useState('');
   const [bidSuccess, setBidSuccess] = useState<string | null>(null);
+  const [certidoesNegativas, setCertidoesNegativas] = useState(false);
 
   const bidMutation = useMutation({
     mutationFn: () => {
       const cents = Math.round(parseFloat(bidAmountStr) * 100);
-      if (Number.isNaN(cents) || cents <= 0) throw new Error('Enter a valid bid amount');
-      return placeBid(id, { amount_cents: cents });
+      if (Number.isNaN(cents) || cents <= 0) throw new Error('Informe um valor de lance valido');
+      return placeBid(id, { amount_cents: cents, certidoes_negativas: certidoesNegativas });
     },
     onSuccess: (data) => {
       setBidSuccess(`Bid placed successfully (ID: ${data.bid_id.slice(0, 8)})`);
@@ -209,7 +210,7 @@ export default function AuctionDetailPage({ params }: { params: { id: string } }
   // Derive effective risk values (prefer dedicated risk endpoint, fall back to asset)
   const effectiveRiskScore = riskData?.risk_score ?? a.risk_score ?? 0;
   const effectiveRiskLevel: RiskLevel = riskData?.risk_level ?? (a.risk_level as RiskLevel) ?? 'LOW';
-  const biddingBlocked = riskData?.bidding_disabled ?? a.bidding_disabled ?? effectiveRiskScore >= 70;
+  const biddingBlocked = effectiveRiskScore < 50 || !certidoesNegativas;
 
   // Color helpers
   function riskColorClass(level: RiskLevel): string {
@@ -292,7 +293,7 @@ export default function AuctionDetailPage({ params }: { params: { id: string } }
             </span>
           </div>
         </div>
-        <p className="mt-2 text-xs text-gray-500">Score 0-100. Hard Gate blocks bidding at 70+.</p>
+        <p className="mt-2 text-xs text-gray-500">Score 0-100. Hard Gate: score minimo de 50 e certidoes negativas obrigatorias.</p>
       </section>
 
       {/* Place Bid — Hard Gate MPGA risk blocking */}
@@ -302,10 +303,23 @@ export default function AuctionDetailPage({ params }: { params: { id: string } }
         {biddingBlocked && (
           <div className="mb-4 rounded-md border border-red-300 bg-red-50 p-3">
             <p className="text-sm font-medium text-red-700">
-              Bidding blocked — Risk score is HIGH ({effectiveRiskScore}%). MPGA Hard Gate requires resolution before bidding.
+              Score minimo de 50 necessario e certidoes negativas obrigatorias
             </p>
           </div>
         )}
+
+        <div className="mb-4">
+          <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={certidoesNegativas}
+              onChange={(e) => setCertidoesNegativas(e.target.checked)}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+            />
+            Certidoes Negativas verificadas
+          </label>
+          <p className="mt-1 text-xs text-gray-500">Obrigatorio para liberar lance</p>
+        </div>
 
         <div className="flex items-end gap-3">
           <div className="flex-1">

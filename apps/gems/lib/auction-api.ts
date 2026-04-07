@@ -121,6 +121,7 @@ export interface DueDiligenceChecklist {
 
 export interface BidPayload {
   amount_cents: number;
+  certidoes_negativas?: boolean;
 }
 
 export interface BidResponse {
