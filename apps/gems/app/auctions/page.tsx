@@ -48,8 +48,21 @@ export default function AuctionsListPage() {
 
   if (error) {
     return (
-      <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">
-        Nenhum leilão ainda.
+      <div className="rounded-lg border border-red-200 bg-red-50 p-8 text-center text-red-700">
+        Falha ao carregar leilões. Tente novamente.
+      </div>
+    );
+  }
+
+  if (assets.length === 0) {
+    return (
+      <div className="space-y-4">
+        <div className="flex justify-end">
+          <Link href="/auctions/new" className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Novo Leilão</Link>
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">
+          Nenhum leilão encontrado.
+        </div>
       </div>
     );
   }

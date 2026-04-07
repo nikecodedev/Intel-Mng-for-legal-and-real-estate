@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { api, getApiErrorMessage, isApiError } from '@/lib/api';
 
 interface KnowledgeEntry {
@@ -139,7 +140,17 @@ export default function KnowledgePage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Base de Conhecimento</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">Base de Conhecimento</h1>
+        <div className="flex gap-3">
+          <Link href="/knowledge/new" className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+            Nova Entrada
+          </Link>
+          <Link href="/knowledge/templates/new" className="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
+            Novo Template
+          </Link>
+        </div>
+      </div>
 
       {/* Tabs */}
       <div className="border-b border-gray-200">
@@ -202,7 +213,11 @@ export default function KnowledgePage() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {entries.map((entry) => (
                     <tr key={entry.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{entry.title}</td>
+                      <td className="px-4 py-3 text-sm font-medium">
+                        <Link href={`/knowledge/${entry.id}`} className="text-blue-600 hover:underline">
+                          {entry.title}
+                        </Link>
+                      </td>
                       <td className="px-4 py-3">
                         <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${TYPE_COLORS[entry.entry_type] ?? 'bg-gray-100 text-gray-700'}`}>
                           {entry.entry_type.replace(/_/g, ' ')}
@@ -233,7 +248,7 @@ export default function KnowledgePage() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                 {recommended.map((tpl) => (
-                  <div key={tpl.id} className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                  <Link key={tpl.id} href={`/knowledge/templates/${tpl.id}`} className="block rounded-lg border border-blue-200 bg-blue-50 p-4 hover:border-blue-400 transition-colors">
                     <h3 className="text-sm font-medium text-gray-900">{tpl.template_name}</h3>
                     <p className="text-xs text-gray-600 mt-1">{tpl.description ?? tpl.template_type}</p>
                     <div className="mt-2 flex items-center gap-3 text-xs text-gray-500">
@@ -242,7 +257,7 @@ export default function KnowledgePage() {
                         <span>Taxa de sucesso: {Math.round(tpl.success_rate * 100)}%</span>
                       )}
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
@@ -272,7 +287,11 @@ export default function KnowledgePage() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {templates.map((tpl) => (
                     <tr key={tpl.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{tpl.template_name}</td>
+                      <td className="px-4 py-3 text-sm font-medium">
+                        <Link href={`/knowledge/templates/${tpl.id}`} className="text-blue-600 hover:underline">
+                          {tpl.template_name}
+                        </Link>
+                      </td>
                       <td className="px-4 py-3 text-sm text-gray-600">{tpl.template_type}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{tpl.category ?? '-'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{tpl.usage_count ?? 0}</td>
@@ -342,7 +361,11 @@ export default function KnowledgePage() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {searchResults.map((r: any) => (
                     <tr key={r.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{r.title}</td>
+                      <td className="px-4 py-3 text-sm font-medium">
+                        <Link href={`/knowledge/${r.id}`} className="text-blue-600 hover:underline">
+                          {r.title}
+                        </Link>
+                      </td>
                       <td className="px-4 py-3">
                         <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${TYPE_COLORS[r.entry_type] ?? 'bg-gray-100 text-gray-700'}`}>
                           {r.entry_type?.replace(/_/g, ' ') ?? '-'}
