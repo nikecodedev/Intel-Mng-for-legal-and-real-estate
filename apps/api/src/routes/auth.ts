@@ -434,6 +434,7 @@ router.get(
           is_email_verified: user.is_email_verified,
           tenant_id: req.context?.tenant_id ?? user.tenant_id,
           role: req.context?.role ?? (user as any).role,
+          avatar_url: (user as any).avatar_url ?? null,
         },
       },
     });
@@ -551,6 +552,7 @@ const updateProfileSchema = z.object({
   body: z.object({
     first_name: z.string().min(1).max(100).optional(),
     last_name: z.string().min(1).max(100).optional(),
+    avatar_base64: z.string().max(500000).optional(), // max ~375KB image
   }),
 });
 
@@ -562,13 +564,14 @@ router.put(
     const user = req.user?.user;
     if (!user) throw new NotFoundError('User');
 
-    const { first_name, last_name } = req.body;
+    const { first_name, last_name, avatar_base64 } = req.body;
     const fields: string[] = [];
     const values: unknown[] = [];
     let idx = 1;
 
     if (first_name !== undefined) { fields.push(`first_name = $${idx++}`); values.push(first_name); }
     if (last_name !== undefined) { fields.push(`last_name = $${idx++}`); values.push(last_name); }
+    if (avatar_base64 !== undefined) { fields.push(`avatar_url = $${idx++}`); values.push(avatar_base64); }
 
     if (fields.length === 0) {
       res.json({ success: true, message: 'Nenhuma alteração.' });
@@ -579,7 +582,7 @@ router.put(
     values.push(user.id);
 
     const result = await db.query(
-      `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} AND is_active = true RETURNING id, email, first_name, last_name`,
+      `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} AND is_active = true RETURNING id, email, first_name, last_name, avatar_url`,
       values
     );
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from 'react-query';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { BlockLoader } from '@/components/ui';
@@ -24,6 +24,38 @@ export default function ProfilePage() {
   const [lastName, setLastName] = useState('');
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileMsg, setProfileMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Avatar state
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [avatarLoading, setAvatarLoading] = useState(false);
+  const [avatarMsg, setAvatarMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 375000) {
+      setAvatarMsg({ type: 'error', text: 'Imagem muito grande. Máximo 375KB.' });
+      return;
+    }
+    setAvatarLoading(true);
+    setAvatarMsg(null);
+    try {
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      await api.put('/auth/me', { avatar_base64: base64 });
+      setAvatarMsg({ type: 'success', text: 'Foto atualizada.' });
+      queryClient.invalidateQueries('auth-me');
+    } catch (err: any) {
+      setAvatarMsg({ type: 'error', text: err?.response?.data?.message || 'Falha ao enviar foto.' });
+    } finally {
+      setAvatarLoading(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+    }
+  }
 
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -90,8 +122,31 @@ export default function ProfilePage() {
         <div className="space-y-6">
           {/* Avatar + Name header */}
           <section className="rounded-lg border border-gray-200 bg-white p-6 flex items-center gap-5">
-            <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-700 text-2xl font-bold text-white shadow-lg">
-              {(userData.first_name?.[0] ?? '').toUpperCase()}{(userData.last_name?.[0] ?? '').toUpperCase()}
+            <div className="relative group">
+              {userData.avatar_url ? (
+                <img src={userData.avatar_url} alt="Avatar" className="h-20 w-20 rounded-full object-cover shadow-lg ring-2 ring-white" />
+              ) : (
+                <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-700 text-2xl font-bold text-white shadow-lg">
+                  {(userData.first_name?.[0] ?? '').toUpperCase()}{(userData.last_name?.[0] ?? '').toUpperCase()}
+                </div>
+              )}
+              <button
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={avatarLoading}
+                className="absolute inset-0 flex items-center justify-center rounded-full bg-black/0 group-hover:bg-black/40 transition-colors cursor-pointer"
+                title="Alterar foto"
+              >
+                <span className="text-white text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                  {avatarLoading ? '...' : 'Alterar'}
+                </span>
+              </button>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarUpload}
+                className="hidden"
+              />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900">
@@ -101,6 +156,9 @@ export default function ProfilePage() {
               <span className="mt-1 inline-block rounded-full bg-blue-100 px-3 py-0.5 text-xs font-medium text-blue-700">
                 {userData.role ?? 'Papel desconhecido'}
               </span>
+              {avatarMsg && (
+                <p className={`mt-1 text-xs ${avatarMsg.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>{avatarMsg.text}</p>
+              )}
             </div>
           </section>
 
