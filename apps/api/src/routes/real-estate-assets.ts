@@ -259,8 +259,18 @@ router.post(
       throw new NotFoundError('Real estate asset');
     }
 
-    // Block SOLD/RENTED without required checklist completion
+    // Trava de Venda Legal: block sale/ready transitions from REGULARIZATION
     const targetState = req.body.to_state as AssetState;
+    if (
+      currentAsset.current_state === 'REGULARIZATION' &&
+      (targetState === 'AVAILABLE_FOR_SALE' || targetState === 'READY' || targetState === 'SOLD')
+    ) {
+      throw new ValidationError(
+        'Trava de Venda Legal: imóvel em regularização não pode ser colocado à venda'
+      );
+    }
+
+    // Block SOLD/RENTED without required checklist completion
     if (targetState === 'SOLD' || targetState === 'RENTED') {
       const requiredPriorStates: AssetState[] = ['REGULARIZATION', 'RENOVATION'];
       const stateHistory = await db.query<{ to_state: string }>(

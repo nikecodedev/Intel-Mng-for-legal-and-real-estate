@@ -267,6 +267,9 @@ export default function RealEstateAssetDetailPage({ params }: { params: { id: st
   const a = asset as RealEstateAsset;
   const validNextStates = STATE_TRANSITIONS[a.current_state] ?? [];
   const badgeColor = STATE_BADGE_COLORS[a.current_state] ?? 'bg-gray-100 text-gray-800';
+  // Trava de Venda Legal: block sale-related transitions when in REGULARIZATION
+  const isRegularization = a.current_state === 'REGULARIZATION';
+  const blockedStates = isRegularization ? ['AVAILABLE_FOR_SALE', 'READY', 'SOLD'] : [];
 
   return (
     <div className="space-y-6">
@@ -358,6 +361,11 @@ export default function RealEstateAssetDetailPage({ params }: { params: { id: st
             {a.current_state}
           </span>
         </div>
+        {isRegularization && (
+          <div className="rounded-md bg-amber-50 border border-amber-300 p-3 text-amber-800 text-sm mb-3">
+            <strong>Trava de Venda Legal:</strong> Imovel em regularizacao nao pode ser colocado a venda. Conclua a regularizacao antes de transicionar para READY ou SOLD.
+          </div>
+        )}
         {validNextStates.length > 0 ? (
           <div className="space-y-3">
             <div className="flex flex-col sm:flex-row gap-3">
@@ -368,7 +376,9 @@ export default function RealEstateAssetDetailPage({ params }: { params: { id: st
               >
                 <option value="">Selecione o estado destino...</option>
                 {validNextStates.map((s) => (
-                  <option key={s} value={s}>{s}</option>
+                  <option key={s} value={s} disabled={blockedStates.includes(s)}>
+                    {s}{blockedStates.includes(s) ? ' (bloqueado - regularizacao)' : ''}
+                  </option>
                 ))}
               </select>
               <input

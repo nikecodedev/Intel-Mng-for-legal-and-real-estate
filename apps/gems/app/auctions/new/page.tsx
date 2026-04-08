@@ -115,8 +115,9 @@ export default function CreateAuctionPage() {
               <select value={form.occupation_status} onChange={(e) => set('occupation_status', e.target.value)} className="w-full rounded border border-gray-300 px-3 py-2 text-sm">
                 <option value="">Selecione...</option>
                 <option value="DESOCUPADO">Desocupado</option>
-                <option value="OCUPADO">Ocupado</option>
-                <option value="INDEFINIDO">Indefinido</option>
+                <option value="OCUPADO_DEVEDOR">Ocupado pelo Devedor</option>
+                <option value="OCUPADO_TERCEIRO">Ocupado por Terceiro</option>
+                <option value="OCUPACAO_IRREGULAR">Ocupação Irregular (Esbulho)</option>
               </select>
             </div>
             <div>

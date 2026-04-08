@@ -135,10 +135,24 @@ router.post(
     const tenantContext = getTenantContext(req);
     const userId = req.user!.id;
 
+    // Proibição de Orfandade: transaction must be linked to a project
+    if (!req.body.process_id && !req.body.real_estate_asset_id) {
+      throw new ValidationError(
+        'Proibição de Orfandade: lançamento deve estar vinculado a um projeto (process_id ou real_estate_asset_id)'
+      );
+    }
+
+    // Hard Gate §6.4: auto-hold transactions >= R$5,000 for approval
+    const bodyWithApproval = { ...req.body };
+    if (req.body.amount_cents >= 500000) {
+      bodyWithApproval.payment_status = 'PENDING_APPROVAL';
+      bodyWithApproval.requires_approval = true;
+    }
+
     const transaction = await FinancialTransactionModel.create(
       {
         tenant_id: tenantContext.tenantId,
-        ...req.body,
+        ...bodyWithApproval,
       },
       userId
     );
