@@ -263,7 +263,7 @@ router.post(
     const targetState = req.body.to_state as AssetState;
     if (
       currentAsset.current_state === 'REGULARIZATION' &&
-      (targetState === 'AVAILABLE_FOR_SALE' || targetState === 'READY' || targetState === 'SOLD')
+      (targetState === 'READY' || targetState === 'SOLD' || targetState === 'RENTED')
     ) {
       throw new ValidationError(
         'Trava de Venda Legal: imóvel em regularização não pode ser colocado à venda'
