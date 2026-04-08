@@ -9,6 +9,7 @@ import { InvestorUserModel } from '../models/investor-user.js';
 import { InvestorAssetLinkModel } from '../models/investor-asset-link.js';
 import { AuctionAssetModel } from '../models/auction-asset.js';
 import { AuditService, AuditAction, AuditEventCategory } from '../services/audit.js';
+import { db } from '../models/database.js';
 import { logger } from '../utils/logger.js';
 
 const router = Router();
@@ -430,6 +431,111 @@ router.put(
     res.json({
       success: true,
       profile: updated,
+    });
+  })
+);
+
+// ============================================
+// Proposals Routes
+// ============================================
+
+/**
+ * GET /crm/proposals
+ * List proposals for tenant
+ */
+router.get(
+  '/proposals',
+  authenticate,
+  requirePermission('crm:read'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
+    const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
+    const status = req.query.status as string | undefined;
+
+    let query = `SELECT * FROM crm_proposals WHERE tenant_id = $1`;
+    const params: any[] = [tenantContext.tenantId];
+
+    if (status) {
+      params.push(status);
+      query += ` AND status = $${params.length}`;
+    }
+
+    const countResult = await db.query<{ count: string }>(
+      query.replace('SELECT *', 'SELECT COUNT(*) as count'),
+      params
+    );
+    const total = parseInt(countResult.rows[0]?.count || '0', 10);
+
+    query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
+
+    const result = await db.query(query, params);
+
+    res.json({
+      success: true,
+      proposals: result.rows,
+      total,
+      limit,
+      offset,
+    });
+  })
+);
+
+/**
+ * POST /crm/proposals
+ * Create a new proposal
+ */
+router.post(
+  '/proposals',
+  authenticate,
+  requirePermission('crm:create'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const userId = req.user!.id;
+    const { investor_user_id, auction_asset_id, title, description, proposed_amount_cents, status, notes } = req.body;
+
+    if (!title) {
+      res.status(400).json({ success: false, error: 'title is required' });
+      return;
+    }
+
+    const result = await db.query<{ id: string }>(
+      `INSERT INTO crm_proposals (tenant_id, investor_user_id, auction_asset_id, title, description, proposed_amount_cents, status, notes, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [
+        tenantContext.tenantId,
+        investor_user_id || null,
+        auction_asset_id || null,
+        title,
+        description || null,
+        proposed_amount_cents || null,
+        status || 'DRAFT',
+        notes || null,
+        userId,
+      ]
+    );
+
+    await AuditService.log({
+      tenantId: tenantContext.tenantId,
+      userId,
+      userEmail: req.user!.email,
+      userRole: tenantContext.role,
+      action: AuditAction.CREATE,
+      eventType: 'crm.proposal.create',
+      eventCategory: AuditEventCategory.DATA_MODIFICATION,
+      resourceType: 'crm_proposal',
+      resourceId: result.rows[0].id,
+      description: `Created proposal: ${title}`,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || undefined,
+      requestId: req.headers['x-request-id'] as string | undefined,
+    });
+
+    res.status(201).json({
+      success: true,
+      proposal: result.rows[0],
     });
   })
 );

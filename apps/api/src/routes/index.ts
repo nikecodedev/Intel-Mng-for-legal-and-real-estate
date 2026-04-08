@@ -20,6 +20,7 @@ import superAdminRouter from './super-admin.js';
 import dashboardsRouter from './dashboards.js';
 import metricsRouter from './metrics.js';
 import auditIntegrityRouter from './audit-integrity.js';
+import legalCasesRouter from './legal-cases.js';
 import healthRouter from './health.js';
 import { config } from '../config/index.js';
 
@@ -96,6 +97,9 @@ router.use('/metrics', metricsRouter);
 // Audit Integrity Verification
 router.use('/audit-integrity', auditIntegrityRouter);
 
+// Legal Cases (Processos)
+router.use('/legal-cases', legalCasesRouter);
+
 // Future: Add more route modules here
 // router.use('/users', userRouter);
 // router.use('/roles', rolesRouter);
@@ -134,6 +138,7 @@ router.get('/', (req, res) => {
       super_admin: '/api/v1/super-admin',
       dashboards: '/api/v1/dashboards',
       audit_integrity: '/api/v1/audit-integrity',
+      legal_cases: '/api/v1/legal-cases',
       // Future: Add more endpoints as they're created
     },
   });

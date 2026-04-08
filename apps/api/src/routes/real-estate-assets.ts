@@ -640,4 +640,233 @@ router.put(
   })
 );
 
+// ============================================
+// Works Routes
+// ============================================
+
+/**
+ * GET /assets/:id/works
+ * List works for an asset
+ */
+router.get(
+  '/:id/works',
+  authenticate,
+  requirePermission('assets:read'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const { id } = req.params;
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
+    const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
+
+    // Verify asset exists
+    const asset = await RealEstateAssetModel.findById(id, tenantContext.tenantId);
+    if (!asset) {
+      throw new NotFoundError('Real estate asset');
+    }
+
+    const countResult = await db.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM asset_works WHERE tenant_id = $1 AND real_estate_asset_id = $2`,
+      [tenantContext.tenantId, id]
+    );
+    const total = parseInt(countResult.rows[0]?.count || '0', 10);
+
+    const result = await db.query(
+      `SELECT * FROM asset_works WHERE tenant_id = $1 AND real_estate_asset_id = $2
+       ORDER BY created_at DESC LIMIT $3 OFFSET $4`,
+      [tenantContext.tenantId, id, limit, offset]
+    );
+
+    res.json({
+      success: true,
+      works: result.rows,
+      total,
+      limit,
+      offset,
+    });
+  })
+);
+
+/**
+ * POST /assets/:id/works
+ * Create a work item for an asset
+ */
+router.post(
+  '/:id/works',
+  authenticate,
+  requirePermission('assets:update'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const { id } = req.params;
+    const userId = req.user!.id;
+
+    // Verify asset exists
+    const asset = await RealEstateAssetModel.findById(id, tenantContext.tenantId);
+    if (!asset) {
+      throw new NotFoundError('Real estate asset');
+    }
+
+    const { title, description, work_type, status, estimated_cost_cents, actual_cost_cents, start_date, end_date, contractor_name, notes } = req.body;
+
+    if (!title) {
+      throw new ValidationError('title is required');
+    }
+
+    const result = await db.query<{ id: string }>(
+      `INSERT INTO asset_works (tenant_id, real_estate_asset_id, title, description, work_type, status, estimated_cost_cents, actual_cost_cents, start_date, end_date, contractor_name, notes, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       RETURNING *`,
+      [
+        tenantContext.tenantId,
+        id,
+        title,
+        description || null,
+        work_type || null,
+        status || 'PLANNED',
+        estimated_cost_cents || null,
+        actual_cost_cents || null,
+        start_date || null,
+        end_date || null,
+        contractor_name || null,
+        notes || null,
+        userId,
+      ]
+    );
+
+    await AuditService.log({
+      tenantId: tenantContext.tenantId,
+      userId,
+      userEmail: req.user!.email,
+      userRole: tenantContext.role,
+      action: AuditAction.CREATE,
+      eventType: 'asset.work.create',
+      eventCategory: AuditEventCategory.DATA_MODIFICATION,
+      resourceType: 'asset_work',
+      resourceId: result.rows[0].id,
+      description: `Created work item "${title}" for asset ${asset.asset_code}`,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || undefined,
+      requestId: req.headers['x-request-id'] as string | undefined,
+    });
+
+    res.status(201).json({
+      success: true,
+      work: result.rows[0],
+    });
+  })
+);
+
+// ============================================
+// Liabilities Routes
+// ============================================
+
+/**
+ * GET /assets/:id/liabilities
+ * List liabilities for an asset
+ */
+router.get(
+  '/:id/liabilities',
+  authenticate,
+  requirePermission('assets:read'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const { id } = req.params;
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
+    const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
+
+    // Verify asset exists
+    const asset = await RealEstateAssetModel.findById(id, tenantContext.tenantId);
+    if (!asset) {
+      throw new NotFoundError('Real estate asset');
+    }
+
+    const countResult = await db.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM asset_liabilities WHERE tenant_id = $1 AND real_estate_asset_id = $2`,
+      [tenantContext.tenantId, id]
+    );
+    const total = parseInt(countResult.rows[0]?.count || '0', 10);
+
+    const result = await db.query(
+      `SELECT * FROM asset_liabilities WHERE tenant_id = $1 AND real_estate_asset_id = $2
+       ORDER BY created_at DESC LIMIT $3 OFFSET $4`,
+      [tenantContext.tenantId, id, limit, offset]
+    );
+
+    res.json({
+      success: true,
+      liabilities: result.rows,
+      total,
+      limit,
+      offset,
+    });
+  })
+);
+
+/**
+ * POST /assets/:id/liabilities
+ * Create a liability for an asset
+ */
+router.post(
+  '/:id/liabilities',
+  authenticate,
+  requirePermission('assets:update'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const { id } = req.params;
+    const userId = req.user!.id;
+
+    // Verify asset exists
+    const asset = await RealEstateAssetModel.findById(id, tenantContext.tenantId);
+    if (!asset) {
+      throw new NotFoundError('Real estate asset');
+    }
+
+    const { title, description, liability_type, amount_cents, currency, due_date, status, creditor_name, notes } = req.body;
+
+    if (!title) {
+      throw new ValidationError('title is required');
+    }
+
+    const result = await db.query<{ id: string }>(
+      `INSERT INTO asset_liabilities (tenant_id, real_estate_asset_id, title, description, liability_type, amount_cents, currency, due_date, status, creditor_name, notes, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       RETURNING *`,
+      [
+        tenantContext.tenantId,
+        id,
+        title,
+        description || null,
+        liability_type || null,
+        amount_cents || null,
+        currency || 'BRL',
+        due_date || null,
+        status || 'ACTIVE',
+        creditor_name || null,
+        notes || null,
+        userId,
+      ]
+    );
+
+    await AuditService.log({
+      tenantId: tenantContext.tenantId,
+      userId,
+      userEmail: req.user!.email,
+      userRole: tenantContext.role,
+      action: AuditAction.CREATE,
+      eventType: 'asset.liability.create',
+      eventCategory: AuditEventCategory.DATA_MODIFICATION,
+      resourceType: 'asset_liability',
+      resourceId: result.rows[0].id,
+      description: `Created liability "${title}" for asset ${asset.asset_code}`,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || undefined,
+      requestId: req.headers['x-request-id'] as string | undefined,
+    });
+
+    res.status(201).json({
+      success: true,
+      liability: result.rows[0],
+    });
+  })
+);
+
 export default router;

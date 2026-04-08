@@ -714,4 +714,155 @@ router.get(
   })
 );
 
+// ============================================
+// Treasury Routes
+// ============================================
+
+/**
+ * GET /finance/treasury
+ * Get bank account balances (treasury overview)
+ */
+router.get(
+  '/treasury',
+  authenticate,
+  requirePermission('finance:read'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+
+    // Aggregate balances by bank_account_id from financial_transactions
+    const result = await db.query(
+      `SELECT
+        bank_account_id,
+        COUNT(*) as transaction_count,
+        SUM(CASE WHEN transaction_type IN ('INCOME', 'RECEIVABLE') AND payment_status = 'PAID' THEN amount_cents ELSE 0 END) as total_inflows_cents,
+        SUM(CASE WHEN transaction_type IN ('EXPENSE', 'PAYABLE') AND payment_status = 'PAID' THEN amount_cents ELSE 0 END) as total_outflows_cents,
+        SUM(CASE WHEN transaction_type IN ('INCOME', 'RECEIVABLE') AND payment_status = 'PAID' THEN amount_cents
+            WHEN transaction_type IN ('EXPENSE', 'PAYABLE') AND payment_status = 'PAID' THEN -amount_cents
+            ELSE 0 END) as balance_cents
+       FROM financial_transactions
+       WHERE tenant_id = $1 AND bank_account_id IS NOT NULL
+       GROUP BY bank_account_id
+       ORDER BY bank_account_id`,
+      [tenantContext.tenantId]
+    );
+
+    // Also get total across all accounts
+    const totalResult = await db.query<{ total_balance_cents: string }>(
+      `SELECT
+        SUM(CASE WHEN transaction_type IN ('INCOME', 'RECEIVABLE') AND payment_status = 'PAID' THEN amount_cents
+            WHEN transaction_type IN ('EXPENSE', 'PAYABLE') AND payment_status = 'PAID' THEN -amount_cents
+            ELSE 0 END) as total_balance_cents
+       FROM financial_transactions
+       WHERE tenant_id = $1`,
+      [tenantContext.tenantId]
+    );
+
+    res.json({
+      success: true,
+      accounts: result.rows,
+      total_balance_cents: parseInt(totalResult.rows[0]?.total_balance_cents || '0', 10),
+    });
+  })
+);
+
+// ============================================
+// Financial Reports Routes
+// ============================================
+
+/**
+ * GET /finance/reports/summary
+ * Financial summary (totals by type, period)
+ */
+router.get(
+  '/reports/summary',
+  authenticate,
+  requirePermission('finance:read'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const start_date = req.query.start_date as string | undefined;
+    const end_date = req.query.end_date as string | undefined;
+
+    let dateFilter = '';
+    const params: any[] = [tenantContext.tenantId];
+
+    if (start_date) {
+      params.push(start_date);
+      dateFilter += ` AND transaction_date >= $${params.length}`;
+    }
+    if (end_date) {
+      params.push(end_date);
+      dateFilter += ` AND transaction_date <= $${params.length}`;
+    }
+
+    // Totals by transaction type
+    const byTypeResult = await db.query(
+      `SELECT
+        transaction_type,
+        COUNT(*) as count,
+        SUM(amount_cents) as total_cents,
+        SUM(CASE WHEN payment_status = 'PAID' THEN amount_cents ELSE 0 END) as paid_cents,
+        SUM(CASE WHEN payment_status = 'PENDING' THEN amount_cents ELSE 0 END) as pending_cents,
+        SUM(CASE WHEN payment_status = 'OVERDUE' THEN amount_cents ELSE 0 END) as overdue_cents
+       FROM financial_transactions
+       WHERE tenant_id = $1${dateFilter}
+       GROUP BY transaction_type
+       ORDER BY transaction_type`,
+      params
+    );
+
+    // Totals by month
+    const byMonthResult = await db.query(
+      `SELECT
+        to_char(transaction_date, 'YYYY-MM') as month,
+        SUM(CASE WHEN transaction_type IN ('INCOME', 'RECEIVABLE') THEN amount_cents ELSE 0 END) as income_cents,
+        SUM(CASE WHEN transaction_type IN ('EXPENSE', 'PAYABLE') THEN amount_cents ELSE 0 END) as expense_cents,
+        SUM(CASE WHEN transaction_type IN ('INCOME', 'RECEIVABLE') THEN amount_cents
+            WHEN transaction_type IN ('EXPENSE', 'PAYABLE') THEN -amount_cents
+            ELSE 0 END) as net_cents
+       FROM financial_transactions
+       WHERE tenant_id = $1${dateFilter}
+       GROUP BY to_char(transaction_date, 'YYYY-MM')
+       ORDER BY month DESC
+       LIMIT 12`,
+      params
+    );
+
+    // Grand totals
+    const grandResult = await db.query<{
+      total_income_cents: string;
+      total_expense_cents: string;
+      net_cents: string;
+      total_transactions: string;
+    }>(
+      `SELECT
+        SUM(CASE WHEN transaction_type IN ('INCOME', 'RECEIVABLE') THEN amount_cents ELSE 0 END) as total_income_cents,
+        SUM(CASE WHEN transaction_type IN ('EXPENSE', 'PAYABLE') THEN amount_cents ELSE 0 END) as total_expense_cents,
+        SUM(CASE WHEN transaction_type IN ('INCOME', 'RECEIVABLE') THEN amount_cents
+            WHEN transaction_type IN ('EXPENSE', 'PAYABLE') THEN -amount_cents
+            ELSE 0 END) as net_cents,
+        COUNT(*) as total_transactions
+       FROM financial_transactions
+       WHERE tenant_id = $1${dateFilter}`,
+      params
+    );
+
+    const grand = grandResult.rows[0];
+
+    res.json({
+      success: true,
+      summary: {
+        by_type: byTypeResult.rows,
+        by_month: byMonthResult.rows,
+        totals: {
+          total_income_cents: parseInt(grand?.total_income_cents || '0', 10),
+          total_expense_cents: parseInt(grand?.total_expense_cents || '0', 10),
+          net_cents: parseInt(grand?.net_cents || '0', 10),
+          total_transactions: parseInt(grand?.total_transactions || '0', 10),
+        },
+      },
+      filters: { start_date: start_date || null, end_date: end_date || null },
+    });
+  })
+);
+
 export default router;
