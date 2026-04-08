@@ -57,6 +57,7 @@ export default function CrmProposalsPage() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Valor (R$)</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ações</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -77,6 +78,14 @@ export default function CrmProposalsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600">{p.created_at ? new Date(p.created_at).toLocaleDateString('pt-BR') : '-'}</td>
+                  <td className="px-4 py-3">
+                    {(!p.status || p.status === 'PENDING' || p.status === 'PENDENTE') && (
+                      <div className="flex gap-1">
+                        <button onClick={async () => { try { await api.put(`/crm/proposals/${p.id}`, { status: 'ACCEPTED' }); window.location.reload(); } catch {} }} className="rounded bg-green-600 px-2 py-1 text-xs text-white hover:bg-green-700">Aprovar</button>
+                        <button onClick={async () => { try { await api.put(`/crm/proposals/${p.id}`, { status: 'REJECTED' }); window.location.reload(); } catch {} }} className="rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700">Rejeitar</button>
+                      </div>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

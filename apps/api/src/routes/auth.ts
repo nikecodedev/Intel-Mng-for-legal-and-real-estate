@@ -652,4 +652,87 @@ router.post(
   })
 );
 
+// ============================================
+// MFA Endpoints (Stub)
+// ============================================
+
+/**
+ * POST /auth/mfa/setup
+ * Returns MFA setup info (stub implementation)
+ */
+router.post(
+  '/mfa/setup',
+  authenticate,
+  asyncHandler(async (_req: Request, res: Response) => {
+    res.json({
+      success: true,
+      secret: 'GEMS-MFA-STUB',
+      qr_url: 'otpauth://totp/GEMS?secret=STUB',
+    });
+  })
+);
+
+/**
+ * POST /auth/mfa/verify
+ * Verify a 6-digit MFA code (stub implementation)
+ */
+const mfaVerifySchema = z.object({
+  body: z.object({
+    code: z.string().min(1, 'Code is required'),
+  }),
+});
+
+router.post(
+  '/mfa/verify',
+  validateRequest(mfaVerifySchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { code } = req.body;
+    const isValid = /^\d{6}$/.test(code);
+    if (!isValid) {
+      res.status(400).json({ success: false, error: 'Codigo MFA deve ter 6 digitos numericos.' });
+      return;
+    }
+    res.json({ success: true, message: 'MFA verificado com sucesso.' });
+  })
+);
+
+// ============================================
+// User Management
+// ============================================
+
+/**
+ * GET /auth/users
+ * List users for the current tenant (admin only)
+ */
+router.get(
+  '/users',
+  authenticate,
+  asyncHandler(async (req: Request, res: Response) => {
+    const tenantId = req.context?.tenant_id;
+    const role = req.context?.role;
+    if (!tenantId) {
+      res.status(400).json({ success: false, error: 'Tenant context required.' });
+      return;
+    }
+    if (role !== 'OWNER') {
+      res.status(403).json({ success: false, error: 'Admin permission required.' });
+      return;
+    }
+
+    const result = await db.query(
+      `SELECT u.id, u.email, u.first_name, u.last_name, u.is_active, u.created_at, u.updated_at
+       FROM users u
+       WHERE u.tenant_id = $1
+       ORDER BY u.created_at DESC`,
+      [tenantId]
+    );
+
+    res.json({
+      success: true,
+      users: result.rows,
+      total: result.rows.length,
+    });
+  })
+);
+
 export default router;

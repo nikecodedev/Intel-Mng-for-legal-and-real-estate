@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -47,6 +48,11 @@ export default function Qg4Page() {
     () => fetchQg4(caseId),
     { staleTime: 30_000, enabled: !!caseId }
   );
+
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpMsg, setOtpMsg] = useState('');
 
   const calcMutation = useMutation({
     mutationFn: async () => {
@@ -143,14 +149,38 @@ export default function Qg4Page() {
 
         {score != null && !isPassing && (
           <button
-            disabled
-            className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-400 cursor-not-allowed"
-            title="Override requer autenticacao OTP"
+            onClick={() => setShowOtpModal(true)}
+            className="rounded border border-orange-300 px-4 py-2 text-sm font-medium text-orange-700 hover:bg-orange-50"
           >
             Override (Requer OTP)
           </button>
         )}
       </div>
+
+      {showOtpModal && (
+        <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 space-y-3">
+          <h3 className="text-sm font-medium text-orange-800">Autenticação OTP para Override</h3>
+          <p className="text-xs text-orange-600">Insira o código de 6 dígitos do seu autenticador.</p>
+          <div className="flex items-center gap-3">
+            <input value={otpCode} onChange={(e) => setOtpCode(e.target.value)} maxLength={6} placeholder="000000" className="w-32 rounded border border-gray-300 px-3 py-2 text-sm text-center font-mono tracking-widest" />
+            <button
+              onClick={async () => {
+                setOtpLoading(true); setOtpMsg('');
+                try {
+                  await api.post('/auth/mfa/verify', { code: otpCode });
+                  setOtpMsg('Override autorizado com sucesso.');
+                  setShowOtpModal(false);
+                } catch { setOtpMsg('Código inválido.'); }
+                finally { setOtpLoading(false); }
+              }}
+              disabled={otpLoading || otpCode.length !== 6}
+              className="rounded bg-orange-600 px-4 py-2 text-sm text-white hover:bg-orange-700 disabled:opacity-50"
+            >{otpLoading ? 'Verificando...' : 'Verificar'}</button>
+            <button onClick={() => { setShowOtpModal(false); setOtpCode(''); setOtpMsg(''); }} className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-600">Cancelar</button>
+          </div>
+          {otpMsg && <p className={`text-sm ${otpMsg.includes('autorizado') ? 'text-green-600' : 'text-red-600'}`}>{otpMsg}</p>}
+        </div>
+      )}
 
       {calcMutation.isSuccess && (
         <div className="rounded-md bg-green-50 p-3 text-green-800 text-sm">

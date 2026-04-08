@@ -19,6 +19,18 @@ export default function CaseDraftingPage({ params }: { params: { id: string } })
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [generatedText, setGeneratedText] = useState('');
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [sugLoading, setSugLoading] = useState(false);
+
+  async function fetchSuggestions() {
+    if (!form.main_thesis.trim()) return;
+    setSugLoading(true);
+    try {
+      const { data } = await api.post('/knowledge/search', { query: form.main_thesis, limit: 5 });
+      setSuggestions(data?.results ?? []);
+    } catch { setSuggestions([]); }
+    finally { setSugLoading(false); }
+  }
 
   function set(field: string, value: string) {
     setForm((p) => ({ ...p, [field]: value }));
@@ -90,6 +102,28 @@ export default function CaseDraftingPage({ params }: { params: { id: string } })
         >
           {loading ? 'Gerando com IA...' : 'Gerar com IA'}
         </button>
+      </div>
+
+      {/* Sugestões da Base de Conhecimento */}
+      <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-6">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-indigo-800">Sugestões da Base de Conhecimento</h3>
+          <button onClick={fetchSuggestions} disabled={sugLoading || !form.main_thesis.trim()} className="rounded bg-indigo-600 px-3 py-1.5 text-xs text-white hover:bg-indigo-700 disabled:opacity-50">
+            {sugLoading ? 'Buscando...' : 'Buscar Sugestões'}
+          </button>
+        </div>
+        {suggestions.length > 0 ? (
+          <ul className="space-y-2">
+            {suggestions.map((s: any, i: number) => (
+              <li key={s.id ?? i} className="rounded border border-indigo-100 bg-white p-3 text-sm">
+                <p className="font-medium text-gray-900">{s.title}</p>
+                {s.summary && <p className="text-xs text-gray-500 mt-1">{s.summary}</p>}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-indigo-600">Preencha a Tese Principal e clique em Buscar Sugestões.</p>
+        )}
       </div>
 
       {generatedText && (

@@ -130,6 +130,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data } = await api.post<LoginResponse>('/auth/login', { email, password, remember_me: rememberMe ?? false, ...(subdomain ? { subdomain } : {}) });
       if (!data?.success || !data.data?.user) throw new Error('Invalid login response');
       setAuthFromResponse(data.data);
+      // MFA redirect for privileged roles
+      const userRole = (data.data.user as any)?.role;
+      if (userRole === 'OWNER' || userRole === 'ADMIN') {
+        window.location.href = '/auth/mfa';
+      }
     },
     [setAuthFromResponse]
   );

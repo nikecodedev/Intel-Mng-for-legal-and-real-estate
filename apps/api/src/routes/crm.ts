@@ -540,4 +540,26 @@ router.post(
   })
 );
 
+/**
+ * PUT /crm/proposals/:id
+ * Update proposal status
+ */
+router.put(
+  '/proposals/:id',
+  authenticate,
+  requirePermission('crm:update'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const { id } = req.params;
+    const { status } = req.body;
+    if (!status) { res.status(400).json({ success: false, error: 'status is required' }); return; }
+    const result = await db.query(
+      `UPDATE crm_proposals SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id = $3 RETURNING *`,
+      [status, id, tenantContext.tenantId]
+    );
+    if (result.rows.length === 0) { res.status(404).json({ success: false, error: 'Proposal not found' }); return; }
+    res.json({ success: true, proposal: result.rows[0] });
+  })
+);
+
 export default router;
