@@ -872,6 +872,29 @@ router.post(
       requestId: req.headers['x-request-id'] as string | undefined,
     });
 
+    // Emit workflow event: Passivo > R$10k → bloquear + notificar Owner
+    try {
+      const { runWorkflow } = await import('../services/workflow-engine.js');
+      await runWorkflow({
+        tenantId: tenantContext.tenantId,
+        eventType: 'asset.liability.created',
+        payload: {
+          liability_id: result.rows[0].id,
+          real_estate_asset_id: id,
+          asset_code: asset.asset_code,
+          title,
+          amount_cents: amount_cents || 0,
+          liability_type: liability_type || null,
+        },
+        userId,
+        userEmail: req.user!.email,
+        userRole: tenantContext.role,
+        request: req,
+      });
+    } catch (wfErr) {
+      logger.warn('Workflow event asset.liability.created failed', { error: wfErr });
+    }
+
     res.status(201).json({
       success: true,
       liability: result.rows[0],

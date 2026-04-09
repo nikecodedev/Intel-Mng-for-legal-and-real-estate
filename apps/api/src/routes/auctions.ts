@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
+import { logger } from '../utils/logger.js';
 import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware/index.js';
 import { getTenantContext } from '../utils/tenant-context.js';
 import { NotFoundError, ValidationError, AuthorizationError } from '../utils/errors.js';
@@ -232,6 +233,30 @@ router.post(
       compliance_flags: ['legal'],
       retention_category: 'legal',
     });
+
+    // Emit workflow event when stage reaches F4 (Arrematação Homologada)
+    if (to_stage === 'F4') {
+      try {
+        const { runWorkflow } = await import('../services/workflow-engine.js');
+        await runWorkflow({
+          tenantId,
+          eventType: 'auction.bid.homologated',
+          payload: {
+            auction_asset_id: id,
+            asset_title: asset.title,
+            status: 'HOMOLOGATED',
+            stage: to_stage,
+            previous_stage,
+          },
+          userId,
+          userEmail: req.user!.email,
+          userRole: req.context?.role ?? 'OPERATIONAL',
+          request: req,
+        });
+      } catch (wfErr) {
+        logger.warn('Workflow event auction.bid.homologated failed', { error: wfErr });
+      }
+    }
 
     res.json({
       success: true,
