@@ -241,7 +241,6 @@ router.post(
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const tenantContext = getTenantContext(req);
     const { id } = req.params;
-    const userId = req.user!.id;
 
     // Verify case exists
     const caseResult = await db.query(
@@ -414,6 +413,27 @@ router.post(
       userAgent: req.get('user-agent') || undefined,
       requestId: req.headers['x-request-id'] as string | undefined,
     });
+
+    // Emit workflow event: QG4 scored — triggers ADVOGADO_SENIOR escalation if < 0.90
+    try {
+      const { runWorkflow } = await import('../services/workflow-engine.js');
+      await runWorkflow({
+        tenantId: tenantContext.tenantId,
+        eventType: 'legal_case.qg4.scored',
+        payload: {
+          case_id: id,
+          case_number: legalCase.case_number,
+          score: qg4Score / 100, // normalize 0–1 for condition matching
+          passed: qg4Score >= 70,
+        },
+        userId,
+        userEmail: req.user!.email,
+        userRole: tenantContext.role,
+        request: req,
+      });
+    } catch (wfErr) {
+      logger.warn('Workflow event legal_case.qg4.scored failed', { error: wfErr });
+    }
 
     res.json({
       success: true,

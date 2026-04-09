@@ -86,9 +86,10 @@ export default function NewTransactionPage() {
       return;
     }
 
+    // PROIBIÇÃO DE ORFANDADE (Spec §6.2–6.4): todo lançamento deve estar vinculado a um projeto/ativo/cliente
     const hasLink = !!(form.process_id?.trim() || form.real_estate_asset_id || form.client_id?.trim());
     if (!hasLink) {
-      setClientError('Pelo menos um vinculo (Processo, Ativo ou Cliente) e obrigatorio.');
+      setClientError('Proibição de Orfandade: todo lançamento financeiro deve estar vinculado a um Processo, Ativo Imobiliário ou Cliente. Preencha pelo menos um dos campos de vínculo.');
       return;
     }
 
@@ -104,9 +105,9 @@ export default function NewTransactionPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900">Create transaction</h2>
+        <h2 className="text-lg font-semibold text-gray-900">Novo Lançamento Financeiro</h2>
         <Link href="/finance" className="text-sm text-blue-600 hover:underline">
-          ← Back to list
+          ← Voltar
         </Link>
       </div>
 
@@ -179,39 +180,42 @@ export default function NewTransactionPage() {
           />
         </div>
 
-        <div className="border-t pt-4">
-          <p className="text-sm text-gray-600 mb-2">Link to (at least one required)</p>
+        <div className="border-t border-orange-200 bg-orange-50 rounded-lg p-4">
+          <p className="text-sm font-medium text-orange-800 mb-1">⚠️ Vínculo do Projeto <span className="text-red-600">*</span></p>
+          <p className="text-xs text-orange-600 mb-3">
+            Proibição de Orfandade (Spec §6.2): todo lançamento deve estar vinculado a um Processo Jurídico, Ativo Imobiliário ou Cliente.
+          </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Case (process ID)</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Processo Jurídico (ID)</label>
               <input
                 type="text"
                 value={form.process_id}
                 onChange={(e) => setForm((f) => ({ ...f, process_id: e.target.value }))}
-                placeholder="UUID"
+                placeholder="UUID do processo"
                 className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm"
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Asset</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Ativo Imobiliário</label>
               <select
                 value={form.real_estate_asset_id}
                 onChange={(e) => setForm((f) => ({ ...f, real_estate_asset_id: e.target.value }))}
                 className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm"
               >
-                <option value="">—</option>
+                <option value="">— Selecione —</option>
                 {(assets as { id: string; asset_code?: string }[]).map((a) => (
                   <option key={a.id} value={a.id}>{a.asset_code ?? a.id.slice(0, 8)}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Client ID</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Cliente (ID)</label>
               <input
                 type="text"
                 value={form.client_id}
                 onChange={(e) => setForm((f) => ({ ...f, client_id: e.target.value }))}
-                placeholder="UUID"
+                placeholder="UUID do cliente"
                 className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm"
               />
             </div>
@@ -294,7 +298,7 @@ export default function NewTransactionPage() {
             disabled={mutation.isLoading}
             className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            {mutation.isLoading ? 'Creating…' : 'Create transaction'}
+            {mutation.isLoading ? 'Salvando…' : 'Criar Lançamento'}
           </button>
           <Link
             href="/finance"

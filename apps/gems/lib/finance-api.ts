@@ -52,11 +52,14 @@ export interface CreateTransactionInput {
   currency?: string;
   transaction_date: string;
   due_date?: string;
-  process_id?: string;
-  real_estate_asset_id?: string;
-  client_id?: string;
+  /** Vínculo obrigatório — Proibição de Orfandade (Spec §6.2): ao menos um dos três campos abaixo deve ser preenchido */
+  process_id?: string;       // Processo jurídico (projeto_id)
+  real_estate_asset_id?: string; // Ativo imobiliário
+  client_id?: string;        // Cliente
   payment_method?: string;
   payment_reference?: string;
+  bank_account?: string;
+  receipt_reference?: string;
   vendor_name?: string;
   description: string;
   notes?: string;
