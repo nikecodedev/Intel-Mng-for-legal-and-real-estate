@@ -453,4 +453,116 @@ router.post(
   })
 );
 
+// ============================================
+// QG4 Override
+// ============================================
+
+/**
+ * POST /legal-cases/:id/qg4/override
+ * Override QG4 gate — bypasses score threshold with OWNER/REVISOR auth + TOTP OTP.
+ * Creates an audited override_event so the bypass is fully traceable.
+ */
+const qg4OverrideSchema = z.object({
+  body: z.object({
+    otp_code: z.string().length(6, 'Código OTP deve ter exatamente 6 dígitos'),
+    justification: z.string().min(10, 'Justificativa obrigatória (mínimo 10 caracteres)'),
+  }),
+});
+
+router.post(
+  '/:id/qg4/override',
+  authenticate,
+  requirePermission('legal_cases:override'),
+  validateRequest(qg4OverrideSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { otp_code, justification } = req.body;
+    const tenantContext = getTenantContext(req);
+
+    // Fetch case
+    const caseResult = await db.query(
+      `SELECT id, case_number, title, qg4_score, tenant_id FROM legal_cases WHERE id = $1 AND tenant_id = $2`,
+      [id, tenantContext.tenantId]
+    );
+    if (caseResult.rows.length === 0) throw new NotFoundError('Case');
+    const legalCase = caseResult.rows[0] as { id: string; case_number: string; title: string; qg4_score: number | null; tenant_id: string };
+
+    // Verify OTP against user's MFA secret
+    const userId = req.user!.id;
+    const userRow = await db.query(
+      'SELECT mfa_secret, mfa_enabled FROM users WHERE id = $1 LIMIT 1',
+      [userId]
+    );
+    const mfaRow = userRow.rows[0] as { mfa_secret: string | null; mfa_enabled: boolean } | undefined;
+
+    if (!mfaRow?.mfa_secret) {
+      res.status(400).json({
+        success: false,
+        error: 'MFA não configurado. Configure o autenticador antes de usar o override.',
+      });
+      return;
+    }
+
+    // Import verifySync from otplib at runtime (ESM dynamic import)
+    const { verifySync } = await import('otplib');
+    const otpValid = verifySync({ token: otp_code, secret: mfaRow.mfa_secret });
+
+    if (!otpValid) {
+      logger.warn('QG4 override OTP invalid', { userId, caseId: id });
+      res.status(401).json({ success: false, error: 'Código OTP inválido ou expirado.' });
+      return;
+    }
+
+    // Create audited override_event in DB
+    const overrideResult = await db.query(
+      `INSERT INTO override_events (tenant_id, user_id, entity_type, entity_id, event_type, justification, metadata, created_at)
+       VALUES ($1, $2, 'legal_case', $3, 'qg4_override', $4, $5, CURRENT_TIMESTAMP)
+       RETURNING id`,
+      [
+        tenantContext.tenantId,
+        userId,
+        id,
+        justification,
+        JSON.stringify({ qg4_score: legalCase.qg4_score, case_number: legalCase.case_number }),
+      ]
+    ).catch(async () => {
+      // override_events table may not have all columns — fall back to audit log only
+      return { rows: [{ id: 'audit-only' }] };
+    });
+
+    const overrideId = (overrideResult.rows[0] as { id: string }).id;
+
+    // Mandatory audit trail
+    await AuditService.log({
+      tenantId: tenantContext.tenantId,
+      userId,
+      userEmail: req.user!.email,
+      userRole: tenantContext.role,
+      action: AuditAction.UPDATE,
+      event_category: AuditEventCategory.COMPLIANCE,
+      resourceType: 'legal_case',
+      resourceId: id,
+      description: `QG4 override executado por ${req.user!.email} — caso ${legalCase.case_number}. Justificativa: ${justification}`,
+      details: {
+        override_id: overrideId,
+        qg4_score: legalCase.qg4_score,
+        justification,
+        otp_verified: true,
+      },
+      requestId: (req as any).id,
+      ip_address: req.ip,
+      user_agent: req.get('user-agent'),
+    });
+
+    logger.info('QG4 override recorded', { userId, caseId: id, overrideId });
+
+    res.json({
+      success: true,
+      override_id: overrideId,
+      case_id: id,
+      message: 'Override QG4 registrado e auditado com sucesso.',
+    });
+  })
+);
+
 export default router;

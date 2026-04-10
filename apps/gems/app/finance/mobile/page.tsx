@@ -9,12 +9,22 @@ interface GpsCoords {
   accuracy: number;
 }
 
+interface AssetOption {
+  id: string;
+  title: string;
+}
+
 export default function FinanceMobilePage() {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+
+  // Asset selector (required for orphanhood rule)
+  const [assets, setAssets] = useState<AssetOption[]>([]);
+  const [selectedAssetId, setSelectedAssetId] = useState('');
+  const [assetsLoading, setAssetsLoading] = useState(true);
 
   // GPS
   const [gpsCoords, setGpsCoords] = useState<GpsCoords | null>(null);
@@ -29,9 +39,24 @@ export default function FinanceMobilePage() {
 
   useEffect(() => {
     acquireGps();
+    loadAssets();
     return () => { stopCamera(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function loadAssets() {
+    setAssetsLoading(true);
+    try {
+      const res = await api.get('/real-estate/assets?limit=100');
+      const data = res.data?.data ?? res.data?.assets ?? [];
+      setAssets(data.map((a: any) => ({ id: a.id, title: a.title ?? a.name ?? a.id })));
+      if (data.length > 0) setSelectedAssetId(data[0].id);
+    } catch {
+      setAssets([]);
+    } finally {
+      setAssetsLoading(false);
+    }
+  }
 
   function acquireGps() {
     if (!navigator.geolocation) { setGpsStatus('unavailable'); return; }
@@ -73,6 +98,11 @@ export default function FinanceMobilePage() {
   }
 
   async function handleCapture() {
+    if (!selectedAssetId) {
+      setError('Selecione um ativo/processo para vincular a despesa (regra de orfandade).');
+      return;
+    }
+
     setLoading(true); setError(''); setSuccess('');
     try {
       const amountCents = Math.round(parseFloat(amount || '0') * 100);
@@ -92,8 +122,7 @@ export default function FinanceMobilePage() {
         description: description.trim() || 'Despesa capturada via mobile',
         notes,
         receipt_reference: photoBase64 ?? undefined,
-        // Required by orphanhood rule — mobile expense links to generic operational project
-        process_id: undefined,
+        real_estate_asset_id: selectedAssetId,
       });
 
       setSuccess('Despesa registrada com sucesso. Dados não permanecem no dispositivo.');
@@ -126,6 +155,33 @@ export default function FinanceMobilePage() {
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-white p-6 space-y-4">
+
+        {/* Asset selector — required for orphanhood rule */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Ativo / Processo <span className="text-red-500">*</span>
+          </label>
+          {assetsLoading ? (
+            <div className="h-9 rounded border border-gray-200 bg-gray-50 animate-pulse" />
+          ) : assets.length === 0 ? (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded p-2">
+              Nenhum ativo encontrado. Cadastre um imóvel antes de lançar despesas mobile.
+            </p>
+          ) : (
+            <select
+              value={selectedAssetId}
+              onChange={e => setSelectedAssetId(e.target.value)}
+              className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+            >
+              <option value="">Selecione...</option>
+              {assets.map(a => (
+                <option key={a.id} value={a.id}>{a.title}</option>
+              ))}
+            </select>
+          )}
+          <p className="text-xs text-gray-400 mt-1">Obrigatório — toda despesa deve estar vinculada a um ativo.</p>
+        </div>
+
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
           <input type="text" value={description} onChange={e => setDescription(e.target.value)}
@@ -177,7 +233,7 @@ export default function FinanceMobilePage() {
         {error && <p className="text-sm text-red-600">{error}</p>}
         {success && <p className="text-sm text-green-600">{success}</p>}
 
-        <button onClick={handleCapture} disabled={loading}
+        <button onClick={handleCapture} disabled={loading || !selectedAssetId}
           className="w-full rounded bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
           {loading ? 'Enviando...' : 'Registrar Despesa'}
         </button>

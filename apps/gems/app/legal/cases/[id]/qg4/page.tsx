@@ -51,6 +51,7 @@ export default function Qg4Page() {
 
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [otpCode, setOtpCode] = useState('');
+  const [otpJustification, setOtpJustification] = useState('');
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpMsg, setOtpMsg] = useState('');
 
@@ -159,26 +160,68 @@ export default function Qg4Page() {
 
       {showOtpModal && (
         <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 space-y-3">
-          <h3 className="text-sm font-medium text-orange-800">Autenticação OTP para Override</h3>
-          <p className="text-xs text-orange-600">Insira o código de 6 dígitos do seu autenticador.</p>
+          <h3 className="text-sm font-medium text-orange-800">Override QG4 — Requer OTP + Justificativa</h3>
+          <p className="text-xs text-orange-600">
+            O bypass ficará auditado permanentemente no log de conformidade.
+          </p>
+
+          <div>
+            <label className="block text-xs font-medium text-orange-800 mb-1">Justificativa <span className="text-red-500">*</span></label>
+            <textarea
+              value={otpJustification}
+              onChange={e => setOtpJustification(e.target.value)}
+              rows={2}
+              placeholder="Descreva o motivo do override (mínimo 10 caracteres)..."
+              className="w-full rounded border border-gray-300 px-3 py-2 text-sm resize-none"
+            />
+          </div>
+
           <div className="flex items-center gap-3">
-            <input value={otpCode} onChange={(e) => setOtpCode(e.target.value)} maxLength={6} placeholder="000000" className="w-32 rounded border border-gray-300 px-3 py-2 text-sm text-center font-mono tracking-widest" />
+            <input
+              value={otpCode}
+              onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              maxLength={6}
+              placeholder="000000"
+              className="w-32 rounded border border-gray-300 px-3 py-2 text-sm text-center font-mono tracking-widest"
+              autoComplete="one-time-code"
+            />
             <button
               onClick={async () => {
+                if (otpJustification.trim().length < 10) {
+                  setOtpMsg('Justificativa deve ter pelo menos 10 caracteres.');
+                  return;
+                }
                 setOtpLoading(true); setOtpMsg('');
                 try {
-                  await api.post('/auth/mfa/verify', { code: otpCode });
-                  setOtpMsg('Override autorizado com sucesso.');
+                  await api.post(`/legal-cases/${caseId}/qg4/override`, {
+                    otp_code: otpCode,
+                    justification: otpJustification.trim(),
+                  });
+                  setOtpMsg('Override registrado e auditado com sucesso.');
                   setShowOtpModal(false);
-                } catch { setOtpMsg('Código inválido.'); }
-                finally { setOtpLoading(false); }
+                  setOtpCode(''); setOtpJustification('');
+                  queryClient.invalidateQueries(['qg4', caseId]);
+                } catch (err: any) {
+                  setOtpMsg(err?.response?.data?.error || 'Código inválido ou OTP expirado.');
+                } finally { setOtpLoading(false); }
               }}
-              disabled={otpLoading || otpCode.length !== 6}
+              disabled={otpLoading || otpCode.length !== 6 || otpJustification.trim().length < 10}
               className="rounded bg-orange-600 px-4 py-2 text-sm text-white hover:bg-orange-700 disabled:opacity-50"
-            >{otpLoading ? 'Verificando...' : 'Verificar'}</button>
-            <button onClick={() => { setShowOtpModal(false); setOtpCode(''); setOtpMsg(''); }} className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-600">Cancelar</button>
+            >
+              {otpLoading ? 'Verificando...' : 'Confirmar Override'}
+            </button>
+            <button
+              onClick={() => { setShowOtpModal(false); setOtpCode(''); setOtpJustification(''); setOtpMsg(''); }}
+              className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-white"
+            >
+              Cancelar
+            </button>
           </div>
-          {otpMsg && <p className={`text-sm ${otpMsg.includes('autorizado') ? 'text-green-600' : 'text-red-600'}`}>{otpMsg}</p>}
+          {otpMsg && (
+            <p className={`text-sm ${otpMsg.includes('sucesso') ? 'text-green-600' : 'text-red-600'}`}>
+              {otpMsg}
+            </p>
+          )}
         </div>
       )}
 
