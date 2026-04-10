@@ -35,15 +35,20 @@ export default function LegalDocumentViewPage({ params }: { params: { id: string
         await page.render({ canvasContext: ctx, viewport }).promise;
 
         // Forensic watermark burned into canvas pixels
+        // Spec 2.5: diagonal 30°, opacidade 0.15, repetição a cada 200px
         if (wm) {
           ctx.save();
-          ctx.globalAlpha = 0.06;
-          ctx.font = '16px sans-serif';
+          ctx.globalAlpha = 0.15;
+          ctx.font = '14px sans-serif';
           ctx.fillStyle = '#000';
           ctx.translate(viewport.width / 2, viewport.height / 2);
-          ctx.rotate(-Math.PI / 6);
-          for (let j = -12; j <= 12; j++) {
-            ctx.fillText(wm, -viewport.width / 2, j * 60);
+          ctx.rotate(-Math.PI / 6); // 30°
+          const w = viewport.width;
+          const h = viewport.height;
+          for (let y = -h; y < 2 * h; y += 200) {
+            for (let x = -w; x < 2 * w; x += 400) {
+              ctx.fillText(wm, x, y);
+            }
           }
           ctx.restore();
         }

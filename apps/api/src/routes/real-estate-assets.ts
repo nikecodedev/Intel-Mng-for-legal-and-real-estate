@@ -64,7 +64,10 @@ const transitionStateSchema = z.object({
   }),
   body: z.object({
     to_state: z.enum(['ACQUIRED', 'REGULARIZATION', 'RENOVATION', 'READY', 'SOLD', 'RENTED']),
-    reason: z.string().optional(),
+    // Spec 5.3: Justificativa — textarea — Sim — Mínimo 100 caracteres
+    reason: z.string().min(100, 'Justificativa obrigatória com mínimo 100 caracteres (Spec 5.3)'),
+    // Spec 5.3: Documento Comprobatório — obrigatório para READY (DISPONIVEL_VENDA) e SOLD/RENTED
+    document_proof_url: z.string().min(1).optional(),
     sale_date: z.string().date().optional(),
     sale_price_cents: z.number().int().positive().optional(),
     sale_buyer_name: z.string().optional(),
@@ -285,6 +288,13 @@ router.post(
           `Trava de Venda Legal: matrícula do imóvel está "${matriculaStatus}" — somente imóveis com matrícula LIMPA podem ser vendidos ou alugados.`
         );
       }
+    }
+
+    // Spec 5.3: Documento Comprobatório obrigatório para READY (DISPONIVEL_VENDA) e SOLD/RENTED
+    if (isSaleTransition && !req.body.document_proof_url) {
+      throw new ValidationError(
+        'Documento Comprobatório obrigatório para alterar status para READY, SOLD ou RENTED (Spec 5.3).'
+      );
     }
 
     // Block SOLD/RENTED without required checklist completion

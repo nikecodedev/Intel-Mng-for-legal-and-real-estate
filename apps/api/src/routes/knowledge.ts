@@ -562,4 +562,105 @@ router.get(
   })
 );
 
+// ============================================
+// Knowledge Entry Update (toggle ATIVA/OBSOLETA)
+// ============================================
+
+const updateKnowledgeEntrySchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    is_verified: z.boolean().optional(),
+    metadata: z.record(z.unknown()).optional(),
+    title: z.string().min(1).optional(),
+    content: z.string().min(1).optional(),
+  }),
+});
+
+/**
+ * PUT /knowledge/entries/:id
+ * Update a knowledge entry.
+ * Spec 7.2: When status becomes OBSOLETA, null out embedding_vector so
+ * obsolete theses no longer appear in semantic search suggestions.
+ */
+router.put(
+  '/entries/:id',
+  authenticate,
+  requirePermission('knowledge:write'),
+  validateRequest(updateKnowledgeEntrySchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const tenantContext = getTenantContext(req);
+    const { id } = req.params;
+    const { is_verified, metadata, title, content } = req.body;
+
+    // Check entry exists
+    const existing = await KnowledgeEntryModel.findById(id, tenantContext.tenantId);
+    if (!existing) throw new NotFoundError('Knowledge entry');
+
+    // Determine new status from metadata or is_verified flag
+    const newStatus = (metadata as any)?.status as string | undefined;
+    const becomingObsoleta =
+      newStatus === 'OBSOLETA' ||
+      (is_verified === false && (existing as any).status !== 'OBSOLETA');
+
+    // Build SET clauses
+    const fields: string[] = [];
+    const values: unknown[] = [];
+    let idx = 1;
+
+    if (is_verified !== undefined) { fields.push(`is_verified = $${idx++}`); values.push(is_verified); }
+    if (title !== undefined) { fields.push(`title = $${idx++}`); values.push(title); }
+    if (content !== undefined) { fields.push(`content = $${idx++}`); values.push(content); }
+    if (metadata !== undefined) { fields.push(`metadata = $${idx++}`); values.push(JSON.stringify(metadata)); }
+
+    // Spec 7.2: remove embedding_vector when marking OBSOLETA
+    if (becomingObsoleta) {
+      fields.push(`embedding_vector = NULL`);
+      logger.info('Removing embedding_vector for OBSOLETA entry', { entryId: id });
+    }
+
+    fields.push(`updated_at = CURRENT_TIMESTAMP`);
+    values.push(id);
+    values.push(tenantContext.tenantId);
+
+    if (fields.length <= 1) {
+      // Only updated_at — nothing meaningful to update
+      res.json({ success: true, message: 'Nenhuma alteração.' });
+      return;
+    }
+
+    const { db } = await import('../models/database.js');
+    const result = await db.query(
+      `UPDATE knowledge_entries SET ${fields.join(', ')}
+       WHERE id = $${idx++} AND tenant_id = $${idx++}
+       RETURNING id, title, is_verified, metadata, updated_at`,
+      values
+    );
+
+    const updated = result.rows[0] as { id: string; title: string; is_verified: boolean } | undefined;
+
+    // Audit the status change
+    await AuditService.log({
+      tenantId: tenantContext.tenantId,
+      userId: req.user!.id,
+      userEmail: req.user!.email ?? '',
+      userRole: tenantContext.role,
+      action: AuditAction.UPDATE,
+      event_category: AuditEventCategory.DATA_MODIFICATION,
+      resourceType: 'knowledge_entry',
+      resourceId: id,
+      description: `Knowledge entry ${becomingObsoleta ? 'marcada OBSOLETA (embedding removido)' : 'actualizada'}`,
+      details: { is_verified, new_status: newStatus, embedding_removed: becomingObsoleta },
+      requestId: (req as any).id,
+      ip_address: req.ip,
+      user_agent: req.get('user-agent'),
+    }).catch(() => {});
+
+    res.json({
+      success: true,
+      entry: updated,
+      embedding_removed: becomingObsoleta,
+    });
+  })
+);
+
 export default router;
