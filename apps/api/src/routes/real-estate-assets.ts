@@ -259,15 +259,32 @@ router.post(
       throw new NotFoundError('Real estate asset');
     }
 
-    // Trava de Venda Legal: block sale/ready transitions from REGULARIZATION
+    // Trava de Venda Legal (Spec 5.5):
+    //   Bloqueia transição para READY/SOLD/RENTED se:
+    //   (a) status atual = REGULARIZATION  OU
+    //   (b) matricula_status != 'LIMPA' (matrícula com pendências no cartório)
     const targetState = req.body.to_state as AssetState;
-    if (
-      currentAsset.current_state === 'REGULARIZATION' &&
-      (targetState === 'READY' || targetState === 'SOLD' || targetState === 'RENTED')
-    ) {
+    const isSaleTransition = targetState === 'READY' || targetState === 'SOLD' || targetState === 'RENTED';
+
+    if (isSaleTransition && currentAsset.current_state === 'REGULARIZATION') {
       throw new ValidationError(
-        'Trava de Venda Legal: imóvel em regularização não pode ser colocado à venda'
+        'Trava de Venda Legal: imóvel em regularização não pode ser colocado à venda ou aluguel.'
       );
+    }
+
+    if (isSaleTransition) {
+      // Fetch matricula_status directly (may not be in model cache)
+      const matriculaRow = await db.query<{ matricula_status: string }>(
+        `SELECT COALESCE(matricula_status, 'PENDENTE') AS matricula_status
+         FROM real_estate_assets WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        [id, tenantContext.tenantId]
+      );
+      const matriculaStatus = matriculaRow.rows[0]?.matricula_status ?? 'PENDENTE';
+      if (matriculaStatus !== 'LIMPA') {
+        throw new ValidationError(
+          `Trava de Venda Legal: matrícula do imóvel está "${matriculaStatus}" — somente imóveis com matrícula LIMPA podem ser vendidos ou alugados.`
+        );
+      }
     }
 
     // Block SOLD/RENTED without required checklist completion

@@ -43,10 +43,11 @@ const registerSchema = z.object({
     tenant_id: z.string().uuid('Invalid tenant ID').optional(), // Optional - falls back to system tenant
     email: z.string().email('Invalid email address'),
     password: z.string()
-      .min(8, 'Password must be at least 8 characters')
-      .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-      .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-      .regex(/[0-9]/, 'Password must contain at least one number'),
+      .min(12, 'A senha deve ter pelo menos 12 caracteres')
+      .regex(/[A-Z]/, 'A senha deve conter pelo menos uma letra maiúscula')
+      .regex(/[a-z]/, 'A senha deve conter pelo menos uma letra minúscula')
+      .regex(/[0-9]/, 'A senha deve conter pelo menos um número')
+      .regex(/[^a-zA-Z0-9]/, 'A senha deve conter pelo menos um símbolo (ex: @, #, !, $)'),
     first_name: z.string().optional(),
     last_name: z.string().optional(),
   }),
@@ -77,10 +78,11 @@ const passwordResetSchema = z.object({
   body: z.object({
     token: z.string().min(1, 'Reset token is required'),
     new_password: z.string()
-      .min(8, 'Password must be at least 8 characters')
-      .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-      .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-      .regex(/[0-9]/, 'Password must contain at least one number'),
+      .min(12, 'A nova senha deve ter pelo menos 12 caracteres')
+      .regex(/[A-Z]/, 'A nova senha deve conter pelo menos uma letra maiúscula')
+      .regex(/[a-z]/, 'A nova senha deve conter pelo menos uma letra minúscula')
+      .regex(/[0-9]/, 'A nova senha deve conter pelo menos um número')
+      .regex(/[^a-zA-Z0-9]/, 'A nova senha deve conter pelo menos um símbolo'),
   }),
 });
 
@@ -90,7 +92,7 @@ const passwordResetSchema = z.object({
 const loginWithRememberSchema = z.object({
   body: z.object({
     email: z.string().email('Invalid email address'),
-    password: z.string().min(8, 'Password must be at least 8 characters'),
+    password: z.string().min(12, 'A senha deve ter pelo menos 12 caracteres'),
     remember_me: z.boolean().optional().default(false),
   }),
 });
@@ -607,10 +609,11 @@ const changePasswordSchema = z.object({
   body: z.object({
     current_password: z.string().min(1, 'Senha atual é obrigatória'),
     new_password: z.string()
-      .min(8, 'A nova senha deve ter pelo menos 8 caracteres')
+      .min(12, 'A nova senha deve ter pelo menos 12 caracteres')
       .regex(/[A-Z]/, 'A nova senha deve conter pelo menos uma letra maiúscula')
       .regex(/[a-z]/, 'A nova senha deve conter pelo menos uma letra minúscula')
-      .regex(/[0-9]/, 'A nova senha deve conter pelo menos um número'),
+      .regex(/[0-9]/, 'A nova senha deve conter pelo menos um número')
+      .regex(/[^a-zA-Z0-9]/, 'A nova senha deve conter pelo menos um símbolo'),
   }),
 });
 
