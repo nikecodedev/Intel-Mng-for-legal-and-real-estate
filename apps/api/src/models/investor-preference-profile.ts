@@ -85,7 +85,7 @@ function mapRow(row: any): InvestorPreferenceProfile {
     min_expected_roi_percentage: row.min_expected_roi_percentage ? Number(row.min_expected_roi_percentage) : null,
     max_acceptable_risk_score: row.max_acceptable_risk_score ? Number(row.max_acceptable_risk_score) : null,
     auto_notify_enabled: Boolean(row.auto_notify_enabled),
-    notification_threshold: Number(row.notification_threshold) || 85,
+    notification_threshold: Number(row.notification_threshold) || 70, // Spec 7.1: auto-match dispara quando score > 70
     notification_channels: Array.isArray(row.notification_channels) ? (row.notification_channels as string[]) : ['email'],
     is_active: Boolean(row.is_active),
     profile_completed_at: row.profile_completed_at ? new Date(row.profile_completed_at as string) : null,
@@ -278,7 +278,7 @@ export class InvestorPreferenceProfileModel {
           input.min_expected_roi_percentage || null,
           input.max_acceptable_risk_score || null,
           input.auto_notify_enabled !== false,
-          input.notification_threshold || 85,
+          input.notification_threshold || 70, // Spec 7.1: auto-match dispara quando score > 70
           input.notification_channels || ['email'],
           input.notes || null,
           input.tags || [],

@@ -141,14 +141,14 @@ router.post(
     const tenantContext = getTenantContext(req);
     const userId = req.user!.id;
 
-    // Proibição de Orfandade: transaction must be linked to a project
+    // Ref: Spec §6.2 — Proibição de Orfandade: todo lançamento deve estar vinculado a um projecto
     if (!req.body.process_id && !req.body.real_estate_asset_id) {
       throw new ValidationError(
         'Proibição de Orfandade: lançamento deve estar vinculado a um projeto (process_id ou real_estate_asset_id)'
       );
     }
 
-    // Hard Gate §6.4: auto-hold transactions >= R$5,000 for approval
+    // Ref: Spec §6.4 — Hard Gate: lançamentos ≥ R$5.000 ficam em PENDING_APPROVAL até aprovação do Owner
     const bodyWithApproval = { ...req.body };
     if (req.body.amount_cents >= 500000) {
       bodyWithApproval.payment_status = 'PENDING_APPROVAL';
@@ -187,6 +187,24 @@ router.post(
       userAgent: req.get('user-agent') || undefined,
       requestId: req.headers['x-request-id'] as string | undefined,
     });
+
+    // Spec 6.4: Recalcular ROI automático a cada novo lançamento no projecto
+    // Fire-and-forget: if transaction is linked to an auction asset (process_id), trigger ROI bump
+    if (transaction.process_id) {
+      setImmediate(async () => {
+        try {
+          const { AuctionAssetROIModel } = await import('../models/auction-asset-roi.js');
+          const roi = await AuctionAssetROIModel.findByAssetId(transaction.process_id!, tenantContext.tenantId);
+          if (roi) {
+            // Re-run calculation with existing inputs to bump version + log auto-recalculation
+            await AuctionAssetROIModel.updateInputs(transaction.process_id!, tenantContext.tenantId, {});
+            logger.info('ROI auto-recalculated after new transaction', { assetId: transaction.process_id, transactionId: transaction.id });
+          }
+        } catch (roiErr) {
+          logger.warn('ROI auto-recalculation skipped (non-blocking)', { error: roiErr });
+        }
+      });
+    }
 
     res.status(201).json({
       success: true,
@@ -906,6 +924,34 @@ router.get(
         },
       },
       filters: { start_date: start_date || null, end_date: end_date || null },
+    });
+  })
+);
+
+// ============================================
+// PDF Watermark Context — Spec 2.4 (forensic watermark for reports)
+// ============================================
+
+/**
+ * GET /finance/reports/pdf-watermark
+ * Returns forensic watermark data for client-side PDF export.
+ * Spec 2.4: PDF com marca d'água forense (User_ID, IP, Timestamp, Tenant_ID).
+ */
+router.get(
+  '/reports/pdf-watermark',
+  authenticate,
+  requirePermission('finance:read'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    res.json({
+      success: true,
+      watermark: {
+        user_id: req.user!.id,
+        user_email: req.user!.email,
+        tenant_id: tenantContext.tenantId,
+        ip_address: req.ip ?? req.socket?.remoteAddress ?? 'unknown',
+        timestamp: new Date().toISOString(),
+      },
     });
   })
 );

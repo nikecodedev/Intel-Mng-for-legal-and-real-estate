@@ -124,6 +124,15 @@ export default function RealEstateCommercialPage({ params }: { params: { id: str
             </div>
           )}
 
+          {/* Spec 5.5: Hard Gate — status must be READY (DISPONIVEL_VENDA) or RENTED (LOCADO) */}
+          {asset && asset.current_state !== 'READY' && asset.current_state !== 'RENTED' && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              <strong>Publicação bloqueada (Spec 5.5):</strong> O imóvel deve estar em status{' '}
+              <strong>DISPONIVEL_VENDA</strong> ou <strong>LOCADO</strong> para publicar anúncio.{' '}
+              Status atual: <strong>{asset.current_state ?? '—'}</strong>.
+            </div>
+          )}
+
           {/* Publish listing */}
           <form onSubmit={handlePublish} className="rounded-lg border border-gray-200 bg-white p-6 space-y-4">
             <h3 className="text-sm font-medium text-gray-500">Publicar Anúncio</h3>
@@ -145,7 +154,9 @@ export default function RealEstateCommercialPage({ params }: { params: { id: str
                 <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} rows={3} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="Detalhes do imóvel para o anúncio..." />
               </div>
             </div>
-            <button type="submit" disabled={submitting} className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
+            <button type="submit"
+              disabled={submitting || (!!asset && asset.current_state !== 'READY' && asset.current_state !== 'RENTED')}
+              className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
               {submitting ? 'Publicando...' : 'Publicar Anúncio'}
             </button>
           </form>

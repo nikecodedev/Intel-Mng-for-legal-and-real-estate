@@ -41,7 +41,9 @@ const suspendTenantSchema = z.object({
     id: z.string().uuid(),
   }),
   body: z.object({
-    reason: z.string().min(1),
+    // Spec 2.4: dupla confirmação obrigatória — campo booleano explícito
+    confirmation: z.literal(true, { errorMap: () => ({ message: 'Dupla confirmação obrigatória: envie confirmation=true (Spec 2.4)' }) }),
+    reason: z.string().min(20, 'Justificativa obrigatória com mínimo 20 caracteres (Spec 2.4)'),
   }),
 });
 

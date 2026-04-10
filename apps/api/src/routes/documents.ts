@@ -8,7 +8,7 @@ import { asyncHandler, authenticate, requirePermission, validateRequest } from '
 import { extendedTimeout } from '../middleware/timeout.js';
 import { getTenantContext } from '../utils/tenant-context.js';
 import { parsePagination } from '../utils/pagination.js';
-import { NotFoundError, ValidationError, ConflictError, InternalServerError } from '../utils/errors.js';
+import { NotFoundError, ValidationError, ConflictError, InternalServerError, AuthorizationError } from '../utils/errors.js';
 import { DocumentModel } from '../models/document.js';
 import { DocumentExtractionModel } from '../models/document-extraction.js';
 import { DocumentQualityFlagModel } from '../models/document-quality-flag.js';
@@ -655,6 +655,16 @@ router.post(
     const flag = await DocumentQualityFlagModel.findById(flagId, tenantId);
     if (!flag) {
       throw new NotFoundError('Quality flag');
+    }
+
+    // Spec 3.5: Aprovar Documento Amarelo (WARNING) → Advogado Sênior (OWNER) obrigatório
+    if (flag.severity === 'WARNING' && req.context?.role !== 'OWNER') {
+      throw new AuthorizationError('Documentos AMARELO só podem ser aprovados por Advogado Sênior (role OWNER) — Spec 3.5');
+    }
+
+    // Spec 3.5: justificativa obrigatória ao aprovar documento AMARELO
+    if (flag.severity === 'WARNING' && (!resolution_notes || resolution_notes.trim().length < 10)) {
+      throw new ValidationError('Justificativa obrigatória (mínimo 10 caracteres) ao aprovar documento AMARELO (Spec 3.5)');
     }
 
     const resolved = await DocumentQualityFlagModel.resolve(

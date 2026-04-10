@@ -23,6 +23,9 @@ const createAssetSchema = z.object({
     linked_document_ids: z.array(z.string().uuid()).optional(),
     asset_reference: z.string().max(255).optional(),
     title: z.string().max(500).optional(),
+    // Spec 4.3: Nº do Edital único por leiloeiro (auctioneer)
+    edital_number: z.string().max(100).optional(),
+    auctioneer_id: z.string().uuid().optional(),
   }),
 });
 
@@ -92,14 +95,27 @@ router.post(
   validateRequest(createAssetSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId, userId } = getTenantContext(req);
-    const { linked_document_ids, asset_reference, title } = req.body;
+    const { linked_document_ids, asset_reference, title, edital_number, auctioneer_id } = req.body;
+
+    // Spec 4.3: Nº do Edital único por leiloeiro — uniqueness check
+    if (edital_number && auctioneer_id) {
+      const dup = await db.query(
+        `SELECT id FROM auction_assets WHERE tenant_id = $1 AND edital_number = $2 AND auctioneer_id = $3 LIMIT 1`,
+        [tenantId, edital_number, auctioneer_id]
+      );
+      if (dup.rows.length > 0) {
+        throw new ValidationError(`Nº do Edital '${edital_number}' já existe para este leiloeiro (Spec 4.3). Use um número único.`);
+      }
+    }
 
     const asset = await AuctionAssetModel.create({
       tenant_id: tenantId,
       linked_document_ids,
       asset_reference,
       title,
-    });
+      edital_number: edital_number ?? null,
+      auctioneer_id: auctioneer_id ?? null,
+    } as any);
 
     await AuditService.log({
       tenant_id: tenantId,
@@ -189,7 +205,7 @@ router.post(
     const { id } = req.params;
     const { to_stage } = req.body;
 
-    // HG-3: Before allowing transition to F9, verify due diligence checklist is 100% "ok"
+    // Ref: Spec §4.2 — HG-3: Checklist de due diligence deve ser 100% "ok" antes de avançar para F9 (Vendido/Concluído)
     if (to_stage === 'F9') {
       const assetResult = await db.query<{ due_diligence_checklist: Record<string, { status: string }> }>(
         'SELECT due_diligence_checklist FROM auction_assets WHERE id = $1 AND tenant_id = $2',
