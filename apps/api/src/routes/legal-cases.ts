@@ -515,18 +515,20 @@ router.post(
 
     // Create audited override_event in DB
     const overrideResult = await db.query(
-      `INSERT INTO override_events (tenant_id, user_id, entity_type, entity_id, event_type, justification, metadata, created_at)
-       VALUES ($1, $2, 'legal_case', $3, 'qg4_override', $4, $5, CURRENT_TIMESTAMP)
+      `INSERT INTO override_events
+         (tenant_id, user_id, user_email, override_type, target_entity, target_id, otp_verified, reason, justification, metadata)
+       VALUES ($1, $2, $3, 'qg4_override', 'legal_case', $4, TRUE, $5, $5, $6)
        RETURNING id`,
       [
         tenantContext.tenantId,
         userId,
+        req.user!.email ?? '',
         id,
         justification,
         JSON.stringify({ qg4_score: legalCase.qg4_score, case_number: legalCase.case_number }),
       ]
     ).catch(async () => {
-      // override_events table may not have all columns — fall back to audit log only
+      // fall back to audit log only if schema differs
       return { rows: [{ id: 'audit-only' }] };
     });
 
