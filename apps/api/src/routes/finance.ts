@@ -74,7 +74,13 @@ const markPaymentSchema = z.object({
     payment_reference: z.string().optional(),
     proof_document_id: z.string().uuid(), // MANDATORY
     bank_transaction_id: z.string().optional(),
-  }),
+    // Spec 6.4: Assinatura digital — confirmação com senha ou OTP obrigatória
+    confirmation_password: z.string().optional(),
+    confirmation_otp: z.string().length(6).optional(),
+  }).refine(
+    (d) => !!(d.confirmation_password || d.confirmation_otp),
+    { message: 'Assinatura digital obrigatória: forneça confirmation_password ou confirmation_otp (Spec 6.4)' }
+  ),
 });
 
 const createExpenseSchema = z.object({
@@ -314,6 +320,31 @@ router.post(
     // Validate proof document is provided
     if (!req.body.proof_document_id) {
       throw new ValidationError('Proof document is required to mark payment as paid');
+    }
+
+    // Spec 6.4: Assinatura digital — verificar senha ou OTP antes de aprovar
+    const { confirmation_password, confirmation_otp } = req.body;
+    if (confirmation_password) {
+      const userRow = await db.query(
+        'SELECT password_hash FROM users WHERE id = $1 AND is_active = true LIMIT 1',
+        [userId]
+      );
+      const { password_hash } = (userRow.rows[0] as { password_hash: string } | undefined) ?? {};
+      if (!password_hash) throw new ValidationError('Utilizador não encontrado.');
+      const { AuthService } = await import('../services/auth.js');
+      const valid = await AuthService.verifyPassword(confirmation_password, password_hash);
+      if (!valid) throw new ValidationError('Senha de confirmação incorreta. Aprovação negada.');
+    } else if (confirmation_otp) {
+      const userRow = await db.query(
+        'SELECT mfa_secret FROM users WHERE id = $1 AND is_active = true LIMIT 1',
+        [userId]
+      );
+      const { mfa_secret } = (userRow.rows[0] as { mfa_secret: string | null } | undefined) ?? {};
+      if (!mfa_secret) throw new ValidationError('MFA não configurado. Use confirmation_password.');
+      const { verifySync } = await import('otplib');
+      if (!verifySync({ token: confirmation_otp, secret: mfa_secret })) {
+        throw new ValidationError('Código OTP inválido ou expirado. Aprovação negada.');
+      }
     }
 
     const transaction = await FinancialTransactionModel.markPayment(
@@ -876,6 +907,150 @@ router.get(
       },
       filters: { start_date: start_date || null, end_date: end_date || null },
     });
+  })
+);
+
+// ============================================
+// Reject Transaction (Spec 6.4)
+// ============================================
+
+const rejectTransactionSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    reason: z.string().min(20, 'Justificativa obrigatória com mínimo 20 caracteres (Spec 6.4)'),
+  }),
+});
+
+/**
+ * POST /finance/transactions/:id/reject
+ * Reject a pending transaction — Owner only.
+ * Spec 6.4: "Reprovar Lançamento — Owner — Justificativa obrigatória."
+ */
+router.post(
+  '/transactions/:id/reject',
+  authenticate,
+  requirePermission('finance:update'),
+  validateRequest(rejectTransactionSchema),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const { id } = req.params;
+    const { reason } = req.body;
+    const userId = req.user!.id;
+
+    // Update payment_status to CANCELLED (closest valid value — "REJECTED" not in enum)
+    const result = await db.query(
+      `UPDATE financial_transactions
+       SET payment_status = 'CANCELLED', notes = COALESCE(notes || ' | ', '') || $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2 AND tenant_id = $3
+       RETURNING id, transaction_number, payment_status`,
+      [`REPROVADO: ${reason}`, id, tenantContext.tenantId]
+    );
+
+    if (result.rows.length === 0) throw new NotFoundError('Transaction');
+    const tx = result.rows[0] as { id: string; transaction_number: string; payment_status: string };
+
+    await AuditService.log({
+      tenantId: tenantContext.tenantId,
+      userId,
+      userEmail: req.user!.email,
+      userRole: tenantContext.role,
+      action: AuditAction.UPDATE,
+      eventType: 'finance.transaction.rejected',
+      eventCategory: AuditEventCategory.COMPLIANCE,
+      resourceType: 'financial_transaction',
+      resourceId: id,
+      description: `Transação ${tx.transaction_number} reprovada por ${req.user!.email}. Motivo: ${reason}`,
+      details: { reason, rejected_by: userId },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || undefined,
+      requestId: req.headers['x-request-id'] as string | undefined,
+    });
+
+    logger.info('Transaction rejected', { transactionId: id, userId, reason });
+
+    res.json({
+      success: true,
+      transaction_id: id,
+      transaction_number: tx.transaction_number,
+      payment_status: tx.payment_status,
+      message: 'Lançamento reprovado e auditado com sucesso.',
+    });
+  })
+);
+
+// ============================================
+// OCR Receipt — Spec 6.3 Mobile Launcher
+// ============================================
+
+const ocrReceiptSchema = z.object({
+  body: z.object({
+    image_base64: z.string().min(100, 'Imagem base64 obrigatória'),
+    mime_type: z.enum(['image/jpeg', 'image/png', 'image/webp']).default('image/jpeg'),
+  }),
+});
+
+/**
+ * POST /finance/ocr-receipt
+ * Extract monetary value from a receipt photo using Gemini Vision.
+ * Spec 6.3: "OCR local processa o valor; imagem é expurgada da RAM após envio."
+ * The image is processed server-side by Gemini and never persisted.
+ */
+router.post(
+  '/ocr-receipt',
+  authenticate,
+  validateRequest(ocrReceiptSchema),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { image_base64, mime_type } = req.body;
+
+    // Strip data URL prefix if present (data:image/jpeg;base64,...)
+    const base64Data = image_base64.replace(/^data:[^;]+;base64,/, '');
+
+    const { config } = await import('../config/env.js');
+    const apiKey = (config as any).gemini?.apiKey ?? process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      res.json({ amount_cents: null, amount_text: null, confidence: 'low', note: 'OCR indisponível — GEMINI_API_KEY não configurado.' });
+      return;
+    }
+
+    try {
+      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+      const result = await model.generateContent([
+        { inlineData: { mimeType: mime_type, data: base64Data } },
+        {
+          text: 'Esta é uma foto de um comprovante/recibo. Identifique o VALOR TOTAL a pagar ou pago. ' +
+            'Responda APENAS com um JSON no formato: {"amount_brl": "123.45", "confidence": "high"} ' +
+            'onde amount_brl é o valor em reais com ponto decimal (ex: "1234.56"). ' +
+            'Se não encontrar valor claro, retorne {"amount_brl": null, "confidence": "low"}.',
+        },
+      ]);
+
+      const text = result.response.text?.()?.trim() ?? '';
+      // Parse JSON from response (Gemini may wrap in markdown)
+      const jsonMatch = text.match(/\{[^}]+\}/);
+      if (!jsonMatch) {
+        res.json({ amount_cents: null, amount_text: null, confidence: 'low' });
+        return;
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]) as { amount_brl?: string | null; confidence?: string };
+      if (!parsed.amount_brl) {
+        res.json({ amount_cents: null, amount_text: null, confidence: 'low' });
+        return;
+      }
+
+      const amountCents = Math.round(parseFloat(parsed.amount_brl) * 100);
+      res.json({
+        amount_cents: isNaN(amountCents) ? null : amountCents,
+        amount_text: parsed.amount_brl,
+        confidence: parsed.confidence === 'high' ? 'high' : 'low',
+      });
+    } catch (err) {
+      logger.warn('OCR receipt failed', { error: err });
+      res.json({ amount_cents: null, amount_text: null, confidence: 'low' });
+    }
   })
 );
 

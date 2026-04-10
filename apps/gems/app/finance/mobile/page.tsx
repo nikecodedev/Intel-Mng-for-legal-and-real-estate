@@ -30,9 +30,10 @@ export default function FinanceMobilePage() {
   const [gpsCoords, setGpsCoords] = useState<GpsCoords | null>(null);
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'ok' | 'denied' | 'unavailable'>('idle');
 
-  // Camera
+  // Camera + OCR
   const [photoBase64, setPhotoBase64] = useState<string | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -44,13 +45,37 @@ export default function FinanceMobilePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Offline-first: cache assets in localStorage with 5-minute TTL (Spec 6.3)
   async function loadAssets() {
     setAssetsLoading(true);
+    const CACHE_KEY = 'mobile_assets_cache';
+    const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+    try {
+      // Try cache first
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const { data, ts } = JSON.parse(cached) as { data: AssetOption[]; ts: number };
+        if (Date.now() - ts < CACHE_TTL) {
+          setAssets(data);
+          if (data.length > 0) setSelectedAssetId(data[0].id);
+          setAssetsLoading(false);
+          // Refresh in background silently
+          api.get('/real-estate/assets?limit=100').then(res => {
+            const fresh = (res.data?.data ?? res.data?.assets ?? []).map((a: any) => ({ id: a.id, title: a.title ?? a.name ?? a.id }));
+            localStorage.setItem(CACHE_KEY, JSON.stringify({ data: fresh, ts: Date.now() }));
+          }).catch(() => {});
+          return;
+        }
+      }
+    } catch {}
+
     try {
       const res = await api.get('/real-estate/assets?limit=100');
-      const data = res.data?.data ?? res.data?.assets ?? [];
-      setAssets(data.map((a: any) => ({ id: a.id, title: a.title ?? a.name ?? a.id })));
+      const data = (res.data?.data ?? res.data?.assets ?? []).map((a: any) => ({ id: a.id, title: a.title ?? a.name ?? a.id }));
+      setAssets(data);
       if (data.length > 0) setSelectedAssetId(data[0].id);
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() })); } catch {}
     } catch {
       setAssets([]);
     } finally {
@@ -82,13 +107,26 @@ export default function FinanceMobilePage() {
     }
   }
 
-  function capturePhoto() {
+  async function capturePhoto() {
     if (!videoRef.current || !canvasRef.current) return;
     const v = videoRef.current; const c = canvasRef.current;
     c.width = v.videoWidth; c.height = v.videoHeight;
     c.getContext('2d')?.drawImage(v, 0, 0);
-    setPhotoBase64(c.toDataURL('image/jpeg', 0.7));
+    const base64 = c.toDataURL('image/jpeg', 0.7);
+    setPhotoBase64(base64);
     stopCamera();
+
+    // Spec 6.3: OCR local — use Gemini Vision to pre-fill amount
+    if (!amount) {
+      setOcrLoading(true);
+      try {
+        const res = await api.post('/finance/ocr-receipt', { image_base64: base64, mime_type: 'image/jpeg' });
+        if (res.data?.amount_text && !amount) {
+          setAmount(res.data.amount_text);
+        }
+      } catch {}
+      finally { setOcrLoading(false); }
+    }
   }
 
   function stopCamera() {
@@ -189,9 +227,13 @@ export default function FinanceMobilePage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Valor (R$)</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Valor (R$)
+            {ocrLoading && <span className="ml-2 text-xs text-blue-500 animate-pulse">OCR a processar...</span>}
+          </label>
           <input type="number" step="0.01" min="0" value={amount} onChange={e => setAmount(e.target.value)}
-            placeholder="0,00" className="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
+            placeholder={ocrLoading ? 'Extraindo valor da foto...' : '0,00'}
+            className="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
         </div>
 
         {/* Camera */}
