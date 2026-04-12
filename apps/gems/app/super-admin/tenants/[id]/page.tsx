@@ -75,6 +75,9 @@ export default function SuperAdminTenantDetailPage({ params }: { params: { id: s
   const queryClient = useQueryClient();
   const [showSuspend, setShowSuspend] = useState(false);
   const [suspendReason, setSuspendReason] = useState('');
+  // Dupla confirmação — Spec 2.4
+  const [suspendStep, setSuspendStep] = useState<1 | 2>(1);
+  const [suspendConfirmName, setSuspendConfirmName] = useState('');
 
   // Edit tenant state
   const [editingTenant, setEditingTenant] = useState(false);
@@ -98,6 +101,8 @@ export default function SuperAdminTenantDetailPage({ params }: { params: { id: s
       queryClient.invalidateQueries('super-admin-dashboard');
       setShowSuspend(false);
       setSuspendReason('');
+      setSuspendStep(1);
+      setSuspendConfirmName('');
     },
   });
 
@@ -329,37 +334,90 @@ export default function SuperAdminTenantDetailPage({ params }: { params: { id: s
         </dl>
       </section>
 
+      {/* Suspender Tenant — Dupla Confirmação (Spec 2.4) */}
       {showSuspend && (
         <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/30 p-4">
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Suspender Tenant</h3>
-            <p className="text-sm text-gray-600 mb-2">Motivo (obrigatorio):</p>
-            <textarea
-              value={suspendReason}
-              onChange={(e) => setSuspendReason(e.target.value)}
-              rows={3}
-              className="w-full rounded border border-gray-300 px-3 py-2 text-sm mb-4"
-            />
-            {suspendMutation.isError && (
-              <p className="mb-2 text-sm text-red-600">{getApiErrorMessage(suspendMutation.error)}</p>
-            )}
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => { setShowSuspend(false); setSuspendReason(''); suspendMutation.reset(); }}
-                className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => suspendMutation.mutate()}
-                disabled={!suspendReason.trim() || suspendMutation.isLoading}
-                className="rounded bg-amber-600 px-3 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
-              >
-                {suspendMutation.isLoading ? 'Suspendendo...' : 'Suspender'}
-              </button>
+          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-amber-600 text-sm font-bold">
+                {suspendStep}
+              </span>
+              <h3 className="text-lg font-medium text-gray-900">
+                Suspender Tenant — Passo {suspendStep} de 2
+              </h3>
             </div>
+
+            {suspendStep === 1 && (
+              <>
+                <p className="text-sm text-gray-600 mb-2">
+                  Informe o motivo da suspensão (obrigatório):
+                </p>
+                <textarea
+                  value={suspendReason}
+                  onChange={(e) => setSuspendReason(e.target.value)}
+                  rows={3}
+                  placeholder="Descreva o motivo da suspensão..."
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm mb-4"
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setShowSuspend(false); setSuspendReason(''); setSuspendConfirmName(''); setSuspendStep(1); suspendMutation.reset(); }}
+                    className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSuspendStep(2)}
+                    disabled={!suspendReason.trim()}
+                    className="rounded bg-amber-600 px-3 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                  >
+                    Prosseguir
+                  </button>
+                </div>
+              </>
+            )}
+
+            {suspendStep === 2 && (
+              <>
+                <div className="mb-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  <strong>Atenção:</strong> Esta ação bloqueará o acesso de todos os utilizadores deste tenant.
+                </div>
+                <p className="text-sm text-gray-600 mb-1">
+                  Para confirmar, escreva o nome do tenant:{' '}
+                  <strong className="font-mono text-gray-900">{tenant?.name}</strong>
+                </p>
+                <input
+                  type="text"
+                  value={suspendConfirmName}
+                  onChange={(e) => setSuspendConfirmName(e.target.value)}
+                  placeholder={tenant?.name}
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm mb-4"
+                  autoFocus
+                />
+                {suspendMutation.isError && (
+                  <p className="mb-2 text-sm text-red-600">{getApiErrorMessage(suspendMutation.error)}</p>
+                )}
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setSuspendStep(1); setSuspendConfirmName(''); suspendMutation.reset(); }}
+                    className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => suspendMutation.mutate()}
+                    disabled={suspendConfirmName !== tenant?.name || suspendMutation.isLoading}
+                    className="rounded bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {suspendMutation.isLoading ? 'Suspendendo...' : 'Confirmar Suspensão'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

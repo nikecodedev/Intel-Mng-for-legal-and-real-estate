@@ -8,6 +8,8 @@ import { db } from '../models/database.js';
 import { z } from 'zod';
 import { logger } from '../utils/logger.js';
 import { AppError, AuthenticationError, NotFoundError } from '../utils/errors.js';
+import { generateSecret, generateURI, verifySync } from 'otplib';
+import QRCode from 'qrcode';
 
 const router = Router();
 
@@ -658,9 +660,6 @@ router.post(
 // ============================================
 // MFA Endpoints (Real TOTP via otplib)
 // ============================================
-
-import { generateSecret, generateURI, verifySync } from 'otplib';
-import QRCode from 'qrcode';
 
 /**
  * POST /auth/mfa/setup
