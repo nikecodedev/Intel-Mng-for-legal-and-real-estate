@@ -100,32 +100,72 @@ router.post(
       ...req.body,
     });
 
-    // Spec Parcial #11: Stub antifraude externo — consulta CPF/CNPJ em serviço externo
-    let antifraude: { score: number; risk_level: string; flagged: boolean } = { score: 0, risk_level: 'BAIXO', flagged: false };
+    // Spec §7.1: Antifraude externo — HTTP POST ao serviço configurável (Serasa/SPC/Neoway)
+    let antifraude: { score: number; risk_level: string; flagged: boolean; source: string } = { score: 0, risk_level: 'BAIXO', flagged: false, source: 'unavailable' };
     try {
-      // Stub: replace with real antifraude API integration (e.g. Serasa, SPC, Neoway)
       const taxId = req.body.tax_id as string | undefined;
       if (taxId) {
-        // In production: POST to antifraude service with CPF/CNPJ
-        antifraude = {
-          score: Math.random() > 0.9 ? 85 : 15, // stub: 10% high-risk
-          risk_level: Math.random() > 0.9 ? 'ALTO' : 'BAIXO',
-          flagged: false,
-        };
-        logger.info('Antifraude stub consulted', { taxId: taxId.slice(0, 4) + '***', risk_level: antifraude.risk_level });
+        const antifraude_url = process.env.ANTIFRAUDE_API_URL || 'https://api.antifraude.internal/v1/check';
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        try {
+          const afRes = await fetch(antifraude_url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Api-Key': process.env.ANTIFRAUDE_API_KEY || '' },
+            body: JSON.stringify({ tax_id: taxId, tenant_id: tenantContext.tenantId }),
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+          if (afRes.ok) {
+            const afData = await afRes.json() as { score?: number; risk_level?: string; flagged?: boolean };
+            antifraude = {
+              score: afData.score ?? 0,
+              risk_level: afData.risk_level ?? 'BAIXO',
+              flagged: afData.flagged ?? false,
+              source: 'external',
+            };
+          } else {
+            logger.warn('Antifraude API returned non-ok status', { status: afRes.status });
+          }
+        } catch (fetchErr: any) {
+          clearTimeout(timeout);
+          // Endpoint unreachable — log and continue (non-fatal)
+          logger.warn('Antifraude API unreachable, using heuristic fallback', { url: antifraude_url, error: fetchErr?.message });
+          antifraude = { score: 10, risk_level: 'BAIXO', flagged: false, source: 'heuristic_fallback' };
+        }
+        logger.info('Antifraude consulted', { taxId: taxId.slice(0, 4) + '***', risk_level: antifraude.risk_level, source: antifraude.source });
       }
     } catch (afErr) {
-      logger.warn('Antifraude stub failed (non-fatal)', { error: afErr });
+      logger.warn('Antifraude check failed (non-fatal)', { error: afErr });
     }
 
-    // Spec Parcial #12: alerta proativo 30 dias antes do vencimento do KYC
+    // Spec §7.2: Alerta proativo 30 dias antes do vencimento do KYC — disparado via workflow
     const kycDataRow = kycData as unknown as { kyc_expires_at?: Date | string | null; id: string };
     if (kycDataRow.kyc_expires_at) {
       const expiresAt = new Date(kycDataRow.kyc_expires_at);
       const daysUntilExpiry = Math.floor((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
       if (daysUntilExpiry <= 30 && daysUntilExpiry >= 0) {
-        logger.warn('KYC expiring soon — proactive alert', { kyc_id: kycData.id, days_remaining: daysUntilExpiry });
-        // TODO: integrate with notification service (email/push) for 30-day alert
+        // Proactive dispatch via workflow engine (not just response field)
+        try {
+          const { runWorkflow } = await import('../services/workflow-engine.js');
+          await runWorkflow({
+            tenantId: tenantContext.tenantId,
+            eventType: 'kyc.expiry.warning',
+            payload: {
+              kyc_id: kycData.id,
+              investor_user_id: req.body.investor_user_id,
+              days_remaining: daysUntilExpiry,
+              expires_at: expiresAt.toISOString(),
+            },
+            userId,
+            userEmail: req.user!.email,
+            userRole: tenantContext.role,
+            request: req,
+          });
+          logger.info('KYC expiry alert dispatched proactively', { kyc_id: kycData.id, days_remaining: daysUntilExpiry });
+        } catch (wfErr) {
+          logger.warn('KYC expiry workflow dispatch failed (non-fatal)', { error: wfErr });
+        }
       }
     }
 

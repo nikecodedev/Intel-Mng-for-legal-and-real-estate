@@ -461,26 +461,21 @@ router.post(
       requestId: req.headers['x-request-id'] as string | undefined,
     });
 
-    // Spec Parcial #8: CAPEX vínculo automático a projeto_id (campo explícito per spec §9)
+    // Spec §9: CAPEX vínculo automático a projeto_id — campo explícito (não process_id)
     const { amount_cents, description } = req.body;
     try {
-      const assetRow = await db.query(`SELECT * FROM real_estate_assets WHERE id = $1 AND tenant_id = $2 LIMIT 1`, [id, tenantContext.tenantId]);
-      const projetoId = (assetRow.rows[0] as any)?.projeto_id || (assetRow.rows[0] as any)?.project_id || (assetRow.rows[0] as any)?.process_id;
+      const assetRow = await db.query(`SELECT projeto_id FROM real_estate_assets WHERE id = $1 AND tenant_id = $2 LIMIT 1`, [id, tenantContext.tenantId]);
+      const projetoId = (assetRow.rows[0] as any)?.projeto_id ?? null;
       if (projetoId && amount_cents > 0) {
         await db.query(
           `INSERT INTO financial_transactions (tenant_id, transaction_type, amount_cents, currency, description, projeto_id, real_estate_asset_id, transaction_date, status, created_by)
            VALUES ($1, 'EXPENSE', $2, 'BRL', $3, $4, $5, CURRENT_DATE, 'APPROVED', $6)
            ON CONFLICT DO NOTHING`,
           [tenantContext.tenantId, amount_cents, `CAPEX: ${description}`, projetoId, id, userId]
-        ).catch(() =>
-          // Fallback: try with process_id column name if projeto_id doesn't exist yet
-          db.query(
-            `INSERT INTO financial_transactions (tenant_id, transaction_type, amount_cents, currency, description, process_id, real_estate_asset_id, transaction_date, status, created_by)
-             VALUES ($1, 'EXPENSE', $2, 'BRL', $3, $4, $5, CURRENT_DATE, 'APPROVED', $6)`,
-            [tenantContext.tenantId, amount_cents, `CAPEX: ${description}`, projetoId, id, userId]
-          )
         );
-        logger.info('CAPEX auto-transaction created', { assetId: id, projetoId, amount_cents });
+        logger.info('CAPEX auto-transaction created via projeto_id', { assetId: id, projetoId, amount_cents });
+      } else if (!projetoId) {
+        logger.warn('CAPEX auto-link skipped: asset has no projeto_id', { assetId: id });
       }
     } catch (capexErr) { logger.warn('CAPEX auto-transaction failed', { error: capexErr }); }
 

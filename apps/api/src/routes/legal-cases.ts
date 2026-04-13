@@ -3,7 +3,7 @@ import { z } from 'zod';
 import crypto from 'crypto';
 import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware/index.js';
 import { getTenantContext } from '../utils/tenant-context.js';
-import { NotFoundError } from '../utils/errors.js';
+import { NotFoundError, ValidationError } from '../utils/errors.js';
 import { db } from '../models/database.js';
 import { AuditService, AuditAction, AuditEventCategory } from '../services/audit.js';
 import { logger } from '../utils/logger.js';
@@ -389,6 +389,18 @@ router.post(
     );
     const triploRow = triploCheck.rows[0] || { has_direito: false, has_nexo: false };
     const triploFechamento = triploRow.has_direito && triploRow.has_nexo && factsCount > 0;
+
+    // Spec §3.4: Triplo Fechamento é hard gate — bloqueia submissão se incompleto
+    if (!triploFechamento) {
+      const missing: string[] = [];
+      if (!triploRow.has_direito) missing.push('direito_aplicavel');
+      if (!triploRow.has_nexo) missing.push('nexo_causal');
+      if (factsCount === 0) missing.push('fatos documentados');
+      throw new ValidationError(
+        `Triplo Fechamento incompleto — QG4 bloqueado. Faltam: ${missing.join(', ')}. ` +
+        'Adicione FPDN com direito_aplicavel, nexo_causal e ao menos um fato antes de calcular QG4.'
+      );
+    }
 
     // Spec QG4 formula (Divergence #2):
     // rastreabilidade = facts completeness: min(factsCount / 10, 1.0) * 100

@@ -19,16 +19,15 @@ import { extractTextFromPdf, structureAsFPDN, FPDNOutput } from './document-proc
  * Quality control thresholds (GEMS compliance)
  */
 const DPI_MINIMUM = 300; // Ref. Fontes 78 e 79
-const OCR_CONFIDENCE_MINIMUM = 95.0; // Ref. Fonte 3
 
 /**
- * Spec Parcial #4: Intake CPO Hard Gate — 3-tier OCR thresholds
- *   < OCR_REJECT_THRESHOLD  → REJECTED (status_cpo = VERMELHO, blocked)
- *   OCR_REJECT_THRESHOLD..OCR_AUTOPROCESS_THRESHOLD → AMARELO (manual review queue)
- *   ≥ OCR_AUTOPROCESS_THRESHOLD → VERDE (auto-process)
+ * Spec §5.5 — Intake CPO Hard Gate: 3-tier OCR thresholds (replaces single-threshold approach)
+ *   Tier 1 VERMELHO: confidence < OCR_REJECT_THRESHOLD  → Hard reject, intake blocked
+ *   Tier 2 AMARELO:  OCR_REJECT_THRESHOLD ≤ confidence < OCR_AUTOPROCESS_THRESHOLD → Manual review queue
+ *   Tier 3 VERDE:    confidence ≥ OCR_AUTOPROCESS_THRESHOLD → Auto-process, no flags
  */
-const OCR_REJECT_THRESHOLD = 70.0;        // below this → reject
-const OCR_AUTOPROCESS_THRESHOLD = 95.0;   // above this → auto-process (same as OCR_CONFIDENCE_MINIMUM)
+const OCR_REJECT_THRESHOLD = 70.0;        // Tier 1/2 boundary — below this: REJECTED
+const OCR_AUTOPROCESS_THRESHOLD = 95.0;   // Tier 2/3 boundary — at/above this: AUTO
 
 function classifyOcrTier(confidence: number | null): 'REJECTED' | 'REVIEW' | 'AUTO' {
   if (confidence === null || confidence < OCR_REJECT_THRESHOLD) return 'REJECTED';
@@ -162,7 +161,7 @@ export class DocumentExtractionService {
       ocr_result: {
         passed: false,
         confidence: null,
-        required: OCR_CONFIDENCE_MINIMUM,
+        required: OCR_AUTOPROCESS_THRESHOLD,
         message: '',
       },
       extraction: null,
@@ -186,7 +185,7 @@ export class DocumentExtractionService {
 
         // Set OCR result — confidence is estimated (not from Tesseract), flagged as below threshold
         const fallbackConfidence = 75; // Below the 95% QG1 threshold — honest estimate, not hardcoded pass
-        result.ocr_result = { passed: false, confidence: fallbackConfidence, required: OCR_CONFIDENCE_MINIMUM, message: 'Fallback: pdf-parse + Gemini (estimated confidence)' };
+        result.ocr_result = { passed: false, confidence: fallbackConfidence, required: OCR_AUTOPROCESS_THRESHOLD, message: 'Fallback: pdf-parse + Gemini (estimated confidence)' };
         result.status_cpo = 'AMARELO';
         await DocumentModel.updateOCR(documentId, tenantId, { ocr_processed: true, ocr_confidence: fallbackConfidence, ocr_engine: 'pdf-parse+gemini' });
         await DocumentModel.updateCPO(documentId, tenantId, { status_cpo: 'AMARELO', cpo_notes: 'OCR fallback used — confidence estimated', cpo_approval_required: true });

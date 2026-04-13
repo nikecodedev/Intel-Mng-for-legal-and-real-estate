@@ -2,6 +2,7 @@ import { db } from '../models/database.js';
 import { KnowledgeEntryModel, KnowledgeEntry } from '../models/knowledge-entry.js';
 import { logger } from '../utils/logger.js';
 import * as crypto from 'crypto';
+import { config } from '../config/env.js';
 
 export interface SearchResult {
   entry: KnowledgeEntry;
@@ -19,8 +20,28 @@ export interface SemanticSearchOptions {
 }
 
 /**
+ * Generate text embedding via Gemini text-embedding-004.
+ * Returns null if GEMINI_API_KEY is not set or on failure (triggers tsvector fallback).
+ */
+async function getQueryEmbedding(query: string): Promise<number[] | null> {
+  const apiKey = config.gemini?.apiKey;
+  if (!apiKey) return null;
+  try {
+    const { GoogleGenerativeAI } = await import('@google/generative-ai');
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const embeddingModel = genAI.getGenerativeModel({ model: 'text-embedding-004' });
+    const result = await embeddingModel.embedContent(query);
+    return result.embedding.values ?? null;
+  } catch (err) {
+    logger.warn('Gemini embedding failed — falling back to tsvector search', { error: err });
+    return null;
+  }
+}
+
+/**
  * Knowledge Search Service
  * Semantic search over past cases and legal outcomes
+ * Spec §8: Uses pgvector <-> similarity when embeddings are available, falls back to tsvector.
  */
 export class KnowledgeSearchService {
   /**
@@ -47,7 +68,24 @@ export class KnowledgeSearchService {
       }
     }
 
-    // Build search query
+    const limit = options.limit || 50;
+
+    // Spec §8: Try pgvector <-> semantic search first; fall back to tsvector on failure
+    const embedding = query.trim() ? await getQueryEmbedding(query) : null;
+    if (embedding) {
+      try {
+        const pgvectorResult = await this.searchWithPgvector(tenantId, query, embedding, options, limit);
+        if (options.use_cache !== false) {
+          await this.cacheResults(cacheKey, query, pgvectorResult.results, pgvectorResult.total, options);
+        }
+        return { ...pgvectorResult, cached: false };
+      } catch (pgvErr: any) {
+        // pgvector not installed or no embeddings — fall through to tsvector
+        logger.warn('pgvector search failed — falling back to tsvector', { error: pgvErr?.message });
+      }
+    }
+
+    // Build tsvector search query (fallback)
     const conditions: string[] = ['tenant_id = $1', 'deleted_at IS NULL', 'is_active = true'];
     const values: unknown[] = [tenantId];
     let paramCount = 2;
@@ -76,7 +114,6 @@ export class KnowledgeSearchService {
     }
 
     const whereClause = conditions.join(' AND ');
-    const limit = options.limit || 50;
 
     // Get total count
     const countResult = await db.query<{ count: string }>(
@@ -179,6 +216,100 @@ export class KnowledgeSearchService {
       total,
       cached: false,
     };
+  }
+
+  /**
+   * Spec §8: pgvector semantic search using <-> cosine distance on embedding_vector.
+   * Throws if pgvector extension is not installed — caller falls back to tsvector.
+   */
+  private static async searchWithPgvector(
+    tenantId: string,
+    query: string,
+    embedding: number[],
+    options: SemanticSearchOptions,
+    limit: number
+  ): Promise<{ results: SearchResult[]; total: number }> {
+    const conditions: string[] = ['tenant_id = $1', 'deleted_at IS NULL', 'is_active = true', 'embedding_vector IS NOT NULL'];
+    const values: unknown[] = [tenantId];
+    let paramCount = 2;
+
+    const embeddingParam = paramCount++;
+    values.push(`[${embedding.join(',')}]`); // pgvector literal format
+
+    if (options.entry_type) { conditions.push(`entry_type = $${paramCount++}`); values.push(options.entry_type); }
+    if (options.category)   { conditions.push(`category = $${paramCount++}`);   values.push(options.category); }
+    if (options.outcome_type) { conditions.push(`outcome_type = $${paramCount++}`); values.push(options.outcome_type); }
+
+    const whereClause = conditions.join(' AND ');
+    const limitParam = paramCount++;
+    values.push(limit);
+
+    // pgvector <-> operator: L2 distance (lower = more similar)
+    const result = await db.query<KnowledgeEntry & { vector_distance: number }>(
+      `SELECT *, embedding_vector <-> $${embeddingParam}::vector AS vector_distance
+       FROM knowledge_entries
+       WHERE ${whereClause}
+       ORDER BY embedding_vector <-> $${embeddingParam}::vector
+       LIMIT $${limitParam}`,
+      values
+    );
+
+    const countResult = await db.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM knowledge_entries WHERE ${whereClause}`,
+      values.slice(0, -1) // exclude limit param
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    const results: SearchResult[] = result.rows.map(row => {
+      const entry: KnowledgeEntry = {
+        id: row.id as string,
+        tenant_id: row.tenant_id as string,
+        entry_type: row.entry_type as any,
+        title: row.title as string,
+        summary: (row.summary as string) ?? null,
+        content: row.content as string,
+        category: (row.category as string) ?? null,
+        tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
+        keywords: Array.isArray(row.keywords) ? (row.keywords as string[]) : [],
+        source_case_ids: Array.isArray(row.source_case_ids) ? (row.source_case_ids as string[]) : [],
+        source_document_ids: Array.isArray(row.source_document_ids) ? (row.source_document_ids as string[]) : [],
+        jurisdiction: (row.jurisdiction as string) ?? null,
+        court_level: (row.court_level as string) ?? null,
+        decision_date: row.decision_date != null ? (row.decision_date instanceof Date ? row.decision_date : new Date(String(row.decision_date))) : null,
+        case_number: (row.case_number as string) ?? null,
+        judge_name: (row.judge_name as string) ?? null,
+        outcome_type: (row.outcome_type as any) ?? null,
+        outcome_summary: (row.outcome_summary as string) ?? null,
+        key_legal_points: Array.isArray(row.key_legal_points) ? (row.key_legal_points as string[]) : [],
+        embedding_vector: Array.isArray(row.embedding_vector) ? (row.embedding_vector as number[]) : null,
+        search_text: (row.search_text as string) ?? null,
+        view_count: Number(row.view_count) || 0,
+        last_viewed_at: row.last_viewed_at != null ? (row.last_viewed_at instanceof Date ? row.last_viewed_at : new Date(String(row.last_viewed_at))) : null,
+        relevance_score: row.relevance_score ? Number(row.relevance_score) : null,
+        is_active: Boolean(row.is_active),
+        is_verified: Boolean(row.is_verified),
+        verified_by: (row.verified_by as string) ?? null,
+        verified_at: row.verified_at != null ? (row.verified_at instanceof Date ? row.verified_at : new Date(String(row.verified_at))) : null,
+        created_by: (row.created_by as string) ?? null,
+        updated_by: (row.updated_by as string) ?? null,
+        metadata: (row.metadata as Record<string, unknown>) || {},
+        created_at: row.created_at instanceof Date ? row.created_at : new Date(String(row.created_at)),
+        updated_at: row.updated_at instanceof Date ? row.updated_at : new Date(String(row.updated_at)),
+        deleted_at: row.deleted_at != null ? (row.deleted_at instanceof Date ? row.deleted_at : new Date(String(row.deleted_at))) : null,
+        deleted_by: (row.deleted_by as string) ?? null,
+      };
+      // Convert distance to 0-100 similarity score (distance 0 = 100%, distance 2 = 0%)
+      const vectorDist = Number(row.vector_distance) || 2;
+      const relevanceScore = Math.round(Math.max(0, (1 - vectorDist / 2)) * 100);
+      return {
+        entry,
+        relevance_score: relevanceScore,
+        match_reasons: ['Semantic similarity (pgvector)'],
+      };
+    });
+
+    logger.info('pgvector search completed', { tenantId, query: query.slice(0, 50), resultCount: results.length });
+    return { results, total };
   }
 
   /**

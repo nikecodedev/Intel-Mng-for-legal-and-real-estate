@@ -102,10 +102,10 @@ const createExpenseSchema = z.object({
     real_estate_asset_id: z.string().uuid().optional(),
     client_id: z.string().uuid().optional(),
     captured_via: z.enum(['MOBILE', 'WEB', 'API']).optional(),
-    // Spec Parcial #10: captured_location obrigatório (GPS §6.3)
+    // Spec §6.3: captured_location obrigatório; lat e lng são campos GPS obrigatórios
     captured_location: z.object({
-      lat: z.number().optional(),
-      lng: z.number().optional(),
+      lat: z.number({ required_error: 'GPS latitude obrigatória (Spec §6.3)' }),
+      lng: z.number({ required_error: 'GPS longitude obrigatória (Spec §6.3)' }),
       address: z.string().optional(),
     }),
     receipt_document_id: z.string().uuid().optional(),
