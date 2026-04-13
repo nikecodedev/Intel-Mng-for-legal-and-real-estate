@@ -9,45 +9,41 @@ VALUES
   ('FINANCEIRO',         'Acesso ao módulo financeiro — transações, contas, relatórios', TRUE, NULL)
 ON CONFLICT DO NOTHING;
 
--- Seed permissions for ADVOGADO
-INSERT INTO role_permissions (role_id, permission, tenant_id)
-SELECT r.id, p.permission, NULL
+-- Seed permissions for ADVOGADO (uses documents:* as legal_cases permissions)
+INSERT INTO role_permissions (role_id, permission_id, tenant_id)
+SELECT r.id, p.id, NULL
 FROM roles r
-CROSS JOIN (VALUES
-  ('documents:read'),('documents:create'),('documents:update'),
-  ('legal_cases:read'),('legal_cases:create'),('legal_cases:update'),('legal_cases:override')
-) AS p(permission)
+CROSS JOIN permissions p
 WHERE r.name = 'ADVOGADO'
+  AND p.name IN ('documents:read','documents:create','documents:update',
+                 'quality_gates:read','quality_gates:create','quality_gates:update')
 ON CONFLICT DO NOTHING;
 
 -- Seed permissions for ANALISTA_LEILOES
-INSERT INTO role_permissions (role_id, permission, tenant_id)
-SELECT r.id, p.permission, NULL
+INSERT INTO role_permissions (role_id, permission_id, tenant_id)
+SELECT r.id, p.id, NULL
 FROM roles r
-CROSS JOIN (VALUES
-  ('auctions:read'),('auctions:create'),('auctions:update'),('auctions:bid')
-) AS p(permission)
+CROSS JOIN permissions p
 WHERE r.name = 'ANALISTA_LEILOES'
+  AND p.name IN ('auctions:read','auctions:create','auctions:update','auctions:bid','auctions:list')
 ON CONFLICT DO NOTHING;
 
 -- Seed permissions for GESTOR_IMOBILIARIO
-INSERT INTO role_permissions (role_id, permission, tenant_id)
-SELECT r.id, p.permission, NULL
+INSERT INTO role_permissions (role_id, permission_id, tenant_id)
+SELECT r.id, p.id, NULL
 FROM roles r
-CROSS JOIN (VALUES
-  ('assets:read'),('assets:create'),('assets:update'),
-  ('documents:read'),('finance:read')
-) AS p(permission)
+CROSS JOIN permissions p
 WHERE r.name = 'GESTOR_IMOBILIARIO'
+  AND p.name IN ('assets:read','assets:create','assets:update','assets:list',
+                 'documents:read','finance:read')
 ON CONFLICT DO NOTHING;
 
 -- Seed permissions for FINANCEIRO
-INSERT INTO role_permissions (role_id, permission, tenant_id)
-SELECT r.id, p.permission, NULL
+INSERT INTO role_permissions (role_id, permission_id, tenant_id)
+SELECT r.id, p.id, NULL
 FROM roles r
-CROSS JOIN (VALUES
-  ('finance:read'),('finance:create'),('finance:update'),
-  ('reports:read'),('reports:create')
-) AS p(permission)
+CROSS JOIN permissions p
 WHERE r.name = 'FINANCEIRO'
+  AND p.name IN ('finance:read','finance:create','finance:update','finance:list',
+                 'reports:read','reports:generate','reports:export')
 ON CONFLICT DO NOTHING;
