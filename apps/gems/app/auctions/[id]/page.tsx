@@ -296,6 +296,22 @@ export default function AuctionDetailPage({ params }: { params: { id: string } }
         <p className="mt-2 text-xs text-gray-500">Score 0-100. Hard Gate: score minimo de 50 e certidoes negativas obrigatorias.</p>
       </section>
 
+      {/* Autorização de Lance F3 — Spec §4.4 */}
+      <section className="rounded-lg border border-blue-200 bg-blue-50 p-4 flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-blue-900">Autorização de Lance F3</h3>
+          <p className="text-xs text-blue-700 mt-0.5">
+            Spec §4.4 — Formulário pré-lance obrigatório com teto autorizado, certidões e justificativa.
+          </p>
+        </div>
+        <Link
+          href={`/auctions/${id}/authorize`}
+          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 whitespace-nowrap"
+        >
+          Autorizar Lance
+        </Link>
+      </section>
+
       {/* Place Bid — Hard Gate MPGA risk blocking */}
       <section className="rounded-lg border border-gray-200 bg-white p-6">
         <h3 className="text-sm font-medium text-gray-500 mb-3">Place Bid</h3>
