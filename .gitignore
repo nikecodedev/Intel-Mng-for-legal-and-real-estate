@@ -63,3 +63,4 @@ infrastructure/docker/data/
 Thumbs.db
 
 
+*.tmp.*
