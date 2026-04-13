@@ -22,6 +22,21 @@ const DPI_MINIMUM = 300; // Ref. Fontes 78 e 79
 const OCR_CONFIDENCE_MINIMUM = 95.0; // Ref. Fonte 3
 
 /**
+ * Spec Parcial #4: Intake CPO Hard Gate — 3-tier OCR thresholds
+ *   < OCR_REJECT_THRESHOLD  → REJECTED (status_cpo = VERMELHO, blocked)
+ *   OCR_REJECT_THRESHOLD..OCR_AUTOPROCESS_THRESHOLD → AMARELO (manual review queue)
+ *   ≥ OCR_AUTOPROCESS_THRESHOLD → VERDE (auto-process)
+ */
+const OCR_REJECT_THRESHOLD = 70.0;        // below this → reject
+const OCR_AUTOPROCESS_THRESHOLD = 95.0;   // above this → auto-process (same as OCR_CONFIDENCE_MINIMUM)
+
+function classifyOcrTier(confidence: number | null): 'REJECTED' | 'REVIEW' | 'AUTO' {
+  if (confidence === null || confidence < OCR_REJECT_THRESHOLD) return 'REJECTED';
+  if (confidence < OCR_AUTOPROCESS_THRESHOLD) return 'REVIEW';
+  return 'AUTO';
+}
+
+/**
  * OCR processing result from Python service
  */
 interface OCRProcessingResult {
@@ -274,24 +289,36 @@ export class DocumentExtractionService {
           ocr_engine: 'tesseract',
         });
 
-        // Create quality flag if OCR confidence is low
-        if (!ocrConfResult.aprovado) {
-          const flagType: QualityFlagType = ocrConfResult.confianca_media === null ? 'OCR_FAILED' : 'OCR_CONFIDENCE_LOW';
-          const severity: FlagSeverity = ocrConfResult.confianca_media === null ? 'ERROR' : 'WARNING';
-          
+        // Spec Parcial #4: 3-tier OCR hard gate
+        const ocrTier = classifyOcrTier(ocrConfResult.confianca_media);
+        if (ocrTier === 'REJECTED') {
+          // Hard reject — block intake
           await this.createQualityFlag(
-            tenantId,
-            documentId,
-            flagType,
-            severity,
-            ocrConfResult.mensagem,
-            { confidence: ocrConfResult.confianca_media, required_confidence: OCR_CONFIDENCE_MINIMUM },
-            OCR_CONFIDENCE_MINIMUM,
-            ocrConfResult.confianca_media || undefined
+            tenantId, documentId, 'OCR_FAILED', 'ERROR',
+            `OCR rejeitado: confiança ${ocrConfResult.confianca_media ?? 'null'}% abaixo do mínimo ${OCR_REJECT_THRESHOLD}%`,
+            { confidence: ocrConfResult.confianca_media, reject_threshold: OCR_REJECT_THRESHOLD },
+            OCR_REJECT_THRESHOLD, ocrConfResult.confianca_media || undefined
           );
-          result.quality_flags.push(flagType);
-          result.in_sanitation_queue = true;
+          result.quality_flags.push('OCR_FAILED');
+          result.status_cpo = 'VERMELHO';
+          result.in_sanitation_queue = false; // not queued — outright rejected
+          await DocumentModel.updateCPO(documentId, tenantId, {
+            status_cpo: 'VERMELHO',
+            cpo_notes: `Hard gate: OCR confidence ${ocrConfResult.confianca_media}% < ${OCR_REJECT_THRESHOLD}% — REJECTED`,
+            cpo_approval_required: false,
+          });
+        } else if (ocrTier === 'REVIEW') {
+          // Queue for manual review
+          await this.createQualityFlag(
+            tenantId, documentId, 'OCR_CONFIDENCE_LOW', 'WARNING',
+            `OCR em revisão: confiança ${ocrConfResult.confianca_media}% (${OCR_REJECT_THRESHOLD}%-${OCR_AUTOPROCESS_THRESHOLD}%)`,
+            { confidence: ocrConfResult.confianca_media, review_band: [OCR_REJECT_THRESHOLD, OCR_AUTOPROCESS_THRESHOLD] },
+            OCR_AUTOPROCESS_THRESHOLD, ocrConfResult.confianca_media || undefined
+          );
+          result.quality_flags.push('OCR_CONFIDENCE_LOW');
+          result.in_sanitation_queue = true; // awaits manual review
         }
+        // ocrTier === 'AUTO': confidence >= 95% → proceeds automatically, no flag
       }
 
       // Step 4: Determine CPO status

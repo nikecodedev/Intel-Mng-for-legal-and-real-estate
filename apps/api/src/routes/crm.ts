@@ -100,6 +100,35 @@ router.post(
       ...req.body,
     });
 
+    // Spec Parcial #11: Stub antifraude externo — consulta CPF/CNPJ em serviço externo
+    let antifraude: { score: number; risk_level: string; flagged: boolean } = { score: 0, risk_level: 'BAIXO', flagged: false };
+    try {
+      // Stub: replace with real antifraude API integration (e.g. Serasa, SPC, Neoway)
+      const taxId = req.body.tax_id as string | undefined;
+      if (taxId) {
+        // In production: POST to antifraude service with CPF/CNPJ
+        antifraude = {
+          score: Math.random() > 0.9 ? 85 : 15, // stub: 10% high-risk
+          risk_level: Math.random() > 0.9 ? 'ALTO' : 'BAIXO',
+          flagged: false,
+        };
+        logger.info('Antifraude stub consulted', { taxId: taxId.slice(0, 4) + '***', risk_level: antifraude.risk_level });
+      }
+    } catch (afErr) {
+      logger.warn('Antifraude stub failed (non-fatal)', { error: afErr });
+    }
+
+    // Spec Parcial #12: alerta proativo 30 dias antes do vencimento do KYC
+    const kycDataRow = kycData as unknown as { kyc_expires_at?: Date | string | null; id: string };
+    if (kycDataRow.kyc_expires_at) {
+      const expiresAt = new Date(kycDataRow.kyc_expires_at);
+      const daysUntilExpiry = Math.floor((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      if (daysUntilExpiry <= 30 && daysUntilExpiry >= 0) {
+        logger.warn('KYC expiring soon — proactive alert', { kyc_id: kycData.id, days_remaining: daysUntilExpiry });
+        // TODO: integrate with notification service (email/push) for 30-day alert
+      }
+    }
+
     // Audit KYC submission
     await AuditService.log({
       tenantId: tenantContext.tenantId,
@@ -141,9 +170,22 @@ router.get(
       throw new NotFoundError('KYC data');
     }
 
+    // Spec Parcial #12: alerta 30-day expiry na resposta
+    const kycRow = kycData as unknown as { kyc_expires_at?: Date | string | null };
+    let expiry_alert: string | null = null;
+    if (kycRow.kyc_expires_at) {
+      const daysUntilExpiry = Math.floor((new Date(kycRow.kyc_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      if (daysUntilExpiry <= 30 && daysUntilExpiry >= 0) {
+        expiry_alert = `KYC vence em ${daysUntilExpiry} dia(s). Renove antes do vencimento.`;
+      } else if (daysUntilExpiry < 0) {
+        expiry_alert = 'KYC expirado. Renovação obrigatória.';
+      }
+    }
+
     res.json({
       success: true,
       kyc_data: kycData,
+      expiry_alert,
     });
   })
 );

@@ -4,24 +4,35 @@ import { TenantRequiredError, InvalidTransitionError, NotFoundError } from '../u
 
 /**
  * Real Estate Asset State Machine
- * Valid states: ACQUIRED → REGULARIZATION → RENOVATION → READY → SOLD/RENTED
+ * Spec Parcial #7: nomenclatura em PT-BR
+ * Valid states: ADQUIRIDO → REGULARIZACAO → REFORMA → PRONTO → VENDIDO/ALUGADO
  */
-export const ASSET_STATES = ['ACQUIRED', 'REGULARIZATION', 'RENOVATION', 'READY', 'EM_NEGOCIACAO', 'SOLD', 'RENTED', 'ENCERRADO'] as const;
+export const ASSET_STATES = ['ADQUIRIDO', 'REGULARIZACAO', 'REFORMA', 'PRONTO', 'EM_NEGOCIACAO', 'VENDIDO', 'ALUGADO', 'ENCERRADO'] as const;
 export type AssetState = (typeof ASSET_STATES)[number];
+
+// Backwards-compat aliases for legacy English names still present in DB data
+export const STATE_ALIAS: Record<string, AssetState> = {
+  ACQUIRED: 'ADQUIRIDO',
+  REGULARIZATION: 'REGULARIZACAO',
+  RENOVATION: 'REFORMA',
+  READY: 'PRONTO',
+  SOLD: 'VENDIDO',
+  RENTED: 'ALUGADO',
+};
 
 /**
  * Valid state transitions
  * Enforced at API level to block invalid transitions
  */
 const VALID_TRANSITIONS: Record<AssetState, AssetState[]> = {
-  ACQUIRED: ['REGULARIZATION'],                    // Must go through regularization first
-  REGULARIZATION: ['RENOVATION'],                  // Must go through renovation
-  RENOVATION: ['READY'],                           // Must be marked as ready
-  READY: ['SOLD', 'RENTED', 'EM_NEGOCIACAO'],     // Only READY assets can be sold/rented/negotiated
-  EM_NEGOCIACAO: ['SOLD', 'READY'],               // Negotiation can succeed (SOLD) or fall through (READY)
-  SOLD: ['ENCERRADO'],                             // SOLD can be closed/archived
-  RENTED: ['READY', 'SOLD', 'ENCERRADO'],         // Can return to READY, be sold, or be closed
-  ENCERRADO: [],                                   // Terminal state
+  ADQUIRIDO: ['REGULARIZACAO'],
+  REGULARIZACAO: ['REFORMA'],
+  REFORMA: ['PRONTO'],
+  PRONTO: ['VENDIDO', 'ALUGADO', 'EM_NEGOCIACAO'],
+  EM_NEGOCIACAO: ['VENDIDO', 'PRONTO'],
+  VENDIDO: ['ENCERRADO'],
+  ALUGADO: ['PRONTO', 'VENDIDO', 'ENCERRADO'],
+  ENCERRADO: [],
 };
 
 /**
@@ -52,8 +63,25 @@ export async function isTransitionAllowed(
     return { allowed: false, reason: `Invalid transition from ${from} to ${to}` };
   }
 
-  // SOLD/RENTED requires checklist 100%
-  if (to === 'SOLD' || to === 'RENTED') {
+  // Spec Ausente #6: ENCERRADO gate — bloqueia se houver passivos em aberto
+  if (to === 'ENCERRADO') {
+    const liabResult = await db.query<{ total: string }>(
+      `SELECT COALESCE(SUM(amount_cents), 0) AS total
+       FROM asset_liabilities
+       WHERE real_estate_asset_id = $1 AND tenant_id = $2 AND status = 'ABERTO'`,
+      [assetId, tenantId]
+    );
+    const totalAberto = parseInt(liabResult.rows[0]?.total || '0', 10);
+    if (totalAberto > 0) {
+      return {
+        allowed: false,
+        reason: `Ativo não pode ser encerrado com passivos em aberto: R$${(totalAberto / 100).toFixed(2)} pendentes.`,
+      };
+    }
+  }
+
+  // VENDIDO/ALUGADO requires checklist 100%
+  if (to === 'VENDIDO' || to === 'ALUGADO') {
     const result = await db.query<{ total: string; completed: string }>(
       `SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE is_completed = true) as completed
        FROM regularization_checklists WHERE tenant_id = $1 AND real_estate_asset_id = $2`,
@@ -61,10 +89,10 @@ export async function isTransitionAllowed(
     );
     const { total, completed } = result.rows[0] || { total: '0', completed: '0' };
     if (total === '0') {
-      return { allowed: false, reason: 'No regularization checklist items found. Create checklist items first.' };
+      return { allowed: false, reason: 'Checklist de regularização não encontrado. Crie os itens primeiro.' };
     }
     if (completed !== total) {
-      return { allowed: false, reason: `Regularization checklist is ${completed}/${total} complete. Must be 100%.` };
+      return { allowed: false, reason: `Checklist de regularização ${completed}/${total} concluído. Deve ser 100%.` };
     }
   }
 
@@ -467,8 +495,8 @@ export class RealEstateAssetModel {
     ];
     const stateValues: unknown[] = [input.to_state, userId, input.reason || null];
 
-    // Handle SOLD state
-    if (input.to_state === 'SOLD') {
+    // Handle VENDIDO state
+    if (input.to_state === 'VENDIDO') {
       if (input.sale_date) {
         stateUpdates.push(`sale_date = $${stateValues.length + 1}`);
         stateValues.push(input.sale_date);
@@ -485,8 +513,8 @@ export class RealEstateAssetModel {
       stateUpdates.push(`is_vacant = false`);
     }
 
-    // Handle RENTED state
-    if (input.to_state === 'RENTED') {
+    // Handle ALUGADO state
+    if (input.to_state === 'ALUGADO') {
       if (input.rental_start_date) {
         stateUpdates.push(`rental_start_date = $${stateValues.length + 1}`);
         stateValues.push(input.rental_start_date);
@@ -507,8 +535,8 @@ export class RealEstateAssetModel {
       stateUpdates.push(`is_vacant = false`);
     }
 
-    // Handle READY state (can become vacant)
-    if (input.to_state === 'READY') {
+    // Handle PRONTO state (can become vacant)
+    if (input.to_state === 'PRONTO') {
       stateUpdates.push(`is_vacant = true`);
       stateUpdates.push(`vacancy_start_date = CURRENT_DATE`);
       stateUpdates.push(`vacancy_alert_sent = false`);

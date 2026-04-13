@@ -22,8 +22,12 @@ const provisionTenantSchema = z.object({
     name: z.string().min(1),
     tenant_code: z.string().optional(),
     domain: z.string().optional(),
-    subscription_plan: z.enum(['FREE', 'STANDARD', 'PREMIUM', 'ENTERPRISE', 'CUSTOM']).optional(),
+    // Spec Ausente #4: planos renomeados Starter/Professional/Enterprise (§8 Cadastro Tenant)
+    subscription_plan: z.enum(['Starter', 'Professional', 'Enterprise', 'Custom']).optional(),
     contact_email: z.string().email().optional(),
+    // Spec Ausente #4: modulos_habilitados (array de módulos ativos) e politica_retencao (mínimo 5 anos)
+    modulos_habilitados: z.array(z.string()).optional(),
+    politica_retencao: z.number().int().min(5, 'Política de retenção mínima: 5 anos (Spec §8)').optional(),
     quotas: z.object({
       max_storage_bytes: z.number().int().positive().optional(),
       max_users: z.number().int().positive().optional(),

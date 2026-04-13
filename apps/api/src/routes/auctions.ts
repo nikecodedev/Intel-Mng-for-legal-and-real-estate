@@ -26,6 +26,13 @@ const createAssetSchema = z.object({
     // Spec 4.3: Nº do Edital único por leiloeiro (auctioneer)
     edital_number: z.string().max(100).optional(),
     auctioneer_id: z.string().uuid().optional(),
+    // Spec Parcial #6: Cadastro Lote F0 campos obrigatórios
+    tipo_imovel: z.string().optional(),
+    avaliacao_judicial: z.number().int().positive().optional(),
+    lance_minimo: z.number().int().positive().optional(),
+    ocupacao: z.enum(['DESOCUPADO', 'OCUPADO', 'PARCIAL']).optional(),
+    iptu_aberto: z.boolean().optional(),
+    condominio_aberto: z.boolean().optional(),
   }),
 });
 
@@ -95,7 +102,8 @@ router.post(
   validateRequest(createAssetSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { tenantId, userId } = getTenantContext(req);
-    const { linked_document_ids, asset_reference, title, edital_number, auctioneer_id } = req.body;
+    const { linked_document_ids, asset_reference, title, edital_number, auctioneer_id,
+            tipo_imovel, avaliacao_judicial, lance_minimo, ocupacao, iptu_aberto, condominio_aberto } = req.body;
 
     // Spec 4.3: Nº do Edital único por leiloeiro — uniqueness check
     if (edital_number && auctioneer_id) {
@@ -115,6 +123,12 @@ router.post(
       title,
       edital_number: edital_number ?? null,
       auctioneer_id: auctioneer_id ?? null,
+      tipo_imovel: tipo_imovel ?? null,
+      avaliacao_judicial: avaliacao_judicial ?? null,
+      lance_minimo: lance_minimo ?? null,
+      ocupacao: ocupacao ?? null,
+      iptu_aberto: iptu_aberto ?? null,
+      condominio_aberto: condominio_aberto ?? null,
     } as any);
 
     await AuditService.log({
@@ -285,7 +299,7 @@ router.post(
           await db.query(
             `INSERT INTO real_estate_assets
                (tenant_id, asset_code, property_address, property_type, current_state, source_auction_id, created_by, metadata)
-             VALUES ($1, $2, $3, 'auction', 'REGULARIZATION', $4, $5, $6)`,
+             VALUES ($1, $2, $3, 'auction', 'REGULARIZACAO', $4, $5, $6)`,
             [
               tenantId,
               assetCode,
@@ -650,6 +664,86 @@ function formatAsset(asset: {
     updated_at: asset.updated_at,
   };
 }
+
+// ============================================
+// F3 Pre-Bid Authorization (Spec Ausente #5)
+// ============================================
+
+/**
+ * POST /auctions/assets/:id/authorize-bid
+ * F3 Pre-bid authorization form — separate from bid-override exception.
+ * Requires: teto_autorizado (max bid ceiling), certidoes_anexadas (boolean), justificativa min 200 chars.
+ */
+const authorizeBidSchema = z.object({
+  body: z.object({
+    teto_autorizado: z.number().int().positive('Teto autorizado deve ser um valor positivo em centavos'),
+    certidoes_anexadas: z.literal(true, { errorMap: () => ({ message: 'Certidões devem estar anexadas para autorizar lance (Spec F3)' }) }),
+    justificativa: z.string().min(200, 'Justificativa deve ter pelo menos 200 caracteres (Spec F3)'),
+    documento_autorizacao_id: z.string().uuid().optional(),
+  }),
+});
+
+router.post(
+  '/assets/:id/authorize-bid',
+  authenticate,
+  requirePermission('auctions:create'),
+  validateRequest(authorizeBidSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { teto_autorizado, certidoes_anexadas, justificativa, documento_autorizacao_id } = req.body;
+    const { tenantId, userId } = getTenantContext(req);
+
+    const asset = await AuctionAssetModel.findById(id, tenantId);
+    if (!asset) throw new NotFoundError('Auction asset');
+
+    // Record authorization in override_events (audited)
+    const authResult = await db.query(
+      `INSERT INTO override_events
+         (tenant_id, user_id, user_email, override_type, target_entity, target_id, otp_verified, reason, justification, metadata)
+       VALUES ($1, $2, $3, 'bid_authorization_f3', 'auction_asset', $4, FALSE, $5, $5, $6)
+       RETURNING id`,
+      [
+        tenantId,
+        userId,
+        req.user!.email ?? '',
+        id,
+        justificativa,
+        JSON.stringify({
+          teto_autorizado,
+          certidoes_anexadas,
+          documento_autorizacao_id: documento_autorizacao_id ?? null,
+          asset_title: asset.title,
+          current_stage: asset.current_stage,
+        }),
+      ]
+    ).catch(() => ({ rows: [{ id: 'audit-only' }] }));
+
+    const authId = (authResult.rows[0] as { id: string }).id;
+
+    await AuditService.log({
+      tenantId,
+      userId,
+      userEmail: req.user!.email ?? '',
+      userRole: req.context?.role ?? 'OPERATIONAL',
+      action: AuditAction.CREATE,
+      event_category: AuditEventCategory.COMPLIANCE,
+      resourceType: 'auction_asset',
+      resourceId: id,
+      description: `Autorização de lance F3 registrada por ${req.user!.email} — teto: R$${(teto_autorizado / 100).toFixed(2)}`,
+      details: { auth_id: authId, teto_autorizado, certidoes_anexadas, justificativa },
+      ip_address: req.ip,
+      user_agent: req.get('user-agent'),
+    });
+
+    res.status(201).json({
+      success: true,
+      auth_id: authId,
+      asset_id: id,
+      teto_autorizado,
+      message: 'Autorização de lance F3 registrada com sucesso.',
+    });
+  })
+);
 
 // ============================================
 // Bid Override (F3 — Hard Gate MPGA)

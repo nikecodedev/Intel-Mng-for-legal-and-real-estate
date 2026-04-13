@@ -47,9 +47,10 @@ const createTransactionSchema = z.object({
       message: 'Transaction must be linked to at least one of: process_id, real_estate_asset_id, or client_id',
     }
   ).refine(
-    (data) => !(data.amount_cents > 50000 && data.transaction_type === 'EXPENSE') || !!data.receipt_document_id,
+    (data) => !(data.amount_cents > 50000) || !!data.receipt_document_id,
     {
-      message: 'Comprovante obrigatório para lançamentos acima de R$500.',
+      // Spec Parcial #9: comprovante obrigatório para TODOS os tipos acima de R$500 (não apenas EXPENSE)
+      message: 'Comprovante obrigatório para lançamentos acima de R$500 (todos os tipos).',
       path: ['receipt_document_id'],
     }
   ),
@@ -101,11 +102,12 @@ const createExpenseSchema = z.object({
     real_estate_asset_id: z.string().uuid().optional(),
     client_id: z.string().uuid().optional(),
     captured_via: z.enum(['MOBILE', 'WEB', 'API']).optional(),
+    // Spec Parcial #10: captured_location obrigatório (GPS §6.3)
     captured_location: z.object({
       lat: z.number().optional(),
       lng: z.number().optional(),
       address: z.string().optional(),
-    }).optional(),
+    }),
     receipt_document_id: z.string().uuid().optional(),
     tags: z.array(z.string()).optional(),
   }).refine(

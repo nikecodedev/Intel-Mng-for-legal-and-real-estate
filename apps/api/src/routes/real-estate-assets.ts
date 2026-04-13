@@ -63,7 +63,8 @@ const transitionStateSchema = z.object({
     id: z.string().uuid(),
   }),
   body: z.object({
-    to_state: z.enum(['ACQUIRED', 'REGULARIZATION', 'RENOVATION', 'READY', 'SOLD', 'RENTED']),
+    // Spec Parcial #7: estados em PT-BR
+    to_state: z.enum(['ADQUIRIDO', 'REGULARIZACAO', 'REFORMA', 'PRONTO', 'EM_NEGOCIACAO', 'VENDIDO', 'ALUGADO', 'ENCERRADO']),
     // Spec 5.3: Justificativa — textarea — Sim — Mínimo 100 caracteres
     reason: z.string().min(100, 'Justificativa obrigatória com mínimo 100 caracteres (Spec 5.3)'),
     // Spec 5.3: Documento Comprobatório — obrigatório para READY (DISPONIVEL_VENDA) e SOLD/RENTED
@@ -266,9 +267,9 @@ router.post(
     //   (a) status atual = REGULARIZATION  OU
     //   (b) matricula_status != 'LIMPA' (matrícula com pendências no cartório)
     const targetState = req.body.to_state as AssetState;
-    const isSaleTransition = targetState === 'READY' || targetState === 'SOLD' || targetState === 'RENTED';
+    const isSaleTransition = targetState === 'PRONTO' || targetState === 'VENDIDO' || targetState === 'ALUGADO';
 
-    if (isSaleTransition && currentAsset.current_state === 'REGULARIZATION') {
+    if (isSaleTransition && currentAsset.current_state === 'REGULARIZACAO') {
       throw new ValidationError(
         'Trava de Venda Legal: imóvel em regularização não pode ser colocado à venda ou aluguel.'
       );
@@ -297,8 +298,8 @@ router.post(
     }
 
     // Block SOLD/RENTED without required checklist completion
-    if (targetState === 'SOLD' || targetState === 'RENTED') {
-      const requiredPriorStates: AssetState[] = ['REGULARIZATION', 'RENOVATION'];
+    if (targetState === 'VENDIDO' || targetState === 'ALUGADO') {
+      const requiredPriorStates: AssetState[] = ['REGULARIZACAO', 'REFORMA'];
       const stateHistory = await db.query<{ to_state: string }>(
         `SELECT DISTINCT to_state FROM asset_state_transitions
          WHERE tenant_id = $1 AND real_estate_asset_id = $2 AND is_valid = true`,
@@ -326,10 +327,10 @@ router.post(
       );
       const checklist = checklistResult.rows[0];
       if (checklist.total === '0') {
-        throw new ValidationError('Cannot transition to SOLD/RENTED: no regularization checklist items found. Create checklist items first.');
+        throw new ValidationError('Não é possível transicionar para VENDIDO/ALUGADO: checklist de regularização não encontrado.');
       }
       if (checklist.completed !== checklist.total) {
-        throw new ValidationError(`Cannot transition to SOLD/RENTED: regularization checklist is ${checklist.completed}/${checklist.total} complete. All items must be completed.`);
+        throw new ValidationError(`Não é possível transicionar para VENDIDO/ALUGADO: checklist ${checklist.completed}/${checklist.total} concluído.`);
       }
 
       // Verify acquisition cost is recorded
@@ -460,18 +461,26 @@ router.post(
       requestId: req.headers['x-request-id'] as string | undefined,
     });
 
-    // Spec 9: CAPEX vínculo automático a project_id / process_id
+    // Spec Parcial #8: CAPEX vínculo automático a projeto_id (campo explícito per spec §9)
     const { amount_cents, description } = req.body;
     try {
       const assetRow = await db.query(`SELECT * FROM real_estate_assets WHERE id = $1 AND tenant_id = $2 LIMIT 1`, [id, tenantContext.tenantId]);
-      const processId = (assetRow.rows[0] as any)?.project_id || (assetRow.rows[0] as any)?.process_id;
-      if (processId && amount_cents > 0) {
+      const projetoId = (assetRow.rows[0] as any)?.projeto_id || (assetRow.rows[0] as any)?.project_id || (assetRow.rows[0] as any)?.process_id;
+      if (projetoId && amount_cents > 0) {
         await db.query(
-          `INSERT INTO financial_transactions (tenant_id, transaction_type, amount_cents, currency, description, process_id, real_estate_asset_id, transaction_date, status, created_by)
-           VALUES ($1, 'EXPENSE', $2, 'BRL', $3, $4, $5, CURRENT_DATE, 'APPROVED', $6)`,
-          [tenantContext.tenantId, amount_cents, `CAPEX: ${description}`, processId, id, userId]
+          `INSERT INTO financial_transactions (tenant_id, transaction_type, amount_cents, currency, description, projeto_id, real_estate_asset_id, transaction_date, status, created_by)
+           VALUES ($1, 'EXPENSE', $2, 'BRL', $3, $4, $5, CURRENT_DATE, 'APPROVED', $6)
+           ON CONFLICT DO NOTHING`,
+          [tenantContext.tenantId, amount_cents, `CAPEX: ${description}`, projetoId, id, userId]
+        ).catch(() =>
+          // Fallback: try with process_id column name if projeto_id doesn't exist yet
+          db.query(
+            `INSERT INTO financial_transactions (tenant_id, transaction_type, amount_cents, currency, description, process_id, real_estate_asset_id, transaction_date, status, created_by)
+             VALUES ($1, 'EXPENSE', $2, 'BRL', $3, $4, $5, CURRENT_DATE, 'APPROVED', $6)`,
+            [tenantContext.tenantId, amount_cents, `CAPEX: ${description}`, projetoId, id, userId]
+          )
         );
-        logger.info('CAPEX auto-transaction created', { assetId: id, processId, amount_cents });
+        logger.info('CAPEX auto-transaction created', { assetId: id, projetoId, amount_cents });
       }
     } catch (capexErr) { logger.warn('CAPEX auto-transaction failed', { error: capexErr }); }
 
@@ -964,10 +973,10 @@ router.post(
     const asset = await RealEstateAssetModel.findById(id, tenantContext.tenantId);
     if (!asset) throw new NotFoundError('Real estate asset');
 
-    // Spec 5.5: Publicar Anúncio exige status DISPONIVEL_VENDA (READY) ou LOCADO (RENTED)
-    if (asset.current_state !== 'READY' && asset.current_state !== 'RENTED') {
+    // Spec 5.5: Publicar Anúncio exige status PRONTO ou ALUGADO
+    if (asset.current_state !== 'PRONTO' && asset.current_state !== 'ALUGADO') {
       throw new ValidationError(
-        `Publicar anúncio requer status DISPONIVEL_VENDA (READY) ou LOCADO (RENTED). ` +
+        `Publicar anúncio requer status PRONTO ou ALUGADO. ` +
         `Status atual: ${asset.current_state} (Spec 5.5).`
       );
     }

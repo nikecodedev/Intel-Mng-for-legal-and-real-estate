@@ -54,8 +54,11 @@ const createFPDNSchema = z.object({
     fact_type: z.string().min(1),
     fact_value: z.string().min(1),
     document_id: z.string().uuid(),
-    page_number: z.number().int().positive().optional(),
+    // Spec Ausente #2: page_number required, direito_aplicavel and nexo_causal required
+    page_number: z.number().int().positive(),
     confidence_score: z.number().min(0).max(100).optional(),
+    direito_aplicavel: z.array(z.string().min(1)).min(1, 'Ao menos um dispositivo legal obrigatório (Spec FPDN)'),
+    nexo_causal: z.string().min(1, 'Nexo causal obrigatório (Spec FPDN)'),
   }),
 });
 
@@ -252,20 +255,21 @@ router.post(
       throw new NotFoundError('Legal case');
     }
 
-    const { fact_type, fact_value, document_id, page_number, confidence_score } = req.body;
+    const { fact_type, fact_value, document_id, page_number, confidence_score, direito_aplicavel, nexo_causal } = req.body;
 
     const result = await db.query(
-      `INSERT INTO document_facts (tenant_id, document_id, fact_type, fact_value, page_number, confidence_score, legal_case_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO document_facts (tenant_id, document_id, fact_type, fact_value, page_number, confidence_score, legal_case_id, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
       [
         tenantContext.tenantId,
         document_id,
         fact_type,
         fact_value,
-        page_number || null,
+        page_number,
         confidence_score || null,
         id,
+        JSON.stringify({ direito_aplicavel, nexo_causal }),
       ]
     );
 
@@ -375,6 +379,17 @@ router.post(
     );
     const factsCount = parseInt(factsResult.rows[0]?.count || '0', 10);
 
+    // Spec Ausente #3: Triplo Fechamento — valida que o caso tem: dispositivo legal, nexo causal e fatos completos
+    const triploCheck = await db.query<{ has_direito: boolean; has_nexo: boolean }>(
+      `SELECT
+         BOOL_OR((metadata->>'direito_aplicavel') IS NOT NULL AND jsonb_array_length(metadata->'direito_aplicavel') > 0) AS has_direito,
+         BOOL_OR((metadata->>'nexo_causal') IS NOT NULL AND (metadata->>'nexo_causal') != '') AS has_nexo
+       FROM document_facts WHERE tenant_id = $1 AND legal_case_id = $2`,
+      [tenantContext.tenantId, id]
+    );
+    const triploRow = triploCheck.rows[0] || { has_direito: false, has_nexo: false };
+    const triploFechamento = triploRow.has_direito && triploRow.has_nexo && factsCount > 0;
+
     // Spec QG4 formula (Divergence #2):
     // rastreabilidade = facts completeness: min(factsCount / 10, 1.0) * 100
     // fundamentacao = (hasDeadline ? 50 : 0) + (hasDescription ? 50 : 0)
@@ -419,6 +434,7 @@ router.post(
             has_description: !!legalCase.description,
             has_lawyer: !!legalCase.assigned_lawyer_id,
             has_client: !!legalCase.client_name,
+            triplo_fechamento: triploFechamento,
           }),
           userId,
         ]
@@ -506,6 +522,7 @@ router.post(
       case_id: id,
       qg4_score: qg4Score,
       passed: qg4Score >= 90,
+      triplo_fechamento: triploFechamento,
       components: {
         rastreabilidade: Math.round(rastreabilidade),
         fundamentacao,
