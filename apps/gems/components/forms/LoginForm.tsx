@@ -44,17 +44,18 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
     <form onSubmit={handleSubmit} className="space-y-5">
       <div>
         <label htmlFor="login-subdomain" className="block text-sm font-medium text-slate-300 mb-1.5">
-          Subdominio
+          Subdomínio <span className="text-slate-500 font-normal text-xs">(opcional)</span>
         </label>
         <input
           id="login-subdomain"
           type="text"
-          autoComplete="organization"
+          autoComplete="off"
           value={subdomain}
           onChange={(e) => setSubdomain(e.target.value)}
           placeholder="ex: gruporacional"
           className="block w-full rounded-lg border border-white/10 bg-white/5 px-3.5 py-2.5 text-sm text-white placeholder-slate-500 shadow-sm transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
         />
+        <p className="mt-1 text-xs text-slate-500">Deixe em branco se não souber.</p>
       </div>
       <div>
         <label htmlFor="login-email" className="block text-sm font-medium text-slate-300 mb-1.5">
