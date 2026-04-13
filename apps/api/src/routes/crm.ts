@@ -210,13 +210,34 @@ router.get(
       throw new NotFoundError('KYC data');
     }
 
-    // Spec Parcial #12: alerta 30-day expiry na resposta
-    const kycRow = kycData as unknown as { kyc_expires_at?: Date | string | null };
+    // Spec §7.2: alerta proativo 30 dias — verificado também no GET (não só na criação)
+    const kycRow = kycData as unknown as { kyc_expires_at?: Date | string | null; id: string };
     let expiry_alert: string | null = null;
     if (kycRow.kyc_expires_at) {
-      const daysUntilExpiry = Math.floor((new Date(kycRow.kyc_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      const expiresAt = new Date(kycRow.kyc_expires_at);
+      const daysUntilExpiry = Math.floor((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
       if (daysUntilExpiry <= 30 && daysUntilExpiry >= 0) {
         expiry_alert = `KYC vence em ${daysUntilExpiry} dia(s). Renove antes do vencimento.`;
+        // Proactive dispatch on every GET within 30-day window (idempotent — workflow deduplicates)
+        try {
+          const { runWorkflow } = await import('../services/workflow-engine.js');
+          await runWorkflow({
+            tenantId: tenantContext.tenantId,
+            eventType: 'kyc.expiry.warning',
+            payload: {
+              kyc_id: kycData.id,
+              investor_user_id: investor_id,
+              days_remaining: daysUntilExpiry,
+              expires_at: expiresAt.toISOString(),
+            },
+            userId: req.user!.id,
+            userEmail: req.user!.email,
+            userRole: tenantContext.role,
+            request: req,
+          });
+        } catch (wfErr) {
+          logger.warn('KYC expiry alert dispatch failed (non-fatal)', { error: wfErr });
+        }
       } else if (daysUntilExpiry < 0) {
         expiry_alert = 'KYC expirado. Renovação obrigatória.';
       }

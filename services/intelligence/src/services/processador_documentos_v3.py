@@ -30,7 +30,13 @@ logger = logging.getLogger(__name__)
 
 # Constantes conforme Diretrizes GEMS
 DPI_MINIMO_REQUERIDO = 300  # Ref. Fontes 78 e 79
-CONFIANCA_OCR_MINIMA = 95.0  # Ref. Fonte 3 (threshold de 95%)
+
+# Spec §5.5 — CPO Hard Gate: 3 tiers de OCR (substitui threshold único)
+#   Tier 1 VERMELHO : confiança < OCR_REJEITAR_THRESHOLD  → rejeição imediata, intake bloqueado
+#   Tier 2 AMARELO  : OCR_REJEITAR_THRESHOLD ≤ confiança < OCR_APROVAR_THRESHOLD → fila revisão manual
+#   Tier 3 VERDE    : confiança >= OCR_APROVAR_THRESHOLD  → processamento automático, sem fila
+OCR_REJEITAR_THRESHOLD = 70.0   # abaixo → VERMELHO (rejeitado)
+OCR_APROVAR_THRESHOLD  = 95.0   # acima/igual → VERDE (auto-aprovado)
 
 
 class ProcessadorDocumentosV3:
@@ -104,19 +110,22 @@ class ProcessadorDocumentosV3:
             ocr_resultado = self._validar_confianca_ocr(caminho_pdf)
             resultado["validacoes"]["ocr_confidence"] = ocr_resultado
             
-            # Determinar status CPO final
+            # Spec §5.5 — Determinar status CPO final baseado em 3 tiers
             dpi_aprovado = resultado["validacoes"]["dpi"]["aprovado"]
-            ocr_aprovado = resultado["validacoes"]["ocr_confidence"]["aprovado"]
-            
-            if dpi_aprovado and ocr_aprovado:
-                resultado["status_cpo"] = "VERDE"
-                resultado["revisao_necessaria"] = False
-            elif dpi_aprovado or ocr_aprovado:
+            ocr_tier = resultado["validacoes"]["ocr_confidence"].get("tier", "VERMELHO")
+
+            if ocr_tier == "VERMELHO":
+                # Hard reject — OCR abaixo de 70%
+                resultado["status_cpo"] = "VERMELHO"
+                resultado["revisao_necessaria"] = False  # não vai para revisão — rejeitado
+            elif ocr_tier == "AMARELO" or not dpi_aprovado:
+                # Fila de triagem manual
                 resultado["status_cpo"] = "AMARELO"
                 resultado["revisao_necessaria"] = True
             else:
-                resultado["status_cpo"] = "VERMELHO"
-                resultado["revisao_necessaria"] = True
+                # Tier 3 VERDE + DPI ok
+                resultado["status_cpo"] = "VERDE"
+                resultado["revisao_necessaria"] = False
             
             logger.info(
                 f"Validação CPO concluída para tenant_id: {tenant_id}, "
@@ -292,7 +301,8 @@ class ProcessadorDocumentosV3:
         resultado = {
             "aprovado": False,
             "confianca_media": None,
-            "confianca_minima_requerida": CONFIANCA_OCR_MINIMA,
+            "confianca_minima_requerida": OCR_APROVAR_THRESHOLD,
+            "tier": None,  # VERMELHO | AMARELO | VERDE
             "mensagem": None
         }
         
@@ -348,18 +358,31 @@ class ProcessadorDocumentosV3:
             confianca_media = sum(confiancas) / len(confiancas)
             resultado["confianca_media"] = round(confianca_media, 2)
             
-            # Validar contra threshold (Ref. Fonte 3)
-            if confianca_media >= CONFIANCA_OCR_MINIMA:
-                resultado["aprovado"] = True
+            # Spec §5.5 — 3-tier hard gate OCR
+            if confianca_media < OCR_REJEITAR_THRESHOLD:
+                # Tier 1 VERMELHO: rejeição imediata
+                resultado["aprovado"] = False
+                resultado["tier"] = "VERMELHO"
                 resultado["mensagem"] = (
-                    f"Confiança OCR aprovada: {confianca_media:.2f}% >= {CONFIANCA_OCR_MINIMA}% "
-                    f"(Ref. Fonte 3)"
+                    f"OCR REJEITADO: confiança {confianca_media:.2f}% < {OCR_REJEITAR_THRESHOLD}% "
+                    f"— intake bloqueado (Spec §5.5 Tier 1)"
+                )
+            elif confianca_media < OCR_APROVAR_THRESHOLD:
+                # Tier 2 AMARELO: fila de revisão manual
+                resultado["aprovado"] = False
+                resultado["tier"] = "AMARELO"
+                resultado["mensagem"] = (
+                    f"OCR EM REVISÃO: confiança {confianca_media:.2f}% está entre "
+                    f"{OCR_REJEITAR_THRESHOLD}% e {OCR_APROVAR_THRESHOLD}% "
+                    f"— encaminhado para triagem manual (Spec §5.5 Tier 2)"
                 )
             else:
-                resultado["aprovado"] = False
+                # Tier 3 VERDE: aprovado automaticamente
+                resultado["aprovado"] = True
+                resultado["tier"] = "VERDE"
                 resultado["mensagem"] = (
-                    f"Confiança OCR insuficiente: {confianca_media:.2f}% < {CONFIANCA_OCR_MINIMA}%. "
-                    f"Documento requer revisão (Ref. Fonte 3)"
+                    f"OCR APROVADO: confiança {confianca_media:.2f}% >= {OCR_APROVAR_THRESHOLD}% "
+                    f"— processamento automático (Spec §5.5 Tier 3)"
                 )
             
             logger.info(

@@ -54,11 +54,15 @@ const createFPDNSchema = z.object({
     fact_type: z.string().min(1),
     fact_value: z.string().min(1),
     document_id: z.string().uuid(),
-    // Spec Ausente #2: page_number required, direito_aplicavel and nexo_causal required
     page_number: z.number().int().positive(),
     confidence_score: z.number().min(0).max(100).optional(),
-    direito_aplicavel: z.array(z.string().min(1)).min(1, 'Ao menos um dispositivo legal obrigatório (Spec FPDN)'),
-    nexo_causal: z.string().min(1, 'Nexo causal obrigatório (Spec FPDN)'),
+    // Spec §5.2 — Triplo Fechamento: 5 componentes obrigatórios
+    tese_principal: z.string().min(1, 'Tese principal obrigatória (Spec §5.2)'),
+    texto_legal: z.string().min(1, 'Dispositivo legal (artigo/lei) obrigatório (Spec §5.2)'),
+    doutrina: z.string().optional(),
+    // jurisprudencia: mín. 2 entradas STJ/TJSP/TJ conforme Spec §5.2
+    jurisprudencia: z.array(z.string().min(1)).min(2, 'Mínimo 2 entradas de jurisprudência STJ/TJSP obrigatórias (Spec §5.2)'),
+    nexo_causal: z.string().min(1, 'Nexo causal obrigatório (Spec §5.2)'),
   }),
 });
 
@@ -255,7 +259,9 @@ router.post(
       throw new NotFoundError('Legal case');
     }
 
-    const { fact_type, fact_value, document_id, page_number, confidence_score, direito_aplicavel, nexo_causal } = req.body;
+    // Spec §5.2 — Triplo Fechamento: 5 componentes obrigatórios
+    const { fact_type, fact_value, document_id, page_number, confidence_score,
+            tese_principal, texto_legal, doutrina, jurisprudencia, nexo_causal } = req.body;
 
     const result = await db.query(
       `INSERT INTO document_facts (tenant_id, document_id, fact_type, fact_value, page_number, confidence_score, legal_case_id, metadata)
@@ -269,7 +275,7 @@ router.post(
         page_number,
         confidence_score || null,
         id,
-        JSON.stringify({ direito_aplicavel, nexo_causal }),
+        JSON.stringify({ tese_principal, texto_legal, doutrina: doutrina || null, jurisprudencia, nexo_causal }),
       ]
     );
 
@@ -379,26 +385,39 @@ router.post(
     );
     const factsCount = parseInt(factsResult.rows[0]?.count || '0', 10);
 
-    // Spec Ausente #3: Triplo Fechamento — valida que o caso tem: dispositivo legal, nexo causal e fatos completos
-    const triploCheck = await db.query<{ has_direito: boolean; has_nexo: boolean }>(
+    // Spec §5.2 — Triplo Fechamento: verifica todos os 5 componentes obrigatórios
+    const triploCheck = await db.query<{
+      has_tese: boolean;
+      has_texto_legal: boolean;
+      has_doutrina: boolean;
+      juris_count: string;
+      has_nexo: boolean;
+    }>(
       `SELECT
-         BOOL_OR((metadata->>'direito_aplicavel') IS NOT NULL AND jsonb_array_length(metadata->'direito_aplicavel') > 0) AS has_direito,
+         BOOL_OR((metadata->>'tese_principal') IS NOT NULL AND (metadata->>'tese_principal') != '') AS has_tese,
+         BOOL_OR((metadata->>'texto_legal') IS NOT NULL AND (metadata->>'texto_legal') != '') AS has_texto_legal,
+         BOOL_OR((metadata->>'doutrina') IS NOT NULL AND (metadata->>'doutrina') != '') AS has_doutrina,
+         COALESCE(SUM(jsonb_array_length(metadata->'jurisprudencia')), 0)::text AS juris_count,
          BOOL_OR((metadata->>'nexo_causal') IS NOT NULL AND (metadata->>'nexo_causal') != '') AS has_nexo
        FROM document_facts WHERE tenant_id = $1 AND legal_case_id = $2`,
       [tenantContext.tenantId, id]
     );
-    const triploRow = triploCheck.rows[0] || { has_direito: false, has_nexo: false };
-    const triploFechamento = triploRow.has_direito && triploRow.has_nexo && factsCount > 0;
+    const triploRow = triploCheck.rows[0] || { has_tese: false, has_texto_legal: false, has_doutrina: false, juris_count: '0', has_nexo: false };
+    const jurisCount = parseInt(triploRow.juris_count || '0', 10);
+    // Spec §5.2: tese_principal + texto_legal + jurisprudência (≥2 STJ/TJSP) + nexo_causal required; doutrina optional
+    const triploFechamento = triploRow.has_tese && triploRow.has_texto_legal && jurisCount >= 2 && triploRow.has_nexo && factsCount > 0;
 
-    // Spec §3.4: Triplo Fechamento é hard gate — bloqueia submissão se incompleto
+    // Spec §5.2: Triplo Fechamento é hard gate — bloqueia QG4 se incompleto
     if (!triploFechamento) {
       const missing: string[] = [];
-      if (!triploRow.has_direito) missing.push('direito_aplicavel');
+      if (!triploRow.has_tese) missing.push('tese_principal');
+      if (!triploRow.has_texto_legal) missing.push('texto_legal');
+      if (jurisCount < 2) missing.push(`jurisprudencia (${jurisCount}/2 entradas STJ/TJSP)`);
       if (!triploRow.has_nexo) missing.push('nexo_causal');
       if (factsCount === 0) missing.push('fatos documentados');
       throw new ValidationError(
         `Triplo Fechamento incompleto — QG4 bloqueado. Faltam: ${missing.join(', ')}. ` +
-        'Adicione FPDN com direito_aplicavel, nexo_causal e ao menos um fato antes de calcular QG4.'
+        'Adicione FPDN com tese_principal, texto_legal, jurisprudência (mín. 2 STJ/TJSP) e nexo_causal.'
       );
     }
 
@@ -408,11 +427,14 @@ router.post(
     // coerencia = (hasLawyer ? 50 : 0) + (hasClient ? 50 : 0)
     // Final: Math.round((rastreabilidade * 0.70) + (fundamentacao * 0.20) + (coerencia * 0.10))
     const rastreabilidade = Math.min(factsCount / 10, 1.0) * 100;
-    // Spec §3.4: fundamentacao = completude do Triplo Fechamento (direito_aplicavel + nexo_causal + fatos)
+    // Spec §5.2: fundamentacao = completude dos 5 componentes do Triplo Fechamento
+    // Since triploFechamento is a hard gate above, we only reach here if all 5 are present (score = 100)
     const fundamentacao = triploFechamento ? 100 : (
-      (triploRow.has_direito ? 34 : 0) +
-      (triploRow.has_nexo ? 33 : 0) +
-      (factsCount > 0 ? 33 : 0)
+      (triploRow.has_tese ? 20 : 0) +
+      (triploRow.has_texto_legal ? 20 : 0) +
+      (jurisCount >= 2 ? 20 : Math.round(jurisCount / 2 * 20)) +
+      (triploRow.has_nexo ? 20 : 0) +
+      (factsCount > 0 ? 20 : 0)
     );
     const coerencia = (legalCase.assigned_lawyer_id ? 50 : 0) + (legalCase.client_name ? 50 : 0);
     const qg4Score = Math.round((rastreabilidade * 0.70) + (fundamentacao * 0.20) + (coerencia * 0.10));
@@ -447,11 +469,16 @@ router.post(
             fundamentacao,
             coerencia,
             formula: 'rastreabilidade*0.70 + fundamentacao*0.20 + coerencia*0.10',
-            has_deadline: !!legalCase.deadline,
-            has_description: !!legalCase.description,
             has_lawyer: !!legalCase.assigned_lawyer_id,
             has_client: !!legalCase.client_name,
             triplo_fechamento: triploFechamento,
+            triplo_componentes: {
+              tese_principal: triploRow.has_tese,
+              texto_legal: triploRow.has_texto_legal,
+              doutrina: triploRow.has_doutrina,
+              jurisprudencia_count: jurisCount,
+              nexo_causal: triploRow.has_nexo,
+            },
           }),
           userId,
         ]
