@@ -9,7 +9,8 @@ import type { UserContext } from '../types/user-context.js';
 export interface TenantContext {
   tenantId: string;
   userId: string;
-  role: 'OWNER' | 'REVISOR' | 'OPERATIONAL' | 'INVESTOR';
+  // Spec Ausente #1: all granular roles are preserved through JWT context
+  role: 'OWNER' | 'REVISOR' | 'OPERATIONAL' | 'INVESTOR' | 'AUDITOR' | 'ADVOGADO' | 'ANALISTA_LEILOES' | 'GESTOR_IMOBILIARIO' | 'FINANCEIRO';
 }
 
 /**

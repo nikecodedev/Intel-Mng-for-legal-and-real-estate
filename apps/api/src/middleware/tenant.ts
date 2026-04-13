@@ -69,7 +69,8 @@ function isInvestorRoute(path: string): boolean {
  * Primary source: Authorization Bearer token. tid, uid, role from payload.
  * Supports both regular users and investors.
  */
-function extractTenantIdentity(req: Request): { tid: string; uid: string; role: 'OWNER' | 'REVISOR' | 'OPERATIONAL' | 'INVESTOR' } {
+type AllRoles = 'OWNER' | 'REVISOR' | 'OPERATIONAL' | 'INVESTOR' | 'AUDITOR' | 'ADVOGADO' | 'ANALISTA_LEILOES' | 'GESTOR_IMOBILIARIO' | 'FINANCEIRO';
+function extractTenantIdentity(req: Request): { tid: string; uid: string; role: AllRoles } {
   const auth = req.headers.authorization;
   if (!auth || !auth.startsWith('Bearer ')) {
     throw new AuthenticationError('Token Ausente');
@@ -103,8 +104,10 @@ function extractTenantIdentity(req: Request): { tid: string; uid: string; role: 
   }
   const uid = payload.uid ?? payload.userId;
   const role = payload.role ?? 'OPERATIONAL';
-  const r: 'OWNER' | 'REVISOR' | 'OPERATIONAL' =
-    role === 'OWNER' || role === 'REVISOR' || role === 'OPERATIONAL' ? role : 'OPERATIONAL';
+  // Spec Ausente #1: granular roles pass through as-is; unknown roles fall back to OPERATIONAL
+  const KNOWN_ROLES = ['OWNER','REVISOR','OPERATIONAL','INVESTOR','AUDITOR','ADVOGADO','ANALISTA_LEILOES','GESTOR_IMOBILIARIO','FINANCEIRO'] as const;
+  type KnownRole = typeof KNOWN_ROLES[number];
+  const r: KnownRole = (KNOWN_ROLES as readonly string[]).includes(role) ? (role as KnownRole) : 'OPERATIONAL';
   return { tid, uid: String(uid), role: r };
 }
 
@@ -121,7 +124,7 @@ export const tenantMiddleware = asyncHandler(
 
     let tid: string;
     let uid: string;
-    let role: 'OWNER' | 'REVISOR' | 'OPERATIONAL' | 'INVESTOR';
+    let role: AllRoles;
 
     try {
       const identity = extractTenantIdentity(req);

@@ -396,7 +396,12 @@ router.post(
     // coerencia = (hasLawyer ? 50 : 0) + (hasClient ? 50 : 0)
     // Final: Math.round((rastreabilidade * 0.70) + (fundamentacao * 0.20) + (coerencia * 0.10))
     const rastreabilidade = Math.min(factsCount / 10, 1.0) * 100;
-    const fundamentacao = (legalCase.deadline ? 50 : 0) + (legalCase.description ? 50 : 0);
+    // Spec §3.4: fundamentacao = completude do Triplo Fechamento (direito_aplicavel + nexo_causal + fatos)
+    const fundamentacao = triploFechamento ? 100 : (
+      (triploRow.has_direito ? 34 : 0) +
+      (triploRow.has_nexo ? 33 : 0) +
+      (factsCount > 0 ? 33 : 0)
+    );
     const coerencia = (legalCase.assigned_lawyer_id ? 50 : 0) + (legalCase.client_name ? 50 : 0);
     const qg4Score = Math.round((rastreabilidade * 0.70) + (fundamentacao * 0.20) + (coerencia * 0.10));
 

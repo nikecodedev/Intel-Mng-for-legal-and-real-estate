@@ -203,7 +203,7 @@ export function DocumentViewer({
               flexWrap: 'wrap',
               alignContent: 'space-around',
               justifyContent: 'space-around',
-              transform: 'rotate(-25deg)',
+              transform: 'rotate(-30deg)',
             }}
           >
             {Array.from({ length: 50 }).map((_, i) => (

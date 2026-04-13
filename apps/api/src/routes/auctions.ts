@@ -26,13 +26,13 @@ const createAssetSchema = z.object({
     // Spec 4.3: Nº do Edital único por leiloeiro (auctioneer)
     edital_number: z.string().max(100).optional(),
     auctioneer_id: z.string().uuid().optional(),
-    // Spec Parcial #6: Cadastro Lote F0 campos obrigatórios
-    tipo_imovel: z.string().optional(),
-    avaliacao_judicial: z.number().int().positive().optional(),
-    lance_minimo: z.number().int().positive().optional(),
-    ocupacao: z.enum(['DESOCUPADO', 'OCUPADO', 'PARCIAL']).optional(),
-    iptu_aberto: z.boolean().optional(),
-    condominio_aberto: z.boolean().optional(),
+    // Spec §4.3: Cadastro Lote F0 campos obrigatórios
+    tipo_imovel: z.string().min(1, 'Tipo de imóvel obrigatório (Spec §4.3)'),
+    avaliacao_judicial: z.number().int().positive('Avaliação judicial obrigatória (Spec §4.3)'),
+    lance_minimo: z.number().int().positive('Lance mínimo obrigatório (Spec §4.3)'),
+    ocupacao: z.enum(['DESOCUPADO', 'OCUPADO', 'PARCIAL'], { errorMap: () => ({ message: 'Ocupação obrigatória: DESOCUPADO, OCUPADO ou PARCIAL (Spec §4.3)' }) }),
+    iptu_aberto: z.boolean({ required_error: 'iptu_aberto obrigatório (Spec §4.3)' }),
+    condominio_aberto: z.boolean({ required_error: 'condominio_aberto obrigatório (Spec §4.3)' }),
   }),
 });
 

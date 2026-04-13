@@ -6,6 +6,6 @@
 export interface UserContext {
   user_id: string;
   tenant_id: string;
-  role: 'OWNER' | 'REVISOR' | 'OPERATIONAL' | 'INVESTOR';
+  role: 'OWNER' | 'REVISOR' | 'OPERATIONAL' | 'INVESTOR' | 'AUDITOR' | 'ADVOGADO' | 'ANALISTA_LEILOES' | 'GESTOR_IMOBILIARIO' | 'FINANCEIRO';
   ip_address: string | undefined;
 }
