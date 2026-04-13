@@ -35,6 +35,7 @@ export interface AuctionAsset {
   risk_score: number;
   asset_reference: string | null;
   title: string | null;
+  certidoes_negativas: boolean;
   metadata?: Record<string, unknown>;
   created_at: Date;
   updated_at: Date;
@@ -54,7 +55,7 @@ export interface UpdateDueDiligenceInput {
   zoning?: DueDiligenceItem;
 }
 
-const RISK_HIGH_THRESHOLD = 70;
+const RISK_HIGH_THRESHOLD = 50;
 
 function requireTenantId(tenantId: string | undefined | null, operation: string): asserts tenantId is string {
   if (!tenantId) {
@@ -93,6 +94,8 @@ function mapRow(row: any): AuctionAsset {
     risk_score: Number(row.risk_score) || 0,
     asset_reference: (row.asset_reference as string) ?? null,
     title: (row.title as string) ?? null,
+    // Spec Divergence #3: certidoes_negativas — FALSE blocks bidding (Hard Gate)
+    certidoes_negativas: row.certidoes_negativas !== undefined ? Boolean(row.certidoes_negativas) : true,
     created_at: new Date(row.created_at as string),
     updated_at: new Date(row.updated_at as string),
   };
@@ -112,6 +115,12 @@ function getNextStage(current: AuctionStage): AuctionStage | null {
  * ok=0, pending=15, risk=25 per category. Total capped at 100.
  */
 export function calculateRiskScore(checklist: DueDiligenceChecklist): number {
+  // Spec 12: dívidas > 30% da avaliação = risco alto imediato
+  const debtRatio = (checklist.debts as any)?.debt_amount_cents && (checklist.debts as any)?.appraised_value_cents
+    ? (checklist.debts as any).debt_amount_cents / (checklist.debts as any).appraised_value_cents
+    : 0;
+  if (debtRatio > 0.30) return 100; // Immediately high risk
+
   let score = 0;
   const categories: (keyof DueDiligenceChecklist)[] = ['occupancy', 'debts', 'legal_risks', 'zoning'];
   for (const key of categories) {

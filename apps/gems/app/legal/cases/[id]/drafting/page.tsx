@@ -37,7 +37,20 @@ export default function CaseDraftingPage({ params }: { params: { id: string } })
     setError('');
   }
 
+  function validateTriplo(): boolean {
+    // Spec 14: Triplo Fechamento — mínimo 2 precedentes de jurisdição STJ/TJSP
+    const stjFilled = form.stj_precedents.trim().length > 0;
+    const tjspFilled = form.tjsp_precedents.trim().length > 0;
+    const count = (stjFilled ? 1 : 0) + (tjspFilled ? 1 : 0);
+    if (count < 2) {
+      setError('Mínimo 2 precedentes de jurisprudência (STJ/TJSP) obrigatórios para Triplo Fechamento.');
+      return false;
+    }
+    return true;
+  }
+
   async function handleGenerateAI() {
+    if (!validateTriplo()) return;
     setLoading(true);
     setError('');
     setSuccess('');

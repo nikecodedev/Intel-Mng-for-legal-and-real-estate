@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 
 export default function CreateAuctionPage() {
   const router = useRouter();
+  const [auctioneerOther, setAuctioneerOther] = useState('');
   const [form, setForm] = useState({
     asset_reference: '', title: '', auction_type: 'JUDICIAL', auction_date: '', base_value_cents: '',
     edital_number: '', auctioneer: '', property_type: '', registration_file: '',
@@ -84,7 +85,34 @@ export default function CreateAuctionPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Leiloeiro</label>
-              <input value={form.auctioneer} onChange={(e) => set('auctioneer', e.target.value)} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="Nome do leiloeiro" />
+              <select
+                value={form.auctioneer === auctioneerOther && auctioneerOther ? 'OUTRO' : form.auctioneer}
+                onChange={(e) => {
+                  if (e.target.value === 'OUTRO') {
+                    set('auctioneer', auctioneerOther);
+                  } else {
+                    setAuctioneerOther('');
+                    set('auctioneer', e.target.value);
+                  }
+                }}
+                className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+              >
+                <option value="">Selecione um leiloeiro...</option>
+                <option value="Leilão Express">Leilão Express</option>
+                <option value="Zukerman Leiloeiro">Zukerman Leiloeiro</option>
+                <option value="Lance & Bid">Lance &amp; Bid</option>
+                <option value="Mega Leilões">Mega Leilões</option>
+                <option value="Sold Leilões">Sold Leilões</option>
+                <option value="OUTRO">Outro</option>
+              </select>
+              {(form.auctioneer === auctioneerOther && auctioneerOther) || (!['Leilão Express','Zukerman Leiloeiro','Lance & Bid','Mega Leilões','Sold Leilões',''].includes(form.auctioneer)) ? (
+                <input
+                  value={form.auctioneer}
+                  onChange={(e) => { setAuctioneerOther(e.target.value); set('auctioneer', e.target.value); }}
+                  className="w-full mt-2 rounded border border-gray-300 px-3 py-2 text-sm"
+                  placeholder="Nome do leiloeiro (outro)"
+                />
+              ) : null}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Tipo Imovel</label>

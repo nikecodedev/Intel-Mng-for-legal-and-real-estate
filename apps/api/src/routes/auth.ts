@@ -96,6 +96,7 @@ const loginWithRememberSchema = z.object({
     email: z.string().email('Invalid email address'),
     password: z.string().min(12, 'A senha deve ter pelo menos 12 caracteres'),
     remember_me: z.boolean().optional().default(false),
+    subdomain: z.string().optional(),
   }),
 });
 
@@ -111,11 +112,25 @@ router.post(
   '/login',
   validateRequest(loginWithRememberSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const { email, password, remember_me } = req.body;
+    const { email, password, remember_me, subdomain } = req.body;
 
     try {
       // Authenticate user - returns user with tenant_id from DB
       const user = await AuthService.authenticate(email, password);
+
+      // Spec Omission #1: Subdomain tenant resolution — verify user belongs to the subdomain's tenant
+      if (subdomain) {
+        const tenantRow = await db.query(
+          `SELECT id FROM tenants WHERE (domain ILIKE $1 OR domain ILIKE $2 OR tenant_code = $3) AND status != 'BLOCKED' LIMIT 1`,
+          [`${subdomain}.%`, `%.${subdomain}%`, subdomain]
+        );
+        if (tenantRow.rows.length > 0) {
+          const resolvedTenantId = (tenantRow.rows[0] as { id: string }).id;
+          if (user.tenant_id !== resolvedTenantId) {
+            throw new AuthenticationError('Utilizador não pertence ao tenant do subdomínio informado.');
+          }
+        }
+      }
 
       // Generate tokens using user's tenant_id from DB (not from headers/request)
       // Access token always short-lived (15m). remember_me extends refresh token only.

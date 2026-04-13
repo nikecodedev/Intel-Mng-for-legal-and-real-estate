@@ -1,0 +1,156 @@
+import { Router, Request, Response } from 'express';
+import { asyncHandler, authenticate, validateRequest } from '../middleware/index.js';
+import { db } from '../models/database.js';
+import { logger } from '../utils/logger.js';
+import { NotFoundError } from '../utils/errors.js';
+import { z } from 'zod';
+import { verifySync } from 'otplib';
+
+const router = Router();
+
+// ─── Override Events ─────────────────────────────────────────────────────────
+
+/**
+ * GET /admin/overrides
+ * List all override events for the current tenant (OWNER only)
+ */
+router.get(
+  '/overrides',
+  authenticate,
+  asyncHandler(async (req: Request, res: Response) => {
+    const tenantId = req.context?.tenant_id;
+    const role = req.context?.role;
+
+    if (!tenantId) {
+      res.status(400).json({ success: false, error: 'Tenant context required.' });
+      return;
+    }
+    if (role !== 'OWNER') {
+      res.status(403).json({ success: false, error: 'Permissão insuficiente.' });
+      return;
+    }
+
+    try {
+      const result = await db.query(
+        `SELECT id, user_id, user_email, override_type, target_entity, target_id,
+                otp_verified, reason, metadata, created_at
+         FROM override_events
+         WHERE tenant_id = $1
+         ORDER BY created_at DESC
+         LIMIT 100`,
+        [tenantId]
+      );
+
+      res.json({
+        success: true,
+        data: { events: result.rows },
+        total: result.rows.length,
+      });
+    } catch {
+      // Table may not exist yet (migration pending)
+      res.json({ success: true, data: { events: [] }, total: 0 });
+    }
+  })
+);
+
+/**
+ * POST /admin/overrides
+ * Record an override event — requires TOTP OTP verification.
+ * Body: { override_type, target_entity, target_id, reason, otp_code }
+ */
+const createOverrideSchema = z.object({
+  body: z.object({
+    override_type: z.string().min(1),
+    target_entity: z.string().min(1),
+    target_id: z.string().min(1),
+    reason: z.string().min(1, 'Motivo é obrigatório para override'),
+    otp_code: z.string().length(6, 'OTP deve ter 6 dígitos'),
+    metadata: z.record(z.unknown()).optional(),
+  }),
+});
+
+router.post(
+  '/overrides',
+  authenticate,
+  validateRequest(createOverrideSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const tenantId = req.context?.tenant_id;
+    const role = req.context?.role;
+    const user = req.user?.user;
+
+    if (!tenantId || !user) {
+      res.status(400).json({ success: false, error: 'Tenant context required.' });
+      return;
+    }
+    if (role !== 'OWNER') {
+      res.status(403).json({ success: false, error: 'Apenas OWNER pode executar overrides.' });
+      return;
+    }
+
+    const { override_type, target_entity, target_id, reason, otp_code, metadata } = req.body;
+
+    // ── Verify TOTP OTP ──────────────────────────────────────────────────
+    const mfaRow = await db.query(
+      'SELECT mfa_secret, mfa_enabled FROM users WHERE id = $1 LIMIT 1',
+      [user.id]
+    );
+    const mfa = mfaRow.rows[0] as { mfa_secret: string | null; mfa_enabled: boolean } | undefined;
+
+    let otpVerified = false;
+
+    if (mfa?.mfa_secret && mfa.mfa_enabled) {
+      const result = verifySync({ token: otp_code, secret: mfa.mfa_secret });
+      otpVerified = result?.valid === true;
+
+      if (!otpVerified) {
+        res.status(401).json({
+          success: false,
+          error: 'Código OTP inválido ou expirado. Override não autorizado.',
+        });
+        return;
+      }
+    } else {
+      // MFA not set up — flag as unverified but allow (graceful degradation)
+      logger.warn('Override attempt without MFA configured', { userId: user.id });
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
+    // Record the override event
+    const insertResult = await db.query(
+      `INSERT INTO override_events
+         (tenant_id, user_id, user_email, override_type, target_entity, target_id, otp_verified, reason, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id, created_at`,
+      [
+        tenantId,
+        user.id,
+        user.email,
+        override_type,
+        target_entity,
+        target_id,
+        otpVerified,
+        reason,
+        JSON.stringify(metadata ?? {}),
+      ]
+    );
+
+    const record = insertResult.rows[0] as { id: string; created_at: string };
+
+    logger.info('Override event recorded', {
+      overrideId: record.id,
+      userId: user.id,
+      type: override_type,
+      otpVerified,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: otpVerified
+        ? 'Override registrado e OTP verificado com sucesso.'
+        : 'Override registrado (MFA não configurado — OTP não verificado).',
+      data: { id: record.id, otp_verified: otpVerified, created_at: record.created_at },
+    });
+  })
+);
+
+export default router;

@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
+import crypto from 'crypto';
 import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware/index.js';
 import { getTenantContext } from '../utils/tenant-context.js';
 import { NotFoundError } from '../utils/errors.js';
@@ -268,9 +269,27 @@ router.post(
       ]
     );
 
+    const insertedFact = result.rows[0] as { id: string };
+
+    // Spec Omission #5: Compute and store immutable SHA-256 prova_hash
+    try {
+      const timestamp = new Date().toISOString();
+      const prova_hash = crypto
+        .createHash('sha256')
+        .update(JSON.stringify({ fact_id: insertedFact.id, proof_doc_id: document_id, tenant_id: tenantContext.tenantId, timestamp }))
+        .digest('hex');
+      await db.query(
+        `UPDATE document_facts SET prova_hash = $1 WHERE id = $2`,
+        [prova_hash, insertedFact.id]
+      );
+      (insertedFact as Record<string, unknown>).prova_hash = prova_hash;
+    } catch (hashErr) {
+      logger.warn('prova_hash update failed (column may not exist yet — run migration 039)', { error: hashErr });
+    }
+
     res.status(201).json({
       success: true,
-      fpdn_entry: result.rows[0],
+      fpdn_entry: insertedFact,
     });
   })
 );
@@ -356,15 +375,23 @@ router.post(
     );
     const factsCount = parseInt(factsResult.rows[0]?.count || '0', 10);
 
-    // Score: base 50 + up to 50 based on facts (10 facts = 100%)
-    const factScore = Math.min(factsCount * 5, 50);
-    const hasDeadline = legalCase.deadline ? 10 : 0;
-    const hasDescription = legalCase.description ? 10 : 0;
-    const hasLawyer = legalCase.assigned_lawyer_id ? 10 : 0;
-    const hasClient = legalCase.client_name ? 10 : 0;
-    const baseScore = 10;
+    // Spec QG4 formula (Divergence #2):
+    // rastreabilidade = facts completeness: min(factsCount / 10, 1.0) * 100
+    // fundamentacao = (hasDeadline ? 50 : 0) + (hasDescription ? 50 : 0)
+    // coerencia = (hasLawyer ? 50 : 0) + (hasClient ? 50 : 0)
+    // Final: Math.round((rastreabilidade * 0.70) + (fundamentacao * 0.20) + (coerencia * 0.10))
+    const rastreabilidade = Math.min(factsCount / 10, 1.0) * 100;
+    const fundamentacao = (legalCase.deadline ? 50 : 0) + (legalCase.description ? 50 : 0);
+    const coerencia = (legalCase.assigned_lawyer_id ? 50 : 0) + (legalCase.client_name ? 50 : 0);
+    const qg4Score = Math.round((rastreabilidade * 0.70) + (fundamentacao * 0.20) + (coerencia * 0.10));
 
-    const qg4Score = Math.min(baseScore + factScore + hasDeadline + hasDescription + hasLawyer + hasClient, 100);
+    // Legacy breakdown fields kept for compatibility
+    const factScore = Math.round(rastreabilidade);
+    const hasDeadline = legalCase.deadline ? 50 : 0;
+    const hasDescription = legalCase.description ? 50 : 0;
+    const hasLawyer = legalCase.assigned_lawyer_id ? 50 : 0;
+    const hasClient = legalCase.client_name ? 50 : 0;
+    const baseScore = 0;
 
     // Update the case with the new score
     await db.query(
@@ -381,10 +408,13 @@ router.post(
           tenantContext.tenantId,
           id,
           qg4Score,
-          qg4Score >= 70,
+          qg4Score >= 90,
           JSON.stringify({
             facts_count: factsCount,
-            fact_score: factScore,
+            rastreabilidade: Math.round(rastreabilidade),
+            fundamentacao,
+            coerencia,
+            formula: 'rastreabilidade*0.70 + fundamentacao*0.20 + coerencia*0.10',
             has_deadline: !!legalCase.deadline,
             has_description: !!legalCase.description,
             has_lawyer: !!legalCase.assigned_lawyer_id,
@@ -408,11 +438,30 @@ router.post(
       resourceType: 'legal_case',
       resourceId: id,
       description: `Calculated QG4 score ${qg4Score} for case ${legalCase.case_number}`,
-      details: { qg4_score: qg4Score, passed: qg4Score >= 70 },
+      details: { qg4_score: qg4Score, passed: qg4Score >= 90 },
       ipAddress: req.ip,
       userAgent: req.get('user-agent') || undefined,
       requestId: req.headers['x-request-id'] as string | undefined,
     });
+
+    // Omission #6: Auto-indexação vetorial na Base de Conhecimento quando QG4 >= 90
+    if (qg4Score >= 90) {
+      try {
+        await db.query(
+          `INSERT INTO knowledge_entries (tenant_id, title, content, entry_type, status, tags, created_by)
+           VALUES ($1, $2, $3, 'CASE_PRECEDENT', 'ATIVA', $4, $5)
+           ON CONFLICT DO NOTHING`,
+          [
+            tenantContext.tenantId,
+            `Caso: ${legalCase.title}`,
+            legalCase.description || legalCase.title,
+            JSON.stringify(['qg4_approved', 'auto_indexed']),
+            legalCase.created_by || userId,
+          ]
+        );
+        logger.info('Auto-indexed case in knowledge base', { caseId: id, score: qg4Score });
+      } catch (kbErr) { logger.warn('Knowledge auto-index failed', { error: kbErr }); }
+    }
 
     // Emit workflow event: QG4 scored — triggers ADVOGADO_SENIOR escalation if < 0.90
     try {
@@ -424,13 +473,30 @@ router.post(
           case_id: id,
           case_number: legalCase.case_number,
           score: qg4Score / 100, // normalize 0–1 for condition matching
-          passed: qg4Score >= 70,
+          passed: qg4Score >= 90,
         },
         userId,
         userEmail: req.user!.email,
         userRole: tenantContext.role,
         request: req,
       });
+
+      // Spec Omission #11: emit qg4.score.low if score < 90 (threshold 90)
+      if (qg4Score < 90) {
+        await runWorkflow({
+          tenantId: tenantContext.tenantId,
+          eventType: 'qg4.score.low',
+          payload: {
+            case_id: id,
+            score: qg4Score,
+            threshold: 90,
+          },
+          userId,
+          userEmail: req.user!.email,
+          userRole: tenantContext.role,
+          request: req,
+        });
+      }
     } catch (wfErr) {
       logger.warn('Workflow event legal_case.qg4.scored failed', { error: wfErr });
     }
@@ -439,7 +505,13 @@ router.post(
       success: true,
       case_id: id,
       qg4_score: qg4Score,
-      passed: qg4Score >= 70,
+      passed: qg4Score >= 90,
+      components: {
+        rastreabilidade: Math.round(rastreabilidade),
+        fundamentacao,
+        coerencia,
+        formula: 'rastreabilidade*0.70 + fundamentacao*0.20 + coerencia*0.10',
+      },
       breakdown: {
         base_score: baseScore,
         fact_score: factScore,

@@ -272,6 +272,34 @@ router.post(
       } catch (wfErr) {
         logger.warn('Workflow event auction.bid.homologated failed', { error: wfErr });
       }
+
+      // Spec Divergence #8: Arrematação F4 → cria ativo real_estate_asset em REGULARIZATION automaticamente
+      try {
+        const existing = await db.query(
+          `SELECT id FROM real_estate_assets WHERE source_auction_id = $1 AND tenant_id = $2 LIMIT 1`,
+          [id, tenantId]
+        );
+        if (existing.rows.length === 0) {
+          const assetCode = `REA-AUC-${id.substring(0, 8).toUpperCase()}`;
+          const assetTitle = asset.title || asset.asset_reference || id;
+          await db.query(
+            `INSERT INTO real_estate_assets
+               (tenant_id, asset_code, property_address, property_type, current_state, source_auction_id, created_by, metadata)
+             VALUES ($1, $2, $3, 'auction', 'REGULARIZATION', $4, $5, $6)`,
+            [
+              tenantId,
+              assetCode,
+              `Ativo de arrematação — ${assetTitle}`,
+              id,
+              userId,
+              JSON.stringify({ origin: 'auction_homologation', auction_asset_id: id }),
+            ]
+          );
+          logger.info('Real estate asset created from auction homologation', { auctionAssetId: id, tenantId });
+        }
+      } catch (assetErr) {
+        logger.warn('Failed to create real estate asset from auction', { error: assetErr });
+      }
     }
 
     res.json({
@@ -362,6 +390,16 @@ router.post(
 
     const asset = await AuctionAssetModel.findById(id, tenantId);
     if (!asset) throw new NotFoundError('Auction asset');
+
+    // Spec Divergence #3: Hard Gate — risk score >= 50 OR certidoes_negativas === false blocks bidding
+    const blocked = isRiskHigh(asset.risk_score) || asset.certidoes_negativas === false;
+    if (blocked) {
+      const reason = asset.certidoes_negativas === false
+        ? 'Lance bloqueado: certidões negativas pendentes ou irregulares (Hard Gate).'
+        : 'Lance bloqueado: risco elevado na due diligence (Hard Gate).';
+      res.status(422).json({ success: false, error: reason });
+      return;
+    }
 
     const intelligenceResult = await validateIntelligence({
       tenantId,
@@ -626,7 +664,7 @@ function formatAsset(asset: {
 const bidOverrideSchema = z.object({
   body: z.object({
     otp_code: z.string().length(6, 'Código OTP deve ter exatamente 6 dígitos'),
-    justification: z.string().min(10, 'Justificativa obrigatória (mínimo 10 caracteres)'),
+    justification: z.string().min(200, 'Justificativa deve ter pelo menos 200 caracteres (Spec 4.5)'),
     target_stage: z.string().min(1, 'Estágio alvo obrigatório (ex: F3, F4)').optional(),
   }),
 });

@@ -451,8 +451,8 @@ export class InvestorMatchingService {
       return { notified: 0, matches: [] };
     }
 
-    // Get matches above threshold
-    const threshold = profile.notification_threshold;
+    // Spec 7.1: threshold fixo 70 — não configurável
+    const MATCHING_THRESHOLD = 70;
     const result = await db.query<MatchRecord>(
       `SELECT * FROM match_records
        WHERE tenant_id = $1
@@ -462,7 +462,7 @@ export class InvestorMatchingService {
          AND match_status = 'PENDING'
        ORDER BY match_score DESC
        LIMIT 10`,
-      [tenantId, investorUserId, threshold]
+      [tenantId, investorUserId, MATCHING_THRESHOLD]
     );
 
     const matches = result.rows;

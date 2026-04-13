@@ -35,15 +35,22 @@ const createTransactionSchema = z.object({
     bank_account_id: z.string().optional(),
     vendor_name: z.string().optional(),
     vendor_tax_id: z.string().optional(),
-    description: z.string().min(1),
+    description: z.string().min(20, 'Descrição deve ter pelo menos 20 caracteres'),
     notes: z.string().optional(),
     tags: z.array(z.string()).optional(),
     requires_approval: z.boolean().optional(),
     assigned_to_id: z.string().uuid().optional(),
+    receipt_document_id: z.string().uuid().optional(),
   }).refine(
     (data) => data.process_id || data.real_estate_asset_id || data.client_id,
     {
       message: 'Transaction must be linked to at least one of: process_id, real_estate_asset_id, or client_id',
+    }
+  ).refine(
+    (data) => !(data.amount_cents > 50000 && data.transaction_type === 'EXPENSE') || !!data.receipt_document_id,
+    {
+      message: 'Comprovante obrigatório para lançamentos acima de R$500.',
+      path: ['receipt_document_id'],
     }
   ),
 });
@@ -187,6 +194,32 @@ router.post(
       userAgent: req.get('user-agent') || undefined,
       requestId: req.headers['x-request-id'] as string | undefined,
     });
+
+    // Spec Omission #10: ITBI Pago trigger — emit itbi.paid when transaction is tagged/described as ITBI
+    try {
+      const tags: string[] = transaction.tags || [];
+      const desc: string = (transaction.description || '').toLowerCase();
+      const isItbi = tags.some((t: string) => t.toLowerCase() === 'itbi') || desc.includes('itbi');
+      if (isItbi) {
+        const { runWorkflow } = await import('../services/workflow-engine.js');
+        await runWorkflow({
+          tenantId: tenantContext.tenantId,
+          eventType: 'itbi.paid',
+          payload: {
+            transaction_id: transaction.id,
+            amount_cents: transaction.amount_cents,
+            process_id: transaction.process_id || null,
+            tenant_id: tenantContext.tenantId,
+          },
+          userId,
+          userEmail: req.user!.email,
+          userRole: tenantContext.role,
+          request: req,
+        });
+      }
+    } catch (itbiWfErr) {
+      logger.warn('Workflow event itbi.paid failed', { error: itbiWfErr });
+    }
 
     // Spec 6.4: Recalcular ROI automático a cada novo lançamento no projecto
     // Fire-and-forget: if transaction is linked to an auction asset (process_id), trigger ROI bump

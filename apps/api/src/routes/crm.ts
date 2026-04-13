@@ -500,6 +500,27 @@ router.post(
       return;
     }
 
+    // Spec Omissions #8 & #9: KYC ALTO blocks proposal; KYC expiry check (24 months)
+    if (investor_user_id) {
+      const kycRow = await db.query(
+        `SELECT kyc_status, kyc_expires_at FROM kyc_data
+         WHERE investor_user_id = $1 AND tenant_id = $2 AND deleted_at IS NULL
+         ORDER BY created_at DESC LIMIT 1`,
+        [investor_user_id, tenantContext.tenantId]
+      );
+      const kyc = kycRow.rows[0] as { kyc_status?: string; kyc_expires_at?: string } | undefined;
+      // Block if KYC status is ALTO risk (mapped as REJECTED or any custom ALTO value)
+      if (kyc?.kyc_status === 'ALTO' || kyc?.kyc_status === 'REJECTED') {
+        res.status(422).json({ success: false, error: 'Proposta bloqueada: perfil KYC do investidor classificado como ALTO risco.' });
+        return;
+      }
+      // Block if KYC is expired
+      if (kyc?.kyc_expires_at && new Date(kyc.kyc_expires_at) < new Date()) {
+        res.status(422).json({ success: false, error: 'Proposta bloqueada: KYC do investidor expirado. Renove o KYC antes de criar propostas.' });
+        return;
+      }
+    }
+
     const result = await db.query<{ id: string }>(
       `INSERT INTO crm_proposals (tenant_id, investor_user_id, auction_asset_id, title, description, proposed_amount_cents, status, notes, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)

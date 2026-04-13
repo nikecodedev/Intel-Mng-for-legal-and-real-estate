@@ -24,8 +24,16 @@ interface DocumentFact {
 
 const PETITION_TYPES = [
   { value: 'initial_petition', label: 'Petição Inicial' },
+  { value: 'contestacao', label: 'Contestação' },
+  { value: 'laudo_pericial', label: 'Laudo Pericial' },
+  { value: 'matricula', label: 'Matrícula' },
   { value: 'defense', label: 'Defesa' },
   { value: 'appeal', label: 'Recurso' },
+  { value: 'agravo', label: 'Agravo' },
+  { value: 'mandado', label: 'Mandado' },
+  { value: 'oficio', label: 'Ofício' },
+  { value: 'notificacao', label: 'Notificação' },
+  { value: 'termo_acordo', label: 'Termo de Acordo' },
 ] as const;
 
 export default function LegalGeneratePage() {

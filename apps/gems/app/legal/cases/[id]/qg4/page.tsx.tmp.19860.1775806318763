@@ -1,0 +1,193 @@
+'use client';
+
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from 'react-query';
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
+import { api } from '@/lib/api';
+import { BlockLoader } from '@/components/ui';
+
+interface Qg4Data {
+  qg4_score: number | null;
+  rastreabilidade: number | null;
+  fundamentacao: number | null;
+  coerencia: number | null;
+  is_passing: boolean;
+}
+
+async function fetchQg4(caseId: string) {
+  const { data } = await api.get<{ success: boolean; data: Qg4Data }>(`/legal-cases/${caseId}/qg4`);
+  return data?.data;
+}
+
+function ProgressBar({ label, value, weight, color }: { label: string; value: number | null; weight: string; color: string }) {
+  const pct = value != null ? Math.min(100, Math.round(Number(value) * 100)) : 0;
+  return (
+    <div className="space-y-1">
+      <div className="flex justify-between text-sm">
+        <span className="font-medium text-gray-700">{label} <span className="text-gray-400 text-xs">({weight})</span></span>
+        <span className="text-gray-600">{value != null ? `${pct}%` : 'N/A'}</span>
+      </div>
+      <div className="h-3 w-full rounded-full bg-gray-200">
+        <div
+          className={`h-3 rounded-full ${color}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+export default function Qg4Page() {
+  const params = useParams();
+  const caseId = params.id as string;
+  const queryClient = useQueryClient();
+
+  const { data, isLoading } = useQuery(
+    ['qg4', caseId],
+    () => fetchQg4(caseId),
+    { staleTime: 30_000, enabled: !!caseId }
+  );
+
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpJustification, setOtpJustification] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpMsg, setOtpMsg] = useState('');
+
+  const calcMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post(`/legal-cases/${caseId}/qg4/calculate`, {});
+      return data?.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['qg4', caseId]);
+      queryClient.invalidateQueries(['legal-case', caseId]);
+    },
+  });
+
+  if (isLoading) return <BlockLoader message="Carregando score QG4..." />;
+
+  const score = data?.qg4_score;
+  const isPassing = data?.is_passing ?? (score != null && Number(score) >= 0.90);
+  const scorePct = score != null ? Math.round(Number(score) * 100) : null;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Motor QG4</h2>
+          <p className="text-sm text-gray-500">Quality Gate 4 - Calculo de Score</p>
+        </div>
+        <Link href={`/legal/cases/${caseId}`} className="text-sm text-blue-600 hover:underline">
+          ← Voltar ao Processo
+        </Link>
+      </div>
+
+      {/* Score principal */}
+      <div className="rounded-lg border border-gray-200 bg-white p-6">
+        <div className="text-center mb-6">
+          <p className="text-sm text-gray-500 mb-2">Score QG4</p>
+          <div className={`inline-block text-5xl font-bold rounded-lg px-6 py-4 ${
+            score == null ? 'bg-gray-50 text-gray-400'
+              : isPassing ? 'bg-green-50 text-green-700'
+              : 'bg-red-50 text-red-700'
+          }`}>
+            {scorePct != null ? `${scorePct}%` : 'N/A'}
+          </div>
+          {score != null && !isPassing && (
+            <div className="mt-3 rounded-md bg-red-50 border border-red-200 p-3 max-w-md mx-auto">
+              <p className="text-sm font-medium text-red-800">
+                BLOQUEIO: Score abaixo do minimo exigido (90%)
+              </p>
+              <p className="text-xs text-red-600 mt-1">
+                O processo nao pode avancar ate atingir o score minimo de 0.90.
+              </p>
+            </div>
+          )}
+          {score != null && isPassing && (
+            <p className="mt-3 text-sm text-green-600 font-medium">Aprovado - Score acima do minimo (90%)</p>
+          )}
+        </div>
+
+        {/* Componentes */}
+        <div className="space-y-4 max-w-lg mx-auto">
+          <h3 className="text-sm font-semibold text-gray-700 uppercase">Componentes</h3>
+          <ProgressBar
+            label="Rastreabilidade"
+            value={data?.rastreabilidade ?? null}
+            weight="70%"
+            color="bg-blue-500"
+          />
+          <ProgressBar
+            label="Fundamentacao"
+            value={data?.fundamentacao ?? null}
+            weight="20%"
+            color="bg-indigo-500"
+          />
+          <ProgressBar
+            label="Coerencia"
+            value={data?.coerencia ?? null}
+            weight="10%"
+            color="bg-purple-500"
+          />
+        </div>
+
+        <div className="mt-4 text-xs text-gray-400 text-center">
+          Formula: QG4 = Rastreabilidade x 0.70 + Fundamentacao x 0.20 + Coerencia x 0.10
+        </div>
+      </div>
+
+      {/* Acoes */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => calcMutation.mutate()}
+          disabled={calcMutation.isLoading}
+          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {calcMutation.isLoading ? 'Calculando...' : 'Calcular QG4'}
+        </button>
+
+        {score != null && !isPassing && (
+          <button
+            onClick={() => setShowOtpModal(true)}
+            className="rounded border border-orange-300 px-4 py-2 text-sm font-medium text-orange-700 hover:bg-orange-50"
+          >
+            Override (Requer OTP)
+          </button>
+        )}
+      </div>
+
+      {showOtpModal && (
+        <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 space-y-3">
+          <h3 className="text-sm font-medium text-orange-800">Autenticação OTP para Override</h3>
+          <p className="text-xs text-orange-600">Insira o código de 6 dígitos do seu autenticador.</p>
+          <div className="flex items-center gap-3">
+            <input value={otpCode} onChange={(e) => setOtpCode(e.target.value)} maxLength={6} placeholder="000000" className="w-32 rounded border border-gray-300 px-3 py-2 text-sm text-center font-mono tracking-widest" />
+            <button
+              onClick={async () => {
+                setOtpLoading(true); setOtpMsg('');
+                try {
+                  await api.post('/auth/mfa/verify', { code: otpCode });
+                  setOtpMsg('Override autorizado com sucesso.');
+                  setShowOtpModal(false);
+                } catch { setOtpMsg('Código inválido.'); }
+                finally { setOtpLoading(false); }
+              }}
+              disabled={otpLoading || otpCode.length !== 6}
+              className="rounded bg-orange-600 px-4 py-2 text-sm text-white hover:bg-orange-700 disabled:opacity-50"
+            >{otpLoading ? 'Verificando...' : 'Verificar'}</button>
+            <button onClick={() => { setShowOtpModal(false); setOtpCode(''); setOtpMsg(''); }} className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-600">Cancelar</button>
+          </div>
+          {otpMsg && <p className={`text-sm ${otpMsg.includes('autorizado') ? 'text-green-600' : 'text-red-600'}`}>{otpMsg}</p>}
+        </div>
+      )}
+
+      {calcMutation.isSuccess && (
+        <div className="rounded-md bg-green-50 p-3 text-green-800 text-sm">
+          Score QG4 recalculado com sucesso.
+        </div>
+      )}
+    </div>
+  );
+}

@@ -6,7 +6,7 @@ import { TenantRequiredError, InvalidTransitionError, NotFoundError } from '../u
  * Real Estate Asset State Machine
  * Valid states: ACQUIRED → REGULARIZATION → RENOVATION → READY → SOLD/RENTED
  */
-export const ASSET_STATES = ['ACQUIRED', 'REGULARIZATION', 'RENOVATION', 'READY', 'SOLD', 'RENTED'] as const;
+export const ASSET_STATES = ['ACQUIRED', 'REGULARIZATION', 'RENOVATION', 'READY', 'EM_NEGOCIACAO', 'SOLD', 'RENTED', 'ENCERRADO'] as const;
 export type AssetState = (typeof ASSET_STATES)[number];
 
 /**
@@ -14,12 +14,14 @@ export type AssetState = (typeof ASSET_STATES)[number];
  * Enforced at API level to block invalid transitions
  */
 const VALID_TRANSITIONS: Record<AssetState, AssetState[]> = {
-  ACQUIRED: ['REGULARIZATION'],          // Must go through regularization first
-  REGULARIZATION: ['RENOVATION'],         // Must go through renovation
-  RENOVATION: ['READY'],                  // Must be marked as ready
-  READY: ['SOLD', 'RENTED'],             // Only READY assets can be sold/rented
-  SOLD: [],                               // Terminal state
-  RENTED: ['READY', 'SOLD'],             // Can return to READY or be sold
+  ACQUIRED: ['REGULARIZATION'],                    // Must go through regularization first
+  REGULARIZATION: ['RENOVATION'],                  // Must go through renovation
+  RENOVATION: ['READY'],                           // Must be marked as ready
+  READY: ['SOLD', 'RENTED', 'EM_NEGOCIACAO'],     // Only READY assets can be sold/rented/negotiated
+  EM_NEGOCIACAO: ['SOLD', 'READY'],               // Negotiation can succeed (SOLD) or fall through (READY)
+  SOLD: ['ENCERRADO'],                             // SOLD can be closed/archived
+  RENTED: ['READY', 'SOLD', 'ENCERRADO'],         // Can return to READY, be sold, or be closed
+  ENCERRADO: [],                                   // Terminal state
 };
 
 /**

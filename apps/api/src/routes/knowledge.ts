@@ -221,12 +221,17 @@ router.post(
       requestId: req.headers['x-request-id'] as string | undefined,
     });
 
+    // Spec Omission #13: Vector/semantic search mode indicator
+    // Current implementation uses tsvector full-text search.
+    // pgvector embedding search is not yet active — graceful fallback noted.
     res.json({
       success: true,
       query,
       results: searchResults.results,
       total: searchResults.total,
       cached: searchResults.cached,
+      search_mode: 'fulltext_fallback',
+      semantic_mode: false,
     });
   })
 );

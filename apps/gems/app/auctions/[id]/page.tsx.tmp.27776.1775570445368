@@ -1,0 +1,460 @@
+'use client';
+
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from 'react-query';
+import Link from 'next/link';
+import { DateDisplay, CurrencyDisplay, BlockLoader } from '@/components/ui';
+import {
+  fetchAuctionById,
+  advanceAuctionStage,
+  fetchAuctionROI,
+  fetchAuctionRisk,
+  updateDueDiligence,
+  placeBid,
+  getNextStage,
+  getApiErrorMessage,
+  type AuctionAsset,
+  type RiskLevel,
+  type DueDiligenceStatus,
+  type DueDiligenceChecklist,
+} from '@/lib/auction-api';
+import { RiskIndicator } from '@/components/auctions/RiskIndicator';
+import { api } from '@/lib/api';
+
+function ROIInputForm({ assetId, onSuccess }: { assetId: string; onSuccess: () => void }) {
+  const [form, setForm] = useState({ purchase_value_cents: '', renovation_costs_cents: '', expected_resale_cents: '', holding_period_months: '' });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  function set(f: string, v: string) { setForm(p => ({ ...p, [f]: v })); setError(''); setSuccess(''); }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true); setError(''); setSuccess('');
+    try {
+      await api.put(`/auctions/assets/${assetId}/roi`, {
+        purchase_value_cents: form.purchase_value_cents ? Math.round(parseFloat(form.purchase_value_cents) * 100) : 0,
+        renovation_costs_cents: form.renovation_costs_cents ? Math.round(parseFloat(form.renovation_costs_cents) * 100) : 0,
+        expected_resale_cents: form.expected_resale_cents ? Math.round(parseFloat(form.expected_resale_cents) * 100) : 0,
+        holding_period_months: form.holding_period_months ? parseInt(form.holding_period_months, 10) : 12,
+      });
+      setSuccess('Dados de ROI salvos com sucesso.');
+      onSuccess();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Falha ao salvar dados de ROI.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-gray-200 bg-white p-6">
+      <h3 className="text-sm font-medium text-gray-500 mb-3">Formulario de Dados de ROI</h3>
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Valor de Compra (R$)</label>
+            <input type="number" step="0.01" value={form.purchase_value_cents} onChange={e => set('purchase_value_cents', e.target.value)} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="0.00" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Custos de Reforma (R$)</label>
+            <input type="number" step="0.01" value={form.renovation_costs_cents} onChange={e => set('renovation_costs_cents', e.target.value)} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="0.00" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Revenda Esperada (R$)</label>
+            <input type="number" step="0.01" value={form.expected_resale_cents} onChange={e => set('expected_resale_cents', e.target.value)} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="0.00" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Periodo de Posse (meses)</label>
+            <input type="number" min="1" value={form.holding_period_months} onChange={e => set('holding_period_months', e.target.value)} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="12" />
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <button type="submit" disabled={loading} className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">{loading ? 'Salvando...' : 'Salvar Dados de ROI'}</button>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          {success && <p className="text-sm text-green-600">{success}</p>}
+        </div>
+      </form>
+    </section>
+  );
+}
+
+function ROIVersionsTable({ assetId }: { assetId: string }) {
+  const { data, isLoading } = useQuery(
+    ['auction-roi-versions', assetId],
+    async () => { const r = await api.get(`/auctions/assets/${assetId}/roi/versions`); return r.data?.versions ?? r.data?.data ?? []; },
+    { staleTime: 60 * 1000, retry: false }
+  );
+
+  if (isLoading) return null;
+  if (!data || !Array.isArray(data) || data.length === 0) return null;
+
+  return (
+    <section className="rounded-lg border border-gray-200 bg-white p-6">
+      <h3 className="text-sm font-medium text-gray-500 mb-3">Historical ROI Versions</h3>
+      <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">Version</th>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">ROI %</th>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">Net Profit</th>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">Created</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {data.map((v: any, i: number) => (
+              <tr key={v.id ?? i} className="hover:bg-gray-50">
+                <td className="px-4 py-2 font-medium">{v.version_number ?? i + 1}</td>
+                <td className="px-4 py-2">{v.outputs?.roi_percentage != null ? `${Number(v.outputs.roi_percentage).toFixed(2)}%` : '-'}</td>
+                <td className="px-4 py-2">{v.outputs?.net_profit_cents != null ? `R$ ${(v.outputs.net_profit_cents / 100).toFixed(2)}` : '-'}</td>
+                <td className="px-4 py-2 text-gray-500">{v.created_at ? new Date(v.created_at).toLocaleDateString() : '-'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+export default function AuctionDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params;
+  const queryClient = useQueryClient();
+
+  const { data: asset, isLoading: assetLoading, error: assetError } = useQuery(
+    ['auction', id],
+    () => fetchAuctionById(id),
+    { staleTime: 30 * 1000 }
+  );
+
+  const { data: roi, isLoading: roiLoading, error: roiError } = useQuery(
+    ['auction-roi', id],
+    () => fetchAuctionROI(id),
+    { staleTime: 60 * 1000, retry: false }
+  );
+
+  const advanceMutation = useMutation({
+    mutationFn: (toStage: string) => advanceAuctionStage(id, toStage),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['auction', id]);
+    },
+  });
+
+  // --- Risk query (dedicated endpoint) ---
+  const { data: riskData } = useQuery(
+    ['auction-risk', id],
+    () => fetchAuctionRisk(id),
+    { staleTime: 30 * 1000, retry: false }
+  );
+
+  // --- Bid state & mutation ---
+  const [bidAmountStr, setBidAmountStr] = useState('');
+  const [bidSuccess, setBidSuccess] = useState<string | null>(null);
+  const [certidoesNegativas, setCertidoesNegativas] = useState(false);
+
+  const bidMutation = useMutation({
+    mutationFn: () => {
+      const cents = Math.round(parseFloat(bidAmountStr) * 100);
+      if (Number.isNaN(cents) || cents <= 0) throw new Error('Informe um valor de lance valido');
+      return placeBid(id, { amount_cents: cents, certidoes_negativas: certidoesNegativas });
+    },
+    onSuccess: (data) => {
+      setBidSuccess(`Bid placed successfully (ID: ${data.bid_id.slice(0, 8)})`);
+      setBidAmountStr('');
+      queryClient.invalidateQueries(['auction', id]);
+      queryClient.invalidateQueries(['auction-risk', id]);
+    },
+  });
+
+  // --- Due diligence state & mutation ---
+  const existingChecklist = (asset?.due_diligence_checklist ?? {}) as Partial<DueDiligenceChecklist>;
+  const [ddOccupancy, setDdOccupancy] = useState<DueDiligenceStatus>(existingChecklist.occupancy ?? 'pending');
+  const [ddDebts, setDdDebts] = useState<DueDiligenceStatus>(existingChecklist.debts ?? 'pending');
+  const [ddLegalRisks, setDdLegalRisks] = useState<DueDiligenceStatus>(existingChecklist.legal_risks ?? 'pending');
+  const [ddZoning, setDdZoning] = useState<DueDiligenceStatus>(existingChecklist.zoning ?? 'pending');
+  const [ddSuccess, setDdSuccess] = useState(false);
+
+  const ddMutation = useMutation({
+    mutationFn: () =>
+      updateDueDiligence(id, {
+        occupancy: ddOccupancy,
+        debts: ddDebts,
+        legal_risks: ddLegalRisks,
+        zoning: ddZoning,
+      }),
+    onSuccess: () => {
+      setDdSuccess(true);
+      queryClient.invalidateQueries(['auction', id]);
+      queryClient.invalidateQueries(['auction-risk', id]);
+      setTimeout(() => setDdSuccess(false), 3000);
+    },
+  });
+
+  const nextStage = asset ? getNextStage(asset.current_stage) : null;
+  const canAdvance = nextStage != null && !advanceMutation.isLoading;
+
+  if (assetLoading) return <BlockLoader message="Loading auction…" />;
+
+  if (assetError || !asset) {
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+        Auction not found or you do not have access.
+      </div>
+    );
+  }
+
+  const a = asset as AuctionAsset;
+
+  // Derive effective risk values (prefer dedicated risk endpoint, fall back to asset)
+  const effectiveRiskScore = riskData?.risk_score ?? a.risk_score ?? 0;
+  const effectiveRiskLevel: RiskLevel = riskData?.risk_level ?? (a.risk_level as RiskLevel) ?? 'LOW';
+  const biddingBlocked = effectiveRiskScore < 50 || !certidoesNegativas;
+
+  // Color helpers
+  function riskColorClass(level: RiskLevel): string {
+    switch (level) {
+      case 'HIGH':
+        return 'text-red-600';
+      case 'MEDIUM':
+        return 'text-yellow-600';
+      case 'LOW':
+      default:
+        return 'text-green-600';
+    }
+  }
+  function riskBgClass(level: RiskLevel): string {
+    switch (level) {
+      case 'HIGH':
+        return 'bg-red-100 border-red-300';
+      case 'MEDIUM':
+        return 'bg-yellow-50 border-yellow-300';
+      case 'LOW':
+      default:
+        return 'bg-green-50 border-green-300';
+    }
+  }
+
+  const DD_OPTIONS: DueDiligenceStatus[] = ['ok', 'pending', 'risk'];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-gray-900">
+          {a.title || a.asset_reference || `Auction ${a.id.slice(0, 8)}`}
+        </h2>
+        <Link href="/auctions" className="text-sm text-blue-600 hover:underline">
+          ← Back to list
+        </Link>
+      </div>
+
+      {/* Current MPGA stage */}
+      <section className="rounded-lg border border-gray-200 bg-white p-6">
+        <h3 className="text-sm font-medium text-gray-500 mb-2">Current MPGA stage</h3>
+        <p className="text-2xl font-mono font-semibold text-gray-900">{a.current_stage}</p>
+        {nextStage != null && (
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => advanceMutation.mutate(nextStage)}
+              disabled={!canAdvance}
+              className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {advanceMutation.isLoading ? 'Advancing…' : `Advance to ${nextStage}`}
+            </button>
+            {advanceMutation.isError && (
+              <p className="mt-2 text-sm text-red-600" role="alert">
+                {getApiErrorMessage(advanceMutation.error)}
+              </p>
+            )}
+          </div>
+        )}
+        {nextStage == null && (
+          <p className="mt-2 text-sm text-gray-500">Final stage (F9). No further advance.</p>
+        )}
+      </section>
+
+      {/* Risk score — prominent color-coded display */}
+      <section className={`rounded-lg border p-6 ${riskBgClass(effectiveRiskLevel)}`}>
+        <h3 className="text-sm font-medium text-gray-500 mb-2">MPGA Risk Assessment</h3>
+        <div className="flex items-center gap-4">
+          <RiskIndicator
+            riskLevel={effectiveRiskLevel}
+            riskScore={effectiveRiskScore}
+            showScore
+          />
+          <div>
+            <span className={`text-3xl font-bold ${riskColorClass(effectiveRiskLevel)}`}>
+              {effectiveRiskScore}%
+            </span>
+            <span className={`ml-2 text-lg font-semibold ${riskColorClass(effectiveRiskLevel)}`}>
+              {effectiveRiskLevel}
+            </span>
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-gray-500">Score 0-100. Hard Gate: score minimo de 50 e certidoes negativas obrigatorias.</p>
+      </section>
+
+      {/* Place Bid — Hard Gate MPGA risk blocking */}
+      <section className="rounded-lg border border-gray-200 bg-white p-6">
+        <h3 className="text-sm font-medium text-gray-500 mb-3">Place Bid</h3>
+
+        {biddingBlocked && (
+          <div className="mb-4 rounded-md border border-red-300 bg-red-50 p-3">
+            <p className="text-sm font-medium text-red-700">
+              Score minimo de 50 necessario e certidoes negativas obrigatorias
+            </p>
+          </div>
+        )}
+
+        <div className="mb-4">
+          <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={certidoesNegativas}
+              onChange={(e) => setCertidoesNegativas(e.target.checked)}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+            />
+            Certidoes Negativas verificadas
+          </label>
+          <p className="mt-1 text-xs text-gray-500">Obrigatorio para liberar lance</p>
+        </div>
+
+        <div className="flex items-end gap-3">
+          <div className="flex-1">
+            <label htmlFor="bid-amount" className="block text-sm font-medium text-gray-700 mb-1">
+              Bid amount (currency units)
+            </label>
+            <input
+              id="bid-amount"
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="e.g. 150000.00"
+              value={bidAmountStr}
+              onChange={(e) => {
+                setBidAmountStr(e.target.value);
+                setBidSuccess(null);
+              }}
+              disabled={biddingBlocked}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => bidMutation.mutate()}
+            disabled={biddingBlocked || bidMutation.isLoading || !bidAmountStr}
+            className="rounded-md bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {bidMutation.isLoading ? 'Placing...' : 'Place Bid'}
+          </button>
+        </div>
+
+        {bidMutation.isError && (
+          <p className="mt-2 text-sm text-red-600" role="alert">
+            {getApiErrorMessage(bidMutation.error)}
+          </p>
+        )}
+        {bidSuccess && (
+          <p className="mt-2 text-sm text-green-600">{bidSuccess}</p>
+        )}
+      </section>
+
+      {/* Due Diligence Checklist */}
+      <section className="rounded-lg border border-gray-200 bg-white p-6">
+        <h3 className="text-sm font-medium text-gray-500 mb-4">Due Diligence Checklist</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {([
+            { label: 'Occupancy', value: ddOccupancy, setter: setDdOccupancy },
+            { label: 'Debts', value: ddDebts, setter: setDdDebts },
+            { label: 'Legal Risks', value: ddLegalRisks, setter: setDdLegalRisks },
+            { label: 'Zoning', value: ddZoning, setter: setDdZoning },
+          ] as const).map(({ label, value, setter }) => (
+            <div key={label}>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+              <select
+                value={value}
+                onChange={(e) => setter(e.target.value as DueDiligenceStatus)}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              >
+                {DD_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => ddMutation.mutate()}
+            disabled={ddMutation.isLoading}
+            className="rounded-md bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {ddMutation.isLoading ? 'Updating...' : 'Update Due Diligence'}
+          </button>
+          {ddMutation.isError && (
+            <p className="mt-2 text-sm text-red-600" role="alert">
+              {getApiErrorMessage(ddMutation.error)}
+            </p>
+          )}
+          {ddSuccess && (
+            <p className="mt-2 text-sm text-green-600">Due diligence updated successfully.</p>
+          )}
+        </div>
+      </section>
+
+      {/* ROI summary */}
+      <section className="rounded-lg border border-gray-200 bg-white p-6">
+        <h3 className="text-sm font-medium text-gray-500 mb-3">ROI summary</h3>
+        {roiLoading && <p className="text-sm text-gray-500">Loading…</p>}
+        {roiError ? <p className="text-sm text-gray-500">ROI not calculated for this asset yet.</p> : null}
+        {roi && !roiError && (
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+            <dt className="text-gray-600">Total cost</dt>
+            <dd className="font-medium"><CurrencyDisplay cents={roi.outputs.total_cost_cents} /></dd>
+            <dt className="text-gray-600">Net profit</dt>
+            <dd className="font-medium"><CurrencyDisplay cents={roi.outputs.net_profit_cents} /></dd>
+            <dt className="text-gray-600">ROI %</dt>
+            <dd className="font-medium">{roi.outputs.roi_percentage.toFixed(2)}%</dd>
+            <dt className="text-gray-600">Break-even date</dt>
+            <dd className="font-medium"><DateDisplay value={roi.outputs.break_even_date} style="short" /></dd>
+            <dt className="text-gray-600">Version</dt>
+            <dd className="font-medium">{roi.version_number}</dd>
+          </dl>
+        )}
+      </section>
+
+      {/* ROI Input Form */}
+      <ROIInputForm assetId={id} onSuccess={() => { queryClient.invalidateQueries(['auction-roi', id]); }} />
+
+      {/* Historical ROI Versions */}
+      <ROIVersionsTable assetId={id} />
+
+      {/* Linked documents */}
+      <section className="rounded-lg border border-gray-200 bg-white p-6">
+        <h3 className="text-sm font-medium text-gray-500 mb-3">Linked documents</h3>
+        {!(a.linked_document_ids || []).length ? (
+          <p className="text-sm text-gray-500">No linked documents.</p>
+        ) : (
+          <ul className="space-y-1">
+            {(a.linked_document_ids || []).map((docId: string) => (
+              <li key={docId}>
+                <Link
+                  href={`/legal/documents/${docId}`}
+                  className="text-sm text-blue-600 hover:underline"
+                >
+                  Document {docId.slice(0, 8)}…
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+}

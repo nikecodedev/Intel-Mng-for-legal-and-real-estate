@@ -1,0 +1,436 @@
+'use client';
+
+import { useState } from 'react';
+import { useQuery, useQueryClient } from 'react-query';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { DateDisplay, StatusBadge, BlockLoader } from '@/components/ui';
+import { formatPercent } from '@/lib/utils';
+import { fetchDocumentById, fetchDocumentFacts, type DocumentFact, type QualityFlag } from '@/lib/legal-api';
+import { api } from '@/lib/api';
+
+const PAGE_SIZE = 10;
+
+interface MonetaryValue {
+  type?: string;
+  value: number;
+  currency?: string;
+  description?: string;
+}
+
+function MonetaryValuesTable({ values }: { values: MonetaryValue[] }) {
+  const [page, setPage] = useState(0);
+  const totalPages = Math.ceil(values.length / PAGE_SIZE);
+  const pageValues = values.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  return (
+    <div>
+      <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">#</th>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">Value</th>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">Currency</th>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">Description</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {pageValues.map((m, i) => (
+              <tr key={page * PAGE_SIZE + i} className="hover:bg-gray-50">
+                <td className="px-4 py-2 text-gray-500">{page * PAGE_SIZE + i + 1}</td>
+                <td className="px-4 py-2 font-medium text-gray-900">
+                  {typeof m.value === 'number' ? m.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : String(m.value)}
+                </td>
+                <td className="px-4 py-2 text-gray-700">{m.currency || 'BRL'}</td>
+                <td className="px-4 py-2 text-gray-700">{m.description || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {totalPages > 1 ? (
+        <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+          <span>{values.length} value(s) — page {page + 1} of {totalPages}</span>
+          <div className="flex gap-1">
+            <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="px-2 py-1 rounded border border-gray-300 disabled:opacity-30 hover:bg-gray-100">Prev</button>
+            <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="px-2 py-1 rounded border border-gray-300 disabled:opacity-30 hover:bg-gray-100">Next</button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function PartiesTable({ parties }: { parties: Array<{ name?: string; role?: string; cpf_cnpj?: string }> }) {
+  const [page, setPage] = useState(0);
+  const totalPages = Math.ceil(parties.length / PAGE_SIZE);
+  const pageParties = parties.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  return (
+    <div>
+      <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">Name</th>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">Role</th>
+              <th className="px-4 py-2 text-left font-medium text-gray-600">CPF/CNPJ</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {pageParties.map((p, i) => (
+              <tr key={page * PAGE_SIZE + i} className="hover:bg-gray-50">
+                <td className="px-4 py-2 font-medium text-gray-900">{p.name || '—'}</td>
+                <td className="px-4 py-2 text-gray-700">{p.role || '—'}</td>
+                <td className="px-4 py-2 text-gray-700">{p.cpf_cnpj || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {totalPages > 1 ? (
+        <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+          <span>{parties.length} partie(s) — page {page + 1} of {totalPages}</span>
+          <div className="flex gap-1">
+            <button onClick={() => setPage(pp => Math.max(0, pp - 1))} disabled={page === 0} className="px-2 py-1 rounded border border-gray-300 disabled:opacity-30 hover:bg-gray-100">Prev</button>
+            <button onClick={() => setPage(pp => Math.min(totalPages - 1, pp + 1))} disabled={page >= totalPages - 1} className="px-2 py-1 rounded border border-gray-300 disabled:opacity-30 hover:bg-gray-100">Next</button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export default function LegalDocumentDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params;
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  const { data, isLoading, error } = useQuery(['legal-document', id], () => fetchDocumentById(id), {
+    staleTime: 60 * 1000,
+  });
+  const { data: facts = [], isLoading: factsLoading } = useQuery(
+    ['legal-document-facts', id],
+    () => fetchDocumentFacts(id),
+    { staleTime: 60 * 1000, enabled: !!id }
+  );
+  const { data: extractions } = useQuery(
+    ['legal-document-extractions', id],
+    async () => { const r = await api.get(`/documents/${id}/extractions`); return r.data?.data ?? r.data; },
+    { staleTime: 60 * 1000, enabled: !!id, retry: false }
+  );
+
+  // Edit metadata state
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editType, setEditType] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+
+  // Delete state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Quality flag state
+  const [showFlagForm, setShowFlagForm] = useState(false);
+  const [flagType, setFlagType] = useState('MANUAL_REVIEW');
+  const [flagDesc, setFlagDesc] = useState('');
+  const [flagSeverity, setFlagSeverity] = useState('WARNING');
+  const [flagLoading, setFlagLoading] = useState(false);
+
+  const [actionMsg, setActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  function startEdit() {
+    const doc = data?.data?.document;
+    setEditTitle(doc?.title ?? '');
+    setEditType(doc?.document_type ?? '');
+    setEditNotes((doc as any)?.notes ?? '');
+    setEditing(true);
+    setActionMsg(null);
+  }
+
+  async function saveEdit() {
+    setEditLoading(true);
+    try {
+      await api.put(`/documents/${id}`, { title: editTitle, document_type: editType, notes: editNotes });
+      setEditing(false);
+      setActionMsg({ type: 'success', text: 'Metadata updated.' });
+      queryClient.invalidateQueries(['legal-document', id]);
+    } catch (err: any) {
+      setActionMsg({ type: 'error', text: err?.response?.data?.message || 'Update failed.' });
+    } finally {
+      setEditLoading(false);
+    }
+  }
+
+  async function handleDelete() {
+    setDeleteLoading(true);
+    try {
+      await api.delete(`/documents/${id}`);
+      router.push('/legal');
+    } catch (err: any) {
+      setActionMsg({ type: 'error', text: err?.response?.data?.message || 'Delete failed.' });
+      setShowDeleteConfirm(false);
+    } finally {
+      setDeleteLoading(false);
+    }
+  }
+
+  async function submitFlag() {
+    setFlagLoading(true);
+    try {
+      await api.post(`/documents/${id}/quality-flags`, { flag_type: flagType, description: flagDesc, severity: flagSeverity });
+      setShowFlagForm(false);
+      setFlagDesc('');
+      setActionMsg({ type: 'success', text: 'Quality flag submitted.' });
+      queryClient.invalidateQueries(['legal-document', id]);
+    } catch (err: any) {
+      setActionMsg({ type: 'error', text: err?.response?.data?.message || 'Flag submission failed.' });
+    } finally {
+      setFlagLoading(false);
+    }
+  }
+
+  if (isLoading) return <BlockLoader message="Loading document…" />;
+
+  if (error || !data?.data) {
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+        Document not found or you don’t have access.
+      </div>
+    );
+  }
+
+  const { document, extraction, quality_flags } = data.data;
+  const ext = extraction;
+
+  return (
+    <div className="space-y-6">
+      {actionMsg && (
+        <div className={`rounded-lg border p-3 text-sm ${actionMsg.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+          {actionMsg.text}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-gray-900">{document.title || document.document_number}</h2>
+        <div className="flex items-center gap-2">
+          <button onClick={startEdit} className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Edit</button>
+          <button onClick={() => setShowFlagForm(true)} className="rounded border border-amber-300 px-3 py-1.5 text-sm text-amber-700 hover:bg-amber-50">Flag</button>
+          <button onClick={() => setShowDeleteConfirm(true)} className="rounded border border-red-300 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50">Delete</button>
+          <Link href={`/legal/documents/${id}/view`} className="rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700">View source</Link>
+        </div>
+      </div>
+
+      {/* Edit metadata modal */}
+      {editing && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
+          <h3 className="text-sm font-medium text-blue-800">Edit Document Metadata</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Title</label>
+              <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Type</label>
+              <input value={editType} onChange={(e) => setEditType(e.target.value)} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Notes</label>
+            <textarea value={editNotes} onChange={(e) => setEditNotes(e.target.value)} rows={2} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={saveEdit} disabled={editLoading} className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50">{editLoading ? 'Saving...' : 'Save'}</button>
+            <button onClick={() => setEditing(false)} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation */}
+      {showDeleteConfirm && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+          <p className="text-sm text-red-800 mb-3">Are you sure you want to delete this document? This action cannot be undone.</p>
+          <div className="flex gap-2">
+            <button onClick={handleDelete} disabled={deleteLoading} className="rounded bg-red-600 px-4 py-1.5 text-sm text-white hover:bg-red-700 disabled:opacity-50">{deleteLoading ? 'Deleting...' : 'Confirm Delete'}</button>
+            <button onClick={() => setShowDeleteConfirm(false)} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Submit quality flag form */}
+      {showFlagForm && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3">
+          <h3 className="text-sm font-medium text-amber-800">Submit Quality Flag</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Type</label>
+              <select value={flagType} onChange={(e) => setFlagType(e.target.value)} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm">
+                <option value="MANUAL_REVIEW">Manual Review</option>
+                <option value="DATA_QUALITY">Data Quality</option>
+                <option value="OCR_ERROR">OCR Error</option>
+                <option value="MISSING_DATA">Missing Data</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Severity</label>
+              <select value={flagSeverity} onChange={(e) => setFlagSeverity(e.target.value)} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm">
+                <option value="INFO">Info</option>
+                <option value="WARNING">Warning</option>
+                <option value="ERROR">Error</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Description</label>
+            <textarea value={flagDesc} onChange={(e) => setFlagDesc(e.target.value)} rows={2} className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm" placeholder="Describe the issue..." />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={submitFlag} disabled={flagLoading || !flagDesc.trim()} className="rounded bg-amber-600 px-4 py-1.5 text-sm text-white hover:bg-amber-700 disabled:opacity-50">{flagLoading ? 'Submitting...' : 'Submit Flag'}</button>
+            <button onClick={() => setShowFlagForm(false)} className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      <section className="rounded-lg border border-gray-200 bg-white p-6">
+        <h3 className="text-sm font-medium text-gray-500 mb-3">Document</h3>
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+          <dt className="text-gray-600">Number</dt><dd className="font-medium">{document.document_number}</dd>
+          <dt className="text-gray-600">Type</dt><dd className="font-medium">{document.document_type}</dd>
+          <dt className="text-gray-600">Status (CPO)</dt><dd className="font-medium"><StatusBadge variant="cpo" value={document.status_cpo} /></dd>
+          <dt className="text-gray-600">OCR confidence</dt>
+          <dd className="font-medium flex items-center gap-2">
+            {document.ocr_confidence != null ? formatPercent(Number(document.ocr_confidence), false) : '—'}
+            {quality_flags && (quality_flags as QualityFlag[]).some((f) => f.flag_type === 'OCR_VISION_FALLBACK_USED') && (
+              <span className="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">
+                OCR Fallback used (Gemini Vision)
+              </span>
+            )}
+          </dd>
+          <dt className="text-gray-600">Created</dt><dd className="font-medium"><DateDisplay value={document.created_at} style="long" /></dd>
+        </dl>
+      </section>
+
+      {ext && (
+        <section className="rounded-lg border border-gray-200 bg-white p-6">
+          <h3 className="text-sm font-medium text-gray-500 mb-3">Extracted fields</h3>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+            {ext.process_number != null && <><dt className="text-gray-600">Process number</dt><dd className="font-medium">{String(ext.process_number)}</dd></>}
+            {ext.court != null && <><dt className="text-gray-600">Court</dt><dd className="font-medium">{String(ext.court)}</dd></>}
+            {ext.overall_confidence != null && <><dt className="text-gray-600">Confidence</dt><dd className="font-medium">{formatPercent(Number(ext.overall_confidence), false)}</dd></>}
+            {ext.processed_at != null && <><dt className="text-gray-600">Processed at</dt><dd className="font-medium"><DateDisplay value={ext.processed_at} style="long" /></dd></>}
+          </dl>
+          {Array.isArray(ext.parties) && ext.parties.length > 0 ? (
+            <div className="mt-4">
+              <h4 className="text-sm font-medium text-gray-600 mb-2">Parties</h4>
+              <PartiesTable parties={ext.parties as Array<{ name?: string; role?: string; cpf_cnpj?: string }>} />
+            </div>
+          ) : null}
+          {Array.isArray(ext.monetary_values) && (ext.monetary_values as unknown[]).length > 0 ? (
+            <div className="mt-4">
+              <h4 className="text-sm font-medium text-gray-600 mb-2">Monetary values</h4>
+              <MonetaryValuesTable values={ext.monetary_values as MonetaryValue[]} />
+            </div>
+          ) : null}
+        </section>
+      )}
+
+      {/* FPDN Structured Analysis */}
+      {(() => {
+        const fpdnFatos = facts.filter((f: DocumentFact) => f.fact_type === 'fato_juridico');
+        const fpdnProvas = facts.filter((f: DocumentFact) => f.fact_type === 'prova');
+        const fpdnDireito = facts.filter((f: DocumentFact) => f.fact_type === 'direito');
+        const fpdnNexo = facts.filter((f: DocumentFact) => f.fact_type === 'nexo_causal');
+        const hasFPDN = fpdnFatos.length > 0 || fpdnProvas.length > 0 || fpdnDireito.length > 0 || fpdnNexo.length > 0;
+
+        if (!hasFPDN) return null;
+
+        return (
+          <section className="rounded-lg border border-indigo-200 bg-indigo-50 p-6">
+            <h3 className="text-sm font-semibold text-indigo-800 mb-4">FPDN — Análise Jurídica Estruturada</h3>
+
+            {fpdnFatos.length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-xs font-bold text-indigo-700 uppercase tracking-wide mb-1">Fatos</h4>
+                <ul className="space-y-1">
+                  {fpdnFatos.map((f: DocumentFact) => (
+                    <li key={f.id} className="text-sm text-gray-900 pl-3 border-l-2 border-indigo-300">{String(f.fact_value)}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {fpdnProvas.length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-xs font-bold text-indigo-700 uppercase tracking-wide mb-1">Provas</h4>
+                <ul className="space-y-1">
+                  {fpdnProvas.map((f: DocumentFact) => (
+                    <li key={f.id} className="text-sm text-gray-900 pl-3 border-l-2 border-green-300">
+                      {String(f.fact_value)}
+                      {f.page_number != null && <span className="ml-2 text-xs text-green-700 font-medium">(página {f.page_number})</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {fpdnDireito.length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-xs font-bold text-indigo-700 uppercase tracking-wide mb-1">Direito</h4>
+                {fpdnDireito.map((f: DocumentFact) => (
+                  <p key={f.id} className="text-sm text-gray-900 pl-3 border-l-2 border-blue-300">{String(f.fact_value)}</p>
+                ))}
+              </div>
+            )}
+
+            {fpdnNexo.length > 0 && (
+              <div>
+                <h4 className="text-xs font-bold text-indigo-700 uppercase tracking-wide mb-1">Nexo Causal</h4>
+                {fpdnNexo.map((f: DocumentFact) => (
+                  <p key={f.id} className="text-sm text-gray-900 pl-3 border-l-2 border-amber-300">{String(f.fact_value)}</p>
+                ))}
+              </div>
+            )}
+          </section>
+        );
+      })()}
+
+      <section className="rounded-lg border border-gray-200 bg-white p-6">
+        <h3 className="text-sm font-medium text-gray-500 mb-3">All extracted facts</h3>
+        {factsLoading ? (
+          <p className="text-sm text-gray-500">Loading facts…</p>
+        ) : facts.length === 0 ? (
+          <p className="text-sm text-gray-500">No facts extracted yet.</p>
+        ) : (
+          <ul className="space-y-2">
+            {facts.map((f: DocumentFact) => (
+              <li key={f.id} className="flex flex-wrap gap-2 text-sm">
+                <span className="font-medium text-gray-700">{f.fact_type}:</span>
+                <span className="text-gray-900">{typeof f.fact_value === 'object' ? JSON.stringify(f.fact_value) : String(f.fact_value)}</span>
+                {f.page_number != null && <span className="text-gray-500">(p.{f.page_number})</span>}
+                {f.confidence_score != null && <span className="text-gray-500">{Math.round(Number(f.confidence_score) * 100)}%</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {quality_flags && quality_flags.length > 0 && (
+        <section className="rounded-lg border border-amber-200 bg-amber-50 p-6">
+          <h3 className="text-sm font-medium text-amber-800 mb-3">Quality flags</h3>
+          <ul className="space-y-2">
+            {(quality_flags as QualityFlag[]).map((f) => (
+              <li key={f.id} className="text-sm">
+                <span className="font-medium">{f.flag_type}</span> ({f.severity}): {f.flag_message}
+                {f.severity === 'ERROR' && (
+                  <span className="ml-2 inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">BLOCKING</span>
+                )}
+                <span className="text-amber-700 ml-2">— {f.queue_status}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+}

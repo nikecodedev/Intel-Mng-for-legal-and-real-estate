@@ -1,0 +1,444 @@
+-- ============================================
+-- Migration 010: Finance & Accounting Module
+-- Accounts payable/receivable, transactions, bank reconciliation
+-- No orphan transactions - must link to case/asset/client
+-- ============================================
+
+-- Financial Transactions table (core transaction record)
+CREATE TABLE IF NOT EXISTS financial_transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    
+    -- Tenant isolation (mandatory)
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    
+    -- Transaction identification
+    transaction_number VARCHAR(255) NOT NULL, -- e.g., "TXN-2024-001"
+    transaction_type VARCHAR(50) NOT NULL, -- 'PAYABLE', 'RECEIVABLE', 'EXPENSE', 'INCOME', 'TRANSFER'
+    transaction_category VARCHAR(100), -- e.g., "legal_fees", "maintenance", "rent", "sale"
+    
+    -- Amount and currency
+    amount_cents BIGINT NOT NULL, -- Amount in cents (for precision)
+    currency VARCHAR(3) DEFAULT 'BRL', -- ISO currency code
+    exchange_rate DECIMAL(10, 6) DEFAULT 1.0, -- For foreign currency transactions
+    
+    -- Transaction date and due date
+    transaction_date DATE NOT NULL,
+    due_date DATE, -- For payable/receivable
+    paid_date DATE, -- When payment was completed
+    
+    -- MANDATORY LINK - No orphan transactions allowed
+    -- Must link to ONE of: process_id (case), real_estate_asset_id, OR client_id
+    process_id UUID REFERENCES processes(id) ON DELETE SET NULL, -- Link to case/process
+    real_estate_asset_id UUID REFERENCES real_estate_assets(id) ON DELETE SET NULL, -- Link to asset
+    client_id UUID, -- Link to client (future: REFERENCES clients(id))
+    
+    -- Constraint: At least one link must be provided
+    CONSTRAINT no_orphan_transaction CHECK (
+        (process_id IS NOT NULL)::int + 
+        (real_estate_asset_id IS NOT NULL)::int + 
+        (client_id IS NOT NULL)::int >= 1
+    ),
+    
+    -- Payment information
+    payment_status VARCHAR(50) NOT NULL DEFAULT 'PENDING', -- PENDING, PAID, PARTIAL, CANCELLED, OVERDUE
+    payment_method VARCHAR(100), -- e.g., "bank_transfer", "credit_card", "cash", "check"
+    payment_reference VARCHAR(255), -- Check number, transfer reference, etc.
+    
+    -- MANDATORY PROOF UPLOAD for paid transactions
+    proof_document_id UUID REFERENCES documents(id) ON DELETE SET NULL, -- Proof of payment (receipt, invoice, etc.)
+    CONSTRAINT proof_required_for_paid CHECK (
+        payment_status != 'PAID' OR proof_document_id IS NOT NULL
+    ),
+    
+    -- Bank reconciliation
+    bank_account_id VARCHAR(255), -- Bank account identifier
+    bank_transaction_id VARCHAR(255), -- External bank transaction ID (from OFX/CSV import)
+    is_reconciled BOOLEAN DEFAULT false,
+    reconciled_at TIMESTAMP WITH TIME ZONE,
+    reconciled_by UUID REFERENCES users(id),
+    
+    -- Vendor/Payee information
+    vendor_name VARCHAR(255),
+    vendor_tax_id VARCHAR(50), -- CNPJ/CPF
+    vendor_account_number VARCHAR(100),
+    
+    -- Description and notes
+    description TEXT NOT NULL,
+    notes TEXT,
+    tags TEXT[],
+    metadata JSONB DEFAULT '{}'::jsonb,
+    
+    -- Approval workflow
+    requires_approval BOOLEAN DEFAULT false,
+    approved_by UUID REFERENCES users(id),
+    approved_at TIMESTAMP WITH TIME ZONE,
+    rejection_reason TEXT,
+    
+    -- Ownership and assignment
+    created_by UUID REFERENCES users(id),
+    assigned_to_id UUID REFERENCES users(id), -- Person responsible for payment/collection
+    
+    -- Timestamps
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    deleted_at TIMESTAMP WITH TIME ZONE,
+    deleted_by UUID REFERENCES users(id),
+    
+    -- Constraints
+    CONSTRAINT positive_amount CHECK (amount_cents > 0),
+    CONSTRAINT valid_transaction_type CHECK (
+        transaction_type IN ('PAYABLE', 'RECEIVABLE', 'EXPENSE', 'INCOME', 'TRANSFER')
+    ),
+    CONSTRAINT valid_payment_status CHECK (
+        payment_status IN ('PENDING', 'PAID', 'PARTIAL', 'CANCELLED', 'OVERDUE')
+    ),
+    CONSTRAINT valid_due_date CHECK (due_date IS NULL OR due_date >= transaction_date)
+);
+
+CREATE INDEX idx_financial_transactions_tenant_id ON financial_transactions(tenant_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_financial_transactions_number ON financial_transactions(transaction_number) WHERE deleted_at IS NULL;
+CREATE INDEX idx_financial_transactions_type ON financial_transactions(tenant_id, transaction_type) WHERE deleted_at IS NULL;
+CREATE INDEX idx_financial_transactions_status ON financial_transactions(tenant_id, payment_status) WHERE deleted_at IS NULL;
+CREATE INDEX idx_financial_transactions_date ON financial_transactions(transaction_date) WHERE deleted_at IS NULL;
+CREATE INDEX idx_financial_transactions_due_date ON financial_transactions(due_date) WHERE deleted_at IS NULL AND due_date IS NOT NULL;
+CREATE INDEX idx_financial_transactions_process ON financial_transactions(process_id) WHERE process_id IS NOT NULL;
+CREATE INDEX idx_financial_transactions_asset ON financial_transactions(real_estate_asset_id) WHERE real_estate_asset_id IS NOT NULL;
+CREATE INDEX idx_financial_transactions_client ON financial_transactions(client_id) WHERE client_id IS NOT NULL;
+CREATE INDEX idx_financial_transactions_reconciled ON financial_transactions(tenant_id, is_reconciled) WHERE deleted_at IS NULL;
+CREATE INDEX idx_financial_transactions_bank_id ON financial_transactions(bank_transaction_id) WHERE bank_transaction_id IS NOT NULL;
+
+COMMENT ON TABLE financial_transactions IS 'Financial transactions - must link to case/asset/client (no orphans)';
+COMMENT ON COLUMN financial_transactions.proof_document_id IS 'MANDATORY: Proof document required to mark payment as PAID';
+COMMENT ON COLUMN financial_transactions.process_id IS 'Link to case/process (one of: process_id, real_estate_asset_id, or client_id required)';
+
+-- Accounts Payable table (tracks what we owe)
+CREATE TABLE IF NOT EXISTS accounts_payable (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    
+    -- Tenant isolation (mandatory)
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    
+    -- Link to transaction
+    transaction_id UUID NOT NULL REFERENCES financial_transactions(id) ON DELETE CASCADE,
+    
+    -- Vendor information
+    vendor_name VARCHAR(255) NOT NULL,
+    vendor_tax_id VARCHAR(50), -- CNPJ/CPF
+    vendor_contact_email VARCHAR(255),
+    vendor_contact_phone VARCHAR(50),
+    
+    -- Invoice information
+    invoice_number VARCHAR(255),
+    invoice_date DATE,
+    invoice_due_date DATE NOT NULL,
+    
+    -- Amount tracking
+    original_amount_cents BIGINT NOT NULL,
+    paid_amount_cents BIGINT DEFAULT 0,
+    remaining_amount_cents BIGINT NOT NULL, -- Calculated: original - paid
+    
+    -- Payment tracking
+    payment_status VARCHAR(50) NOT NULL DEFAULT 'PENDING', -- PENDING, PAID, PARTIAL, OVERDUE
+    last_payment_date DATE,
+    
+    -- Approval and workflow
+    requires_approval BOOLEAN DEFAULT false,
+    approved_by UUID REFERENCES users(id),
+    approved_at TIMESTAMP WITH TIME ZONE,
+    
+    -- Notes
+    notes TEXT,
+    tags TEXT[],
+    metadata JSONB DEFAULT '{}'::jsonb,
+    
+    -- Timestamps
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    deleted_at TIMESTAMP WITH TIME ZONE,
+    deleted_by UUID REFERENCES users(id),
+    
+    -- Constraints
+    CONSTRAINT positive_amounts CHECK (
+        original_amount_cents > 0 AND 
+        paid_amount_cents >= 0 AND 
+        remaining_amount_cents >= 0
+    ),
+    CONSTRAINT valid_payment_status CHECK (
+        payment_status IN ('PENDING', 'PAID', 'PARTIAL', 'OVERDUE', 'CANCELLED')
+    )
+);
+
+CREATE INDEX idx_accounts_payable_tenant_id ON accounts_payable(tenant_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_accounts_payable_transaction ON accounts_payable(transaction_id);
+CREATE INDEX idx_accounts_payable_status ON accounts_payable(tenant_id, payment_status) WHERE deleted_at IS NULL;
+CREATE INDEX idx_accounts_payable_due_date ON accounts_payable(invoice_due_date) WHERE deleted_at IS NULL;
+CREATE INDEX idx_accounts_payable_vendor ON accounts_payable(tenant_id, vendor_name) WHERE deleted_at IS NULL;
+
+COMMENT ON TABLE accounts_payable IS 'Accounts payable - tracks what we owe to vendors';
+
+-- Accounts Receivable table (tracks what is owed to us)
+CREATE TABLE IF NOT EXISTS accounts_receivable (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    
+    -- Tenant isolation (mandatory)
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    
+    -- Link to transaction
+    transaction_id UUID NOT NULL REFERENCES financial_transactions(id) ON DELETE CASCADE,
+    
+    -- Client/Customer information
+    client_name VARCHAR(255) NOT NULL,
+    client_tax_id VARCHAR(50), -- CNPJ/CPF
+    client_contact_email VARCHAR(255),
+    client_contact_phone VARCHAR(50),
+    
+    -- Invoice information
+    invoice_number VARCHAR(255),
+    invoice_date DATE,
+    invoice_due_date DATE NOT NULL,
+    
+    -- Amount tracking
+    original_amount_cents BIGINT NOT NULL,
+    received_amount_cents BIGINT DEFAULT 0,
+    remaining_amount_cents BIGINT NOT NULL, -- Calculated: original - received
+    
+    -- Payment tracking
+    payment_status VARCHAR(50) NOT NULL DEFAULT 'PENDING', -- PENDING, PAID, PARTIAL, OVERDUE
+    last_payment_date DATE,
+    
+    -- Notes
+    notes TEXT,
+    tags TEXT[],
+    metadata JSONB DEFAULT '{}'::jsonb,
+    
+    -- Timestamps
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    deleted_at TIMESTAMP WITH TIME ZONE,
+    deleted_by UUID REFERENCES users(id),
+    
+    -- Constraints
+    CONSTRAINT positive_amounts CHECK (
+        original_amount_cents > 0 AND 
+        received_amount_cents >= 0 AND 
+        remaining_amount_cents >= 0
+    ),
+    CONSTRAINT valid_payment_status CHECK (
+        payment_status IN ('PENDING', 'PAID', 'PARTIAL', 'OVERDUE', 'CANCELLED')
+    )
+);
+
+CREATE INDEX idx_accounts_receivable_tenant_id ON accounts_receivable(tenant_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_accounts_receivable_transaction ON accounts_receivable(transaction_id);
+CREATE INDEX idx_accounts_receivable_status ON accounts_receivable(tenant_id, payment_status) WHERE deleted_at IS NULL;
+CREATE INDEX idx_accounts_receivable_due_date ON accounts_receivable(invoice_due_date) WHERE deleted_at IS NULL;
+CREATE INDEX idx_accounts_receivable_client ON accounts_receivable(tenant_id, client_name) WHERE deleted_at IS NULL;
+
+COMMENT ON TABLE accounts_receivable IS 'Accounts receivable - tracks what is owed to us';
+
+-- Bank Reconciliation table (tracks imported bank transactions)
+CREATE TABLE IF NOT EXISTS bank_reconciliation (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    
+    -- Tenant isolation (mandatory)
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    
+    -- Bank account information
+    bank_account_id VARCHAR(255) NOT NULL,
+    bank_name VARCHAR(255),
+    account_number VARCHAR(100),
+    account_type VARCHAR(50), -- CHECKING, SAVINGS, etc.
+    
+    -- Import information
+    import_source VARCHAR(50) NOT NULL, -- 'OFX', 'CSV', 'MANUAL'
+    import_file_name VARCHAR(255),
+    import_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    imported_by UUID REFERENCES users(id),
+    
+    -- Transaction information (from bank)
+    bank_transaction_id VARCHAR(255) NOT NULL, -- External bank transaction ID
+    transaction_date DATE NOT NULL,
+    transaction_type VARCHAR(50), -- DEBIT, CREDIT
+    amount_cents BIGINT NOT NULL,
+    currency VARCHAR(3) DEFAULT 'BRL',
+    description TEXT,
+    memo TEXT,
+    
+    -- Reconciliation status
+    is_reconciled BOOLEAN DEFAULT false,
+    reconciled_transaction_id UUID REFERENCES financial_transactions(id) ON DELETE SET NULL,
+    reconciled_at TIMESTAMP WITH TIME ZONE,
+    reconciled_by UUID REFERENCES users(id),
+    
+    -- Matching information
+    match_confidence DECIMAL(3, 2), -- 0.00 to 1.00 - confidence in automatic match
+    match_reason TEXT, -- Why this transaction was matched
+    
+    -- Raw import data (for audit)
+    raw_data JSONB, -- Original OFX/CSV data
+    
+    -- Metadata
+    metadata JSONB DEFAULT '{}'::jsonb,
+    
+    -- Timestamps
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    
+    -- Constraints
+    CONSTRAINT positive_amount CHECK (amount_cents != 0),
+    CONSTRAINT valid_import_source CHECK (import_source IN ('OFX', 'CSV', 'MANUAL')),
+    CONSTRAINT valid_match_confidence CHECK (match_confidence IS NULL OR (match_confidence >= 0 AND match_confidence <= 1))
+);
+
+CREATE INDEX idx_bank_reconciliation_tenant_id ON bank_reconciliation(tenant_id);
+CREATE INDEX idx_bank_reconciliation_account ON bank_reconciliation(tenant_id, bank_account_id);
+CREATE INDEX idx_bank_reconciliation_transaction_id ON bank_reconciliation(bank_transaction_id);
+CREATE INDEX idx_bank_reconciliation_reconciled ON bank_reconciliation(tenant_id, is_reconciled);
+CREATE INDEX idx_bank_reconciliation_date ON bank_reconciliation(transaction_date);
+CREATE INDEX idx_bank_reconciliation_import_date ON bank_reconciliation(import_date);
+
+COMMENT ON TABLE bank_reconciliation IS 'Bank reconciliation - imported bank transactions for matching';
+
+-- Expense Capture table (mobile-friendly expense tracking)
+CREATE TABLE IF NOT EXISTS expense_capture (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    
+    -- Tenant isolation (mandatory)
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    
+    -- Expense information
+    expense_date DATE NOT NULL,
+    amount_cents BIGINT NOT NULL,
+    currency VARCHAR(3) DEFAULT 'BRL',
+    category VARCHAR(100), -- e.g., "meals", "travel", "supplies", "utilities"
+    description TEXT NOT NULL,
+    
+    -- MANDATORY LINK - No orphan expenses
+    process_id UUID REFERENCES processes(id) ON DELETE SET NULL,
+    real_estate_asset_id UUID REFERENCES real_estate_assets(id) ON DELETE SET NULL,
+    client_id UUID,
+    
+    -- Constraint: At least one link required
+    CONSTRAINT no_orphan_expense CHECK (
+        (process_id IS NOT NULL)::int + 
+        (real_estate_asset_id IS NOT NULL)::int + 
+        (client_id IS NOT NULL)::int >= 1
+    ),
+    
+    -- Mobile capture metadata
+    captured_via VARCHAR(50) DEFAULT 'MOBILE', -- MOBILE, WEB, API
+    captured_location JSONB, -- GPS coordinates: {lat, lng, address}
+    captured_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    captured_by UUID REFERENCES users(id),
+    
+    -- Receipt/Proof
+    receipt_document_id UUID REFERENCES documents(id) ON DELETE SET NULL, -- Receipt photo/document
+    receipt_ocr_data JSONB, -- OCR extracted data from receipt
+    
+    -- Approval workflow
+    status VARCHAR(50) DEFAULT 'DRAFT', -- DRAFT, SUBMITTED, APPROVED, REJECTED, PAID
+    submitted_at TIMESTAMP WITH TIME ZONE,
+    approved_by UUID REFERENCES users(id),
+    approved_at TIMESTAMP WITH TIME ZONE,
+    rejection_reason TEXT,
+    
+    -- Link to transaction (when approved and paid)
+    transaction_id UUID REFERENCES financial_transactions(id) ON DELETE SET NULL,
+    
+    -- Metadata
+    tags TEXT[],
+    metadata JSONB DEFAULT '{}'::jsonb,
+    
+    -- Timestamps
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    deleted_at TIMESTAMP WITH TIME ZONE,
+    deleted_by UUID REFERENCES users(id),
+    
+    -- Constraints
+    CONSTRAINT positive_amount CHECK (amount_cents > 0),
+    CONSTRAINT valid_status CHECK (
+        status IN ('DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'PAID', 'CANCELLED')
+    ),
+    CONSTRAINT valid_captured_via CHECK (captured_via IN ('MOBILE', 'WEB', 'API'))
+);
+
+CREATE INDEX idx_expense_capture_tenant_id ON expense_capture(tenant_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_expense_capture_date ON expense_capture(expense_date) WHERE deleted_at IS NULL;
+CREATE INDEX idx_expense_capture_status ON expense_capture(tenant_id, status) WHERE deleted_at IS NULL;
+CREATE INDEX idx_expense_capture_process ON expense_capture(process_id) WHERE process_id IS NOT NULL;
+CREATE INDEX idx_expense_capture_asset ON expense_capture(real_estate_asset_id) WHERE real_estate_asset_id IS NOT NULL;
+CREATE INDEX idx_expense_capture_captured_by ON expense_capture(captured_by) WHERE deleted_at IS NULL;
+
+COMMENT ON TABLE expense_capture IS 'Mobile-friendly expense capture - must link to case/asset/client';
+
+-- Triggers for updated_at
+CREATE TRIGGER update_financial_transactions_updated_at 
+    BEFORE UPDATE ON financial_transactions
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_accounts_payable_updated_at 
+    BEFORE UPDATE ON accounts_payable
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_accounts_receivable_updated_at 
+    BEFORE UPDATE ON accounts_receivable
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_bank_reconciliation_updated_at 
+    BEFORE UPDATE ON bank_reconciliation
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_expense_capture_updated_at 
+    BEFORE UPDATE ON expense_capture
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Function to update remaining_amount_cents in accounts_payable
+CREATE OR REPLACE FUNCTION update_payable_remaining()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.remaining_amount_cents := NEW.original_amount_cents - NEW.paid_amount_cents;
+    
+    -- Update payment_status based on amounts
+    IF NEW.remaining_amount_cents = 0 THEN
+        NEW.payment_status := 'PAID';
+    ELSIF NEW.paid_amount_cents > 0 THEN
+        NEW.payment_status := 'PARTIAL';
+    ELSIF NEW.invoice_due_date < CURRENT_DATE AND NEW.payment_status != 'PAID' THEN
+        NEW.payment_status := 'OVERDUE';
+    ELSE
+        NEW.payment_status := 'PENDING';
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_payable_remaining_trigger
+    BEFORE INSERT OR UPDATE ON accounts_payable
+    FOR EACH ROW EXECUTE FUNCTION update_payable_remaining();
+
+-- Function to update remaining_amount_cents in accounts_receivable
+CREATE OR REPLACE FUNCTION update_receivable_remaining()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.remaining_amount_cents := NEW.original_amount_cents - NEW.received_amount_cents;
+    
+    -- Update payment_status based on amounts
+    IF NEW.remaining_amount_cents = 0 THEN
+        NEW.payment_status := 'PAID';
+    ELSIF NEW.received_amount_cents > 0 THEN
+        NEW.payment_status := 'PARTIAL';
+    ELSIF NEW.invoice_due_date < CURRENT_DATE AND NEW.payment_status != 'PAID' THEN
+        NEW.payment_status := 'OVERDUE';
+    ELSE
+        NEW.payment_status := 'PENDING';
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_receivable_remaining_trigger
+    BEFORE INSERT OR UPDATE ON accounts_receivable
+    FOR EACH ROW EXECUTE FUNCTION update_receivable_remaining();

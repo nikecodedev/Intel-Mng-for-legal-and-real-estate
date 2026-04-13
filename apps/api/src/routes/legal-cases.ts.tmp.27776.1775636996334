@@ -1,0 +1,408 @@
+import { Router, Request, Response } from 'express';
+import { z } from 'zod';
+import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware/index.js';
+import { getTenantContext } from '../utils/tenant-context.js';
+import { NotFoundError } from '../utils/errors.js';
+import { db } from '../models/database.js';
+import { AuditService, AuditAction, AuditEventCategory } from '../services/audit.js';
+import { logger } from '../utils/logger.js';
+
+const router = Router();
+
+// ============================================
+// Schema definitions
+// ============================================
+
+const createCaseSchema = z.object({
+  body: z.object({
+    case_number: z.string().min(1).max(100),
+    title: z.string().min(1),
+    client_name: z.string().optional(),
+    status: z.string().optional(),
+    assigned_lawyer_id: z.string().uuid().optional(),
+    deadline: z.string().date().optional(),
+    description: z.string().optional(),
+    metadata: z.record(z.unknown()).optional(),
+  }),
+});
+
+const createFPDNSchema = z.object({
+  body: z.object({
+    fact_type: z.string().min(1),
+    fact_value: z.string().min(1),
+    document_id: z.string().uuid(),
+    page_number: z.number().int().positive().optional(),
+    confidence_score: z.number().min(0).max(100).optional(),
+  }),
+});
+
+// ============================================
+// Legal Cases Routes
+// ============================================
+
+/**
+ * GET /legal-cases
+ * List legal cases for tenant
+ */
+router.get(
+  '/',
+  authenticate,
+  requirePermission('documents:read'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
+    const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
+    const status = req.query.status as string | undefined;
+
+    let query = `SELECT * FROM legal_cases WHERE tenant_id = $1 AND deleted_at IS NULL`;
+    const params: any[] = [tenantContext.tenantId];
+
+    if (status) {
+      params.push(status);
+      query += ` AND status = $${params.length}`;
+    }
+
+    // Count total
+    const countResult = await db.query<{ count: string }>(
+      query.replace('SELECT *', 'SELECT COUNT(*) as count'),
+      params
+    );
+    const total = parseInt(countResult.rows[0]?.count || '0', 10);
+
+    query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
+
+    const result = await db.query(query, params);
+
+    res.json({
+      success: true,
+      cases: result.rows,
+      total,
+      limit,
+      offset,
+    });
+  })
+);
+
+/**
+ * POST /legal-cases
+ * Create a new legal case
+ */
+router.post(
+  '/',
+  authenticate,
+  requirePermission('documents:create'),
+  validateRequest(createCaseSchema),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const userId = req.user!.id;
+
+    const { case_number, title, client_name, status, assigned_lawyer_id, deadline, description, metadata } = req.body;
+
+    const result = await db.query(
+      `INSERT INTO legal_cases (tenant_id, case_number, title, client_name, status, assigned_lawyer_id, deadline, description, metadata, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING *`,
+      [
+        tenantContext.tenantId,
+        case_number,
+        title,
+        client_name || null,
+        status || 'ABERTO',
+        assigned_lawyer_id || null,
+        deadline || null,
+        description || null,
+        JSON.stringify(metadata || {}),
+        userId,
+      ]
+    );
+
+    const legalCase = result.rows[0];
+
+    await AuditService.log({
+      tenantId: tenantContext.tenantId,
+      userId,
+      userEmail: req.user!.email,
+      userRole: tenantContext.role,
+      action: AuditAction.CREATE,
+      eventType: 'legal_case.create',
+      eventCategory: AuditEventCategory.DATA_MODIFICATION,
+      resourceType: 'legal_case',
+      resourceId: legalCase.id,
+      description: `Created legal case ${case_number}: ${title}`,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || undefined,
+      requestId: req.headers['x-request-id'] as string | undefined,
+    });
+
+    res.status(201).json({
+      success: true,
+      case: legalCase,
+    });
+  })
+);
+
+/**
+ * GET /legal-cases/:id
+ * Get a single legal case
+ */
+router.get(
+  '/:id',
+  authenticate,
+  requirePermission('documents:read'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const { id } = req.params;
+
+    const result = await db.query(
+      `SELECT * FROM legal_cases WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+      [id, tenantContext.tenantId]
+    );
+
+    if (result.rows.length === 0) {
+      throw new NotFoundError('Legal case');
+    }
+
+    res.json({
+      success: true,
+      case: result.rows[0],
+    });
+  })
+);
+
+/**
+ * GET /legal-cases/:id/fpdn
+ * List FPDN (Ficha de Ponto de Dados Normalizados) entries for a case
+ */
+router.get(
+  '/:id/fpdn',
+  authenticate,
+  requirePermission('documents:read'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const { id } = req.params;
+
+    // Verify case exists
+    const caseResult = await db.query(
+      `SELECT id FROM legal_cases WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+      [id, tenantContext.tenantId]
+    );
+    if (caseResult.rows.length === 0) {
+      throw new NotFoundError('Legal case');
+    }
+
+    // Query document_facts linked to this case
+    const result = await db.query(
+      `SELECT df.* FROM document_facts df
+       WHERE df.tenant_id = $1 AND df.legal_case_id = $2
+       ORDER BY df.created_at DESC`,
+      [tenantContext.tenantId, id]
+    );
+
+    res.json({
+      success: true,
+      fpdn_entries: result.rows,
+      total: result.rows.length,
+    });
+  })
+);
+
+/**
+ * POST /legal-cases/:id/fpdn
+ * Create an FPDN entry for a case
+ */
+router.post(
+  '/:id/fpdn',
+  authenticate,
+  requirePermission('documents:create'),
+  validateRequest(createFPDNSchema),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const { id } = req.params;
+    const userId = req.user!.id;
+
+    // Verify case exists
+    const caseResult = await db.query(
+      `SELECT id FROM legal_cases WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+      [id, tenantContext.tenantId]
+    );
+    if (caseResult.rows.length === 0) {
+      throw new NotFoundError('Legal case');
+    }
+
+    const { fact_key, fact_value, source_document_id, notes } = req.body;
+
+    const result = await db.query(
+      `INSERT INTO document_facts (tenant_id, fact_key, fact_value, source_document_id, source_entity_id, source_entity_type, metadata, created_by)
+       VALUES ($1, $2, $3, $4, $5, 'legal_case', $6, $7)
+       RETURNING *`,
+      [
+        tenantContext.tenantId,
+        fact_key,
+        fact_value,
+        source_document_id || null,
+        id,
+        JSON.stringify({ legal_case_id: id, notes: notes || null }),
+        userId,
+      ]
+    );
+
+    res.status(201).json({
+      success: true,
+      fpdn_entry: result.rows[0],
+    });
+  })
+);
+
+/**
+ * GET /legal-cases/:id/qg4
+ * Get QG4 score data for a case
+ */
+router.get(
+  '/:id/qg4',
+  authenticate,
+  requirePermission('documents:read'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const { id } = req.params;
+
+    const result = await db.query(
+      `SELECT id, case_number, title, qg4_score, metadata FROM legal_cases
+       WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+      [id, tenantContext.tenantId]
+    );
+
+    if (result.rows.length === 0) {
+      throw new NotFoundError('Legal case');
+    }
+
+    const legalCase = result.rows[0];
+
+    // Fetch related quality gate results if available
+    const qgResult = await db.query(
+      `SELECT * FROM quality_gate_results
+       WHERE tenant_id = $1 AND entity_id = $2 AND gate_type = 'QG4'
+       ORDER BY created_at DESC LIMIT 1`,
+      [tenantContext.tenantId, id]
+    );
+
+    res.json({
+      success: true,
+      case_id: legalCase.id,
+      case_number: legalCase.case_number,
+      title: legalCase.title,
+      qg4_score: legalCase.qg4_score,
+      quality_gate: qgResult.rows[0] || null,
+    });
+  })
+);
+
+/**
+ * POST /legal-cases/:id/qg4/calculate
+ * Calculate QG4 score for a case
+ */
+router.post(
+  '/:id/qg4/calculate',
+  authenticate,
+  requirePermission('documents:update'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const { id } = req.params;
+    const userId = req.user!.id;
+
+    // Verify case exists
+    const caseResult = await db.query(
+      `SELECT * FROM legal_cases WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+      [id, tenantContext.tenantId]
+    );
+    if (caseResult.rows.length === 0) {
+      throw new NotFoundError('Legal case');
+    }
+
+    const legalCase = caseResult.rows[0];
+
+    // Calculate QG4 score based on document facts completeness
+    const factsResult = await db.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM document_facts
+       WHERE tenant_id = $1 AND (metadata->>'legal_case_id' = $2 OR source_entity_id = $2)`,
+      [tenantContext.tenantId, id]
+    );
+    const factsCount = parseInt(factsResult.rows[0]?.count || '0', 10);
+
+    // Score: base 50 + up to 50 based on facts (10 facts = 100%)
+    const factScore = Math.min(factsCount * 5, 50);
+    const hasDeadline = legalCase.deadline ? 10 : 0;
+    const hasDescription = legalCase.description ? 10 : 0;
+    const hasLawyer = legalCase.assigned_lawyer_id ? 10 : 0;
+    const hasClient = legalCase.client_name ? 10 : 0;
+    const baseScore = 10;
+
+    const qg4Score = Math.min(baseScore + factScore + hasDeadline + hasDescription + hasLawyer + hasClient, 100);
+
+    // Update the case with the new score
+    await db.query(
+      `UPDATE legal_cases SET qg4_score = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id = $3`,
+      [qg4Score, id, tenantContext.tenantId]
+    );
+
+    // Record quality gate result
+    try {
+      await db.query(
+        `INSERT INTO quality_gate_results (tenant_id, entity_id, entity_type, gate_type, score, max_score, passed, details, evaluated_by)
+         VALUES ($1, $2, 'legal_case', 'QG4', $3, 100, $4, $5, $6)`,
+        [
+          tenantContext.tenantId,
+          id,
+          qg4Score,
+          qg4Score >= 70,
+          JSON.stringify({
+            facts_count: factsCount,
+            fact_score: factScore,
+            has_deadline: !!legalCase.deadline,
+            has_description: !!legalCase.description,
+            has_lawyer: !!legalCase.assigned_lawyer_id,
+            has_client: !!legalCase.client_name,
+          }),
+          userId,
+        ]
+      );
+    } catch (err) {
+      logger.warn('Failed to record QG4 result in quality_gate_results', { error: err });
+    }
+
+    await AuditService.log({
+      tenantId: tenantContext.tenantId,
+      userId,
+      userEmail: req.user!.email,
+      userRole: tenantContext.role,
+      action: AuditAction.UPDATE,
+      eventType: 'legal_case.qg4.calculate',
+      eventCategory: AuditEventCategory.DATA_MODIFICATION,
+      resourceType: 'legal_case',
+      resourceId: id,
+      description: `Calculated QG4 score ${qg4Score} for case ${legalCase.case_number}`,
+      details: { qg4_score: qg4Score, passed: qg4Score >= 70 },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || undefined,
+      requestId: req.headers['x-request-id'] as string | undefined,
+    });
+
+    res.json({
+      success: true,
+      case_id: id,
+      qg4_score: qg4Score,
+      passed: qg4Score >= 70,
+      breakdown: {
+        base_score: baseScore,
+        fact_score: factScore,
+        facts_count: factsCount,
+        has_deadline: hasDeadline,
+        has_description: hasDescription,
+        has_lawyer: hasLawyer,
+        has_client: hasClient,
+      },
+    });
+  })
+);
+
+export default router;

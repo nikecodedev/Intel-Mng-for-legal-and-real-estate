@@ -1,0 +1,22 @@
+-- Migration 037: Override events log with OTP verification
+-- Records manual override actions gated by TOTP two-factor verification
+
+CREATE TABLE IF NOT EXISTS override_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id),
+  user_email TEXT NOT NULL,
+  override_type TEXT NOT NULL,
+  target_entity TEXT NOT NULL,
+  target_id TEXT NOT NULL,
+  otp_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  reason TEXT,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_override_events_tenant ON override_events(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_override_events_user ON override_events(user_id);
+CREATE INDEX IF NOT EXISTS idx_override_events_created ON override_events(created_at DESC);
+
+COMMENT ON TABLE override_events IS 'Audit log for manual override actions requiring TOTP OTP confirmation';

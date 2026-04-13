@@ -460,6 +460,21 @@ router.post(
       requestId: req.headers['x-request-id'] as string | undefined,
     });
 
+    // Spec 9: CAPEX vínculo automático a project_id / process_id
+    const { amount_cents, description } = req.body;
+    try {
+      const assetRow = await db.query(`SELECT * FROM real_estate_assets WHERE id = $1 AND tenant_id = $2 LIMIT 1`, [id, tenantContext.tenantId]);
+      const processId = (assetRow.rows[0] as any)?.project_id || (assetRow.rows[0] as any)?.process_id;
+      if (processId && amount_cents > 0) {
+        await db.query(
+          `INSERT INTO financial_transactions (tenant_id, transaction_type, amount_cents, currency, description, process_id, real_estate_asset_id, transaction_date, status, created_by)
+           VALUES ($1, 'EXPENSE', $2, 'BRL', $3, $4, $5, CURRENT_DATE, 'APPROVED', $6)`,
+          [tenantContext.tenantId, amount_cents, `CAPEX: ${description}`, processId, id, userId]
+        );
+        logger.info('CAPEX auto-transaction created', { assetId: id, processId, amount_cents });
+      }
+    } catch (capexErr) { logger.warn('CAPEX auto-transaction failed', { error: capexErr }); }
+
     res.status(201).json({
       success: true,
       cost,

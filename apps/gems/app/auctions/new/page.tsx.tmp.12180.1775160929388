@@ -1,0 +1,72 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { api } from '@/lib/api';
+
+export default function CreateAuctionPage() {
+  const router = useRouter();
+  const [form, setForm] = useState({ asset_reference: '', title: '', auction_type: 'JUDICIAL', auction_date: '', base_value_cents: '' });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  function set(field: string, value: string) { setForm((p) => ({ ...p, [field]: value })); setError(''); }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    try {
+      const payload = { ...form, base_value_cents: form.base_value_cents ? Math.round(parseFloat(form.base_value_cents) * 100) : undefined };
+      const { data } = await api.post('/auctions/assets', payload);
+      const id = data?.asset?.id ?? data?.data?.id ?? data?.id;
+      router.push(id ? `/auctions/${id}` : '/auctions');
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Failed to create auction asset.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-gray-900">Create Auction Asset</h1>
+        <Link href="/auctions" className="text-sm text-blue-600 hover:underline">Cancel</Link>
+      </div>
+      {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">{error}</p>}
+      <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-gray-200 bg-white p-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Asset Reference</label>
+          <input value={form.asset_reference} onChange={(e) => set('asset_reference', e.target.value)} required className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="e.g. AUC-2026-001" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+          <input value={form.title} onChange={(e) => set('title', e.target.value)} required className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="Auction title" />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+            <select value={form.auction_type} onChange={(e) => set('auction_type', e.target.value)} className="w-full rounded border border-gray-300 px-3 py-2 text-sm">
+              <option value="JUDICIAL">Judicial</option>
+              <option value="EXTRAJUDICIAL">Extrajudicial</option>
+              <option value="BANK">Bank</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Auction Date</label>
+            <input type="date" value={form.auction_date} onChange={(e) => set('auction_date', e.target.value)} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Base Value (R$)</label>
+          <input type="number" step="0.01" min="0" value={form.base_value_cents} onChange={(e) => set('base_value_cents', e.target.value)} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="0.00" />
+        </div>
+        <button type="submit" disabled={loading} className="w-full rounded bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+          {loading ? 'Creating...' : 'Create Auction Asset'}
+        </button>
+      </form>
+    </div>
+  );
+}

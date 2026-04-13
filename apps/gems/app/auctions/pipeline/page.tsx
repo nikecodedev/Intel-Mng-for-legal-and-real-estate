@@ -11,6 +11,9 @@ interface AuctionAsset {
   current_stage?: string;
   risk_score?: number;
   created_at?: string;
+  // Debt ratio fields for MPGA 30% rule
+  debt_amount_cents?: number;
+  appraised_value_cents?: number;
 }
 
 const STAGES = [
@@ -111,6 +114,15 @@ export default function AuctionsPipelinePage() {
                             </span>
                           )}
                         </div>
+                        {/* Spec 12: MPGA — dívida acima de 30% da avaliação */}
+                        {asset.debt_amount_cents != null && asset.appraised_value_cents != null && asset.appraised_value_cents > 0 &&
+                          asset.debt_amount_cents > 0.30 * asset.appraised_value_cents && (
+                          <div className="mt-1">
+                            <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold bg-red-100 text-red-700 border border-red-300">
+                              DÍVIDA ACIMA DE 30%
+                            </span>
+                          </div>
+                        )}
                       </Link>
                     ))
                   )}

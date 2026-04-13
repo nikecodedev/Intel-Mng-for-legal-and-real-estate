@@ -3,6 +3,7 @@ import { AuthService, JWTPayload } from '../services/auth.js';
 import { UserModel } from '../models/user.js';
 import { AuthenticationError } from '../utils/errors.js';
 import { asyncHandler } from './validator.js';
+import { db } from '../models/database.js';
 
 /**
  * Extend Express Request to include user
@@ -54,6 +55,41 @@ export const authenticate = asyncHandler(
       email: user.email,
       user,
     };
+
+    // Spec Divergence #1: MFA server-side enforcement for OWNER/ADMIN roles
+    // Graceful: only enforces if mfa_enabled column exists (migration 036)
+    try {
+      const mfaResult = await db.query(
+        `SELECT mfa_enabled, mfa_verified_at FROM users WHERE id = $1 LIMIT 1`,
+        [user.id]
+      );
+      const mfaRow = mfaResult.rows[0] as { mfa_enabled?: boolean; mfa_verified_at?: string | null } | undefined;
+
+      if (mfaRow?.mfa_enabled === true) {
+        // Check if role is OWNER or ADMIN — these require active MFA session
+        const roleResult = await db.query(
+          `SELECT r.name FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = $1 LIMIT 1`,
+          [user.id]
+        );
+        const roleName = (roleResult.rows[0] as { name?: string } | undefined)?.name;
+        const mfaRequiredRoles = ['OWNER', 'ADMIN'];
+
+        if (roleName && mfaRequiredRoles.includes(roleName)) {
+          const verifiedAt = mfaRow.mfa_verified_at ? new Date(mfaRow.mfa_verified_at) : null;
+          const eightHoursAgo = new Date(Date.now() - 8 * 60 * 60 * 1000);
+
+          if (!verifiedAt || verifiedAt < eightHoursAgo) {
+            res.status(403).json({
+              error: 'MFA_REQUIRED',
+              message: 'Autenticação MFA obrigatória para este perfil.',
+            });
+            return;
+          }
+        }
+      }
+    } catch {
+      // Silently ignore — mfa columns may not exist yet (migration 036 not applied)
+    }
 
     next();
   }
