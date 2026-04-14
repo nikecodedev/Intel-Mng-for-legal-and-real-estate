@@ -21,6 +21,7 @@ import dashboardsRouter from './dashboards.js';
 import metricsRouter from './metrics.js';
 import auditIntegrityRouter from './audit-integrity.js';
 import legalCasesRouter from './legal-cases.js';
+import adminRouter from './admin.js';
 import healthRouter from './health.js';
 import { config } from '../config/index.js';
 
@@ -99,6 +100,9 @@ router.use('/audit-integrity', auditIntegrityRouter);
 
 // Legal Cases (Processos)
 router.use('/legal-cases', legalCasesRouter);
+
+// Admin (override events, internal audit)
+router.use('/admin', adminRouter);
 
 // Future: Add more route modules here
 // router.use('/users', userRouter);
