@@ -11,7 +11,13 @@ import {
   type SubscriptionPlan,
 } from '@/lib/super-admin-api';
 
-const PLANS: SubscriptionPlan[] = ['FREE', 'STANDARD', 'PREMIUM', 'ENTERPRISE', 'CUSTOM'];
+const PLANS: { value: SubscriptionPlan; label: string }[] = [
+  { value: 'FREE',       label: 'Gratuito' },
+  { value: 'STANDARD',  label: 'Standard' },
+  { value: 'PREMIUM',   label: 'Premium' },
+  { value: 'ENTERPRISE',label: 'Enterprise' },
+  { value: 'CUSTOM',    label: 'Personalizado' },
+];
 
 export default function SuperAdminCreateTenantPage() {
   const router = useRouter();
@@ -63,9 +69,9 @@ export default function SuperAdminCreateTenantPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900">Create tenant</h2>
+        <h2 className="text-lg font-semibold text-gray-900">Criar Empresa</h2>
         <Link href="/super-admin" className="text-sm text-blue-600 hover:underline">
-          ← Back to list
+          ← Voltar à lista
         </Link>
       </div>
 
@@ -77,7 +83,9 @@ export default function SuperAdminCreateTenantPage() {
         )}
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Nome <span className="text-red-500">*</span>
+          </label>
           <input
             type="text"
             value={form.name}
@@ -89,40 +97,48 @@ export default function SuperAdminCreateTenantPage() {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tenant code</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Código da Empresa <span className="text-gray-400 font-normal text-xs">(opcional)</span>
+            </label>
             <input
               type="text"
               value={form.tenant_code}
               onChange={(e) => setForm((f) => ({ ...f, tenant_code: e.target.value }))}
               className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+              placeholder="ex: gruporacional"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Domain</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Domínio <span className="text-gray-400 font-normal text-xs">(opcional)</span>
+            </label>
             <input
               type="text"
               value={form.domain}
               onChange={(e) => setForm((f) => ({ ...f, domain: e.target.value }))}
               className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+              placeholder="ex: gruporacional.gems.app"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Subscription plan</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Plano de Assinatura</label>
           <select
             value={form.subscription_plan}
             onChange={(e) => setForm((f) => ({ ...f, subscription_plan: e.target.value as SubscriptionPlan }))}
             className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
           >
             {PLANS.map((p) => (
-              <option key={p} value={p}>{p}</option>
+              <option key={p.value} value={p.value}>{p.label}</option>
             ))}
           </select>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Contact email</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            E-mail de Contato <span className="text-gray-400 font-normal text-xs">(opcional)</span>
+          </label>
           <input
             type="email"
             value={form.contact_email}
@@ -132,10 +148,10 @@ export default function SuperAdminCreateTenantPage() {
         </div>
 
         <div className="border-t pt-4">
-          <h3 className="text-sm font-medium text-gray-700 mb-2">Quotas (optional)</h3>
+          <h3 className="text-sm font-medium text-gray-700 mb-2">Limites de Uso <span className="text-gray-400 font-normal text-xs">(opcional)</span></h3>
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Max storage (bytes)</label>
+              <label className="block text-xs text-gray-500 mb-1">Armazenamento máx. (bytes)</label>
               <input
                 type="number"
                 min="0"
@@ -150,7 +166,7 @@ export default function SuperAdminCreateTenantPage() {
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Max users</label>
+              <label className="block text-xs text-gray-500 mb-1">Máx. usuários</label>
               <input
                 type="number"
                 min="0"
@@ -165,7 +181,7 @@ export default function SuperAdminCreateTenantPage() {
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Max documents</label>
+              <label className="block text-xs text-gray-500 mb-1">Máx. documentos</label>
               <input
                 type="number"
                 min="0"
@@ -183,7 +199,9 @@ export default function SuperAdminCreateTenantPage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">White-label company name</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Nome da Empresa (White-label) <span className="text-gray-400 font-normal text-xs">(opcional)</span>
+          </label>
           <input
             type="text"
             value={form.white_label?.company_name ?? ''}
@@ -203,13 +221,13 @@ export default function SuperAdminCreateTenantPage() {
             disabled={mutation.isLoading || !form.name.trim()}
             className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            {mutation.isLoading ? 'Creating…' : 'Create tenant'}
+            {mutation.isLoading ? 'Criando...' : 'Criar Empresa'}
           </button>
           <Link
             href="/super-admin"
             className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
-            Cancel
+            Cancelar
           </Link>
         </div>
       </form>

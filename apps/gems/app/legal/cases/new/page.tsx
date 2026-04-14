@@ -71,7 +71,7 @@ export default function NewCasePage() {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Numero do Processo *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Número do Processo <span className="text-red-500">*</span></label>
             <input
               type="text"
               value={form.case_number}
@@ -81,7 +81,7 @@ export default function NewCasePage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Titulo *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Título <span className="text-red-500">*</span></label>
             <input
               type="text"
               value={form.title}
@@ -103,7 +103,7 @@ export default function NewCasePage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Descricao</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
           <textarea
             value={form.description}
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
@@ -123,7 +123,7 @@ export default function NewCasePage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Advogado Responsavel (ID)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Advogado Responsável (ID)</label>
             <input
               type="text"
               value={form.assigned_lawyer_id}

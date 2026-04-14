@@ -6,6 +6,19 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { BlockLoader } from '@/components/ui';
 import { api } from '@/lib/api';
 
+interface PasswordRule {
+  label: string;
+  test: (p: string) => boolean;
+}
+
+const PASSWORD_RULES: PasswordRule[] = [
+  { label: 'Mínimo 12 caracteres',           test: p => p.length >= 12 },
+  { label: 'Uma letra maiúscula',             test: p => /[A-Z]/.test(p) },
+  { label: 'Uma letra minúscula',             test: p => /[a-z]/.test(p) },
+  { label: 'Um número',                       test: p => /[0-9]/.test(p) },
+  { label: 'Um símbolo especial (!@#$%&*)',  test: p => /[^A-Za-z0-9]/.test(p) },
+];
+
 export default function ProfilePage() {
   const queryClient = useQueryClient();
 
@@ -61,8 +74,12 @@ export default function ProfilePage() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [newPwTouched, setNewPwTouched] = useState(false);
   const [pwLoading, setPwLoading] = useState(false);
   const [pwMsg, setPwMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const allRulesPassed = PASSWORD_RULES.every(r => r.test(newPassword));
+  const confirmMismatch = confirmPassword.length > 0 && newPassword !== confirmPassword;
 
   useEffect(() => {
     if (userData) {
@@ -86,9 +103,15 @@ export default function ProfilePage() {
   }
 
   async function changePassword() {
+    setNewPwTouched(true);
     setPwMsg(null);
     if (newPassword !== confirmPassword) {
-      setPwMsg({ type: 'error', text: 'A nova senha e a confirmacao nao coincidem.' });
+      setPwMsg({ type: 'error', text: 'A nova senha e a confirmação não coincidem.' });
+      return;
+    }
+    const pwErr = PASSWORD_RULES.find(r => !r.test(newPassword));
+    if (pwErr) {
+      setPwMsg({ type: 'error', text: pwErr.label });
       return;
     }
     setPwLoading(true);
@@ -101,6 +124,7 @@ export default function ProfilePage() {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
+      setNewPwTouched(false);
     } catch (err: any) {
       setPwMsg({ type: 'error', text: err?.response?.data?.message || 'Falha ao alterar senha.' });
     } finally {
@@ -140,13 +164,7 @@ export default function ProfilePage() {
                   {avatarLoading ? '...' : 'Alterar'}
                 </span>
               </button>
-              <input
-                ref={avatarInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleAvatarUpload}
-                className="hidden"
-              />
+              <input ref={avatarInputRef} type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900">
@@ -164,29 +182,29 @@ export default function ProfilePage() {
 
           {/* User info (read-only) */}
           <section className="rounded-lg border border-gray-200 bg-white p-6">
-            <h2 className="text-base font-semibold text-gray-900 mb-4">Informacoes do Usuario</h2>
+            <h2 className="text-base font-semibold text-gray-900 mb-4">Informações do Usuário</h2>
             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
               <dt className="text-gray-600">Nome</dt>
               <dd className="font-medium text-gray-900">
-                {[userData.first_name, userData.last_name].filter(Boolean).join(' ') || '\u2014'}
+                {[userData.first_name, userData.last_name].filter(Boolean).join(' ') || '—'}
               </dd>
               <dt className="text-gray-600">E-mail</dt>
-              <dd className="font-medium text-gray-900">{userData.email ?? '\u2014'}</dd>
-              <dt className="text-gray-600">Papel</dt>
-              <dd className="font-medium text-gray-900">{userData.role ?? '\u2014'}</dd>
-              <dt className="text-gray-600">Inquilino</dt>
+              <dd className="font-medium text-gray-900">{userData.email ?? '—'}</dd>
+              <dt className="text-gray-600">Perfil</dt>
+              <dd className="font-medium text-gray-900">{userData.role ?? '—'}</dd>
+              <dt className="text-gray-600">Empresa</dt>
               <dd className="font-medium text-gray-900">
-                {userData.tenant_name ?? userData.tenant_id ?? '\u2014'}
+                {userData.tenant_name ?? userData.tenant_id ?? '—'}
               </dd>
               {userData.id && (
                 <>
-                  <dt className="text-gray-600">ID do Usuario</dt>
+                  <dt className="text-gray-600">ID do Usuário</dt>
                   <dd className="font-mono text-xs text-gray-500">{userData.id}</dd>
                 </>
               )}
               {userData.tenant_id && (
                 <>
-                  <dt className="text-gray-600">ID do Inquilino</dt>
+                  <dt className="text-gray-600">ID da Empresa</dt>
                   <dd className="font-mono text-xs text-gray-500">{userData.tenant_id}</dd>
                 </>
               )}
@@ -248,7 +266,9 @@ export default function ProfilePage() {
             )}
             <div className="space-y-4 mb-4">
               <div>
-                <label className="block text-sm text-gray-600 mb-1">Senha atual</label>
+                <label className="block text-sm text-gray-600 mb-1">
+                  Senha atual <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="password"
                   value={currentPassword}
@@ -258,24 +278,62 @@ export default function ProfilePage() {
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-600 mb-1">Nova senha</label>
+                <label className="block text-sm text-gray-600 mb-1">
+                  Nova senha <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="password"
                   value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                  placeholder="Minimo 8 caracteres, 1 maiuscula, 1 minuscula, 1 numero"
+                  onChange={(e) => { setNewPassword(e.target.value); setNewPwTouched(true); }}
+                  onBlur={() => setNewPwTouched(true)}
+                  className={`w-full rounded border px-3 py-2 text-sm focus:ring-1 outline-none transition-colors ${
+                    newPwTouched
+                      ? allRulesPassed
+                        ? 'border-green-500 focus:border-green-500 focus:ring-green-500'
+                        : 'border-red-400 focus:border-red-500 focus:ring-red-500'
+                      : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                  }`}
+                  placeholder="Mínimo 12 caracteres"
                 />
+                {newPwTouched && newPassword.length > 0 && (
+                  <ul className="mt-2 space-y-1">
+                    {PASSWORD_RULES.map(rule => {
+                      const passed = rule.test(newPassword);
+                      return (
+                        <li key={rule.label} className={`flex items-center gap-1.5 text-xs ${passed ? 'text-green-600' : 'text-gray-400'}`}>
+                          <span className={`inline-flex h-3.5 w-3.5 items-center justify-center rounded-full text-[10px] font-bold ${passed ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
+                            {passed ? '✓' : '·'}
+                          </span>
+                          {rule.label}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                {!newPwTouched && (
+                  <p className="mt-1 text-xs text-gray-500">Mínimo 12 caracteres, maiúscula, minúscula, número e símbolo.</p>
+                )}
               </div>
               <div>
-                <label className="block text-sm text-gray-600 mb-1">Confirmar nova senha</label>
+                <label className="block text-sm text-gray-600 mb-1">
+                  Confirmar nova senha <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className={`w-full rounded border px-3 py-2 text-sm focus:ring-1 outline-none transition-colors ${
+                    confirmMismatch
+                      ? 'border-red-400 focus:border-red-500 focus:ring-red-500'
+                      : confirmPassword.length > 0 && !confirmMismatch
+                        ? 'border-green-500 focus:border-green-500 focus:ring-green-500'
+                        : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                  }`}
                   placeholder="Repita a nova senha"
                 />
+                {confirmMismatch && (
+                  <p className="mt-1 text-xs text-red-600">As senhas não conferem.</p>
+                )}
               </div>
             </div>
             <button

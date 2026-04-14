@@ -50,7 +50,7 @@ export default function CreateKnowledgeEntryPage() {
           </div>
         </div>
         <div>
-          <label className="block text-xs text-gray-600 mb-1">Título</label>
+          <label className="block text-xs text-gray-600 mb-1">Título <span className="text-red-500">*</span></label>
           <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} required className="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
         </div>
         <div>
@@ -58,7 +58,7 @@ export default function CreateKnowledgeEntryPage() {
           <textarea value={form.summary} onChange={e => setForm(p => ({ ...p, summary: e.target.value }))} rows={2} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
         </div>
         <div>
-          <label className="block text-xs text-gray-600 mb-1">Conteúdo</label>
+          <label className="block text-xs text-gray-600 mb-1">Conteúdo <span className="text-red-500">*</span></label>
           <textarea value={form.content} onChange={e => setForm(p => ({ ...p, content: e.target.value }))} required rows={6} className="w-full rounded border border-gray-300 px-3 py-2 text-sm" />
         </div>
         <div>

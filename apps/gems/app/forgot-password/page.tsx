@@ -30,19 +30,19 @@ export default function ForgotPasswordPage() {
   return (
     <main className="min-h-screen flex items-center justify-center p-4 bg-gray-100">
       <div className="w-full max-w-md">
-        <h1 className="text-2xl font-bold text-center text-gray-900 mb-6">GEMS – Reset password</h1>
+        <h1 className="text-2xl font-bold text-center text-gray-900 mb-6">GEMS — Recuperar Senha</h1>
         {success ? (
           <Card>
             <CardContent>
               <div className="text-center space-y-4">
                 <p className="text-sm text-gray-700">
-                  If an account with that email exists, password reset instructions have been sent.
+                  Se existir uma conta com esse e-mail, as instruções de recuperação foram enviadas.
                 </p>
                 <p className="text-sm text-gray-500">
-                  Please check your email inbox and follow the instructions.
+                  Verifique sua caixa de entrada e siga as instruções do e-mail.
                 </p>
                 <Link href="/login" className="inline-block text-sm font-medium text-blue-600 hover:underline">
-                  Back to sign in
+                  Voltar ao login
                 </Link>
               </div>
             </CardContent>
@@ -51,11 +51,11 @@ export default function ForgotPasswordPage() {
           <Card>
             <CardContent>
               <p className="text-sm text-gray-600 mb-4">
-                Enter the email address associated with your account and we will send you instructions to reset your password.
+                Informe o e-mail associado à sua conta e enviaremos as instruções para redefinir sua senha.
               </p>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <Input
-                  label="Email"
+                  label="E-mail"
                   type="email"
                   autoComplete="email"
                   value={email}
@@ -68,16 +68,16 @@ export default function ForgotPasswordPage() {
                   </p>
                 )}
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? 'Sending…' : 'Send reset link'}
+                  {loading ? 'Enviando...' : 'Enviar link de recuperação'}
                 </Button>
               </form>
             </CardContent>
           </Card>
         )}
         <p className="mt-4 text-center text-sm text-gray-600">
-          Remember your password?{' '}
+          Lembrou a senha?{' '}
           <Link href="/login" className="font-medium text-blue-600 hover:underline">
-            Sign in
+            Entrar
           </Link>
         </p>
       </div>

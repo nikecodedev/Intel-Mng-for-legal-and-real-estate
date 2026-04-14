@@ -44,11 +44,11 @@ export default function CreateRealEstateAssetPage() {
       <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-gray-200 bg-white p-6">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Código do Ativo</label>
-            <input value={form.asset_code} onChange={(e) => set('asset_code', e.target.value)} required className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="e.g. RE-2026-001" />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Código do Ativo <span className="text-red-500">*</span></label>
+            <input value={form.asset_code} onChange={(e) => set('asset_code', e.target.value)} required className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="ex: GRH-2026-001" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Imóvel</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Imóvel <span className="text-red-500">*</span></label>
             <select value={form.property_type} onChange={(e) => set('property_type', e.target.value)} className="w-full rounded border border-gray-300 px-3 py-2 text-sm">
               <option value="APARTMENT">Apartamento</option>
               <option value="HOUSE">Casa</option>
@@ -60,7 +60,7 @@ export default function CreateRealEstateAssetPage() {
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Endereço</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Endereço <span className="text-red-500">*</span></label>
           <input value={form.property_address} onChange={(e) => set('property_address', e.target.value)} required className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="Endereço completo" />
         </div>
         <div className="grid grid-cols-3 gap-4">

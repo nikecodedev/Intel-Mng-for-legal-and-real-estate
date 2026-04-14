@@ -50,11 +50,11 @@ export default function CreateAuctionPage() {
       {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">{error}</p>}
       <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-gray-200 bg-white p-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Referência do Ativo</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Referência do Ativo <span className="text-red-500">*</span></label>
           <input value={form.asset_reference} onChange={(e) => set('asset_reference', e.target.value)} required className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="ex. AUC-2026-001" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Título <span className="text-red-500">*</span></label>
           <input value={form.title} onChange={(e) => set('title', e.target.value)} required className="w-full rounded border border-gray-300 px-3 py-2 text-sm" placeholder="Título do leilão" />
         </div>
         <div className="grid grid-cols-2 gap-4">
