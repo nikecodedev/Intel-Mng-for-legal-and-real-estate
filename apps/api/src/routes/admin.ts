@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { asyncHandler, authenticate, requirePermission } from '../middleware/index.js';
-import { db } from '../database/connection.js';
-import { getTenantContext } from '../middleware/tenant.js';
+import { db } from '../models/database.js';
+import { getTenantContext } from '../utils/tenant-context.js';
 
 const router = Router();
 
