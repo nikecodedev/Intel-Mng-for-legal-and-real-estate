@@ -65,7 +65,11 @@ export const authenticate = asyncHandler(
     const roleName = roleResult.rows[0]?.name ?? '';
     const mfaRequiredRoles = ['OWNER', 'ADMIN'];
 
-    if (mfaRequiredRoles.includes(roleName)) {
+    // MFA setup routes must be exempt — otherwise OWNER can never configure MFA (catch-22)
+    const mfaSetupPaths = ['/auth/mfa/setup', '/auth/mfa/verify', '/auth/mfa/status', '/auth/mfa/send-sms', '/auth/mfa/verify-sms'];
+    const isMfaSetupRoute = mfaSetupPaths.some(p => req.path.endsWith(p) || req.path.includes('/mfa/'));
+
+    if (mfaRequiredRoles.includes(roleName) && !isMfaSetupRoute) {
       try {
         const mfaResult = await db.query<{ mfa_enabled: boolean; mfa_verified_at: string | null }>(
           `SELECT mfa_enabled, mfa_verified_at FROM users WHERE id = $1 LIMIT 1`,
