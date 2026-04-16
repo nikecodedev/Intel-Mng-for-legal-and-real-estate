@@ -292,6 +292,179 @@ router.get(
   })
 );
 
+// ============================================
+// Spec §6.4 — Owner Approval Queue
+// MUST be registered BEFORE /transactions/:id to avoid Express param shadowing
+// ============================================
+
+/**
+ * GET /finance/transactions/pending-approval
+ * Lists transactions with status PENDING_APPROVAL (Owner only)
+ */
+router.get(
+  '/transactions/pending-approval',
+  authenticate,
+  requirePermission('finance:approve'),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+
+    const result = await db.query<{
+      id: string;
+      transaction_number: string;
+      transaction_type: string;
+      amount_cents: number;
+      description: string;
+      created_at: string;
+      process_id: string | null;
+      real_estate_asset_id: string | null;
+      client_id: string | null;
+      receipt_document_id: string | null;
+      created_by_email: string | null;
+    }>(
+      `SELECT
+         ft.id,
+         ft.transaction_number,
+         ft.transaction_type,
+         ft.amount_cents,
+         ft.description,
+         ft.created_at,
+         ft.process_id,
+         ft.real_estate_asset_id,
+         ft.client_id,
+         ft.receipt_document_id,
+         u.email AS created_by_email
+       FROM financial_transactions ft
+       LEFT JOIN users u ON u.id = ft.created_by
+       WHERE ft.tenant_id = $1
+         AND ft.payment_status = 'PENDING_APPROVAL'
+         AND ft.deleted_at IS NULL
+       ORDER BY ft.amount_cents DESC, ft.created_at ASC`,
+      [tenantContext.tenantId]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        transactions: result.rows,
+        total: result.rowCount,
+      },
+    });
+  })
+);
+
+const approveTransactionSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    action: z.enum(['APPROVE', 'REJECT']),
+    rejection_reason: z.string().min(10).optional(),
+    confirmation_password: z.string().optional(),
+    confirmation_otp: z.string().length(6).optional(),
+  }).refine(
+    (d) => !!(d.confirmation_password || d.confirmation_otp),
+    { message: 'Assinatura digital obrigatória: forneça confirmation_password ou confirmation_otp (Spec §6.4)' }
+  ).refine(
+    (d) => d.action !== 'REJECT' || !!d.rejection_reason,
+    { message: 'rejection_reason é obrigatório ao rejeitar (Spec §6.4)', path: ['rejection_reason'] }
+  ),
+});
+
+/**
+ * POST /finance/transactions/:id/approve
+ * Owner approves or rejects a PENDING_APPROVAL transaction (Spec §6.4)
+ */
+router.post(
+  '/transactions/:id/approve',
+  authenticate,
+  requirePermission('finance:approve'),
+  validateRequest(approveTransactionSchema),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const { id } = req.params;
+    const userId = req.user!.id;
+    const { action, rejection_reason, confirmation_password, confirmation_otp } = req.body;
+
+    if (confirmation_password) {
+      const userRow = await db.query(
+        'SELECT password_hash FROM users WHERE id = $1 AND is_active = true LIMIT 1',
+        [userId]
+      );
+      const { password_hash } = (userRow.rows[0] as { password_hash: string } | undefined) ?? {};
+      if (!password_hash) throw new ValidationError('Utilizador não encontrado.');
+      const { AuthService } = await import('../services/auth.js');
+      const valid = await AuthService.verifyPassword(confirmation_password, password_hash);
+      if (!valid) throw new ValidationError('Senha de confirmação incorreta. Aprovação negada.');
+    } else if (confirmation_otp) {
+      const userRow = await db.query(
+        'SELECT mfa_secret FROM users WHERE id = $1 AND is_active = true LIMIT 1',
+        [userId]
+      );
+      const { mfa_secret } = (userRow.rows[0] as { mfa_secret: string | null } | undefined) ?? {};
+      if (!mfa_secret) throw new ValidationError('MFA não configurado. Use confirmation_password.');
+      const { verifySync } = await import('otplib');
+      if (!verifySync({ token: confirmation_otp, secret: mfa_secret })) {
+        throw new ValidationError('Código OTP inválido ou expirado. Aprovação negada.');
+      }
+    }
+
+    const txResult = await db.query<{ id: string; payment_status: string; amount_cents: number; transaction_number: string }>(
+      `SELECT id, payment_status, amount_cents, transaction_number
+       FROM financial_transactions
+       WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`,
+      [id, tenantContext.tenantId]
+    );
+    const tx = txResult.rows[0];
+    if (!tx) throw new NotFoundError('Financial transaction');
+    if (tx.payment_status !== 'PENDING_APPROVAL') {
+      throw new ValidationError(
+        `Transação não está em PENDING_APPROVAL (status atual: ${tx.payment_status}). Não é possível aprovar/rejeitar.`
+      );
+    }
+
+    const newStatus = action === 'APPROVE' ? 'PENDING' : 'REJECTED';
+
+    const updateResult = await db.query<{ id: string; payment_status: string }>(
+      `UPDATE financial_transactions
+       SET payment_status = $1,
+           approved_by = $2,
+           approved_at = NOW(),
+           rejection_reason = $3,
+           updated_at = NOW()
+       WHERE id = $4 AND tenant_id = $5
+       RETURNING id, payment_status`,
+      [newStatus, userId, rejection_reason ?? null, id, tenantContext.tenantId]
+    );
+
+    await AuditService.log({
+      tenantId: tenantContext.tenantId,
+      userId,
+      userEmail: req.user!.email,
+      userRole: tenantContext.role,
+      action: AuditAction.UPDATE,
+      eventType: `finance.transaction.${action.toLowerCase()}`,
+      eventCategory: AuditEventCategory.DATA_MODIFICATION,
+      resourceType: 'financial_transaction',
+      resourceId: id,
+      description: `Owner ${action === 'APPROVE' ? 'aprovou' : 'rejeitou'} transação ${tx.transaction_number} (R$${(tx.amount_cents / 100).toFixed(2)})`,
+      details: { action, rejection_reason: rejection_reason ?? null, new_status: newStatus },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || undefined,
+      requestId: req.headers['x-request-id'] as string | undefined,
+    });
+
+    res.json({
+      success: true,
+      data: {
+        id: updateResult.rows[0].id,
+        payment_status: updateResult.rows[0].payment_status,
+        action,
+        message: action === 'APPROVE'
+          ? 'Transação aprovada. Status movido para PENDING (pronto para pagamento).'
+          : `Transação rejeitada. Motivo: ${rejection_reason}`,
+      },
+    });
+  })
+);
+
 /**
  * GET /finance/transactions/:id
  * Get single transaction
@@ -1132,180 +1305,6 @@ router.post(
       logger.warn('OCR receipt failed', { error: err });
       res.json({ amount_cents: null, amount_text: null, confidence: 'low' });
     }
-  })
-);
-
-// ============================================
-// Spec §6.4 — Owner Approval Queue
-// ============================================
-
-/**
- * GET /finance/transactions/pending-approval
- * Lists transactions with status PENDING_APPROVAL (Owner only)
- */
-router.get(
-  '/transactions/pending-approval',
-  authenticate,
-  requirePermission('finance:approve'),
-  asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const tenantContext = getTenantContext(req);
-
-    const result = await db.query<{
-      id: string;
-      transaction_number: string;
-      transaction_type: string;
-      amount_cents: number;
-      description: string;
-      created_at: string;
-      process_id: string | null;
-      real_estate_asset_id: string | null;
-      client_id: string | null;
-      receipt_document_id: string | null;
-      created_by_email: string | null;
-    }>(
-      `SELECT
-         ft.id,
-         ft.transaction_number,
-         ft.transaction_type,
-         ft.amount_cents,
-         ft.description,
-         ft.created_at,
-         ft.process_id,
-         ft.real_estate_asset_id,
-         ft.client_id,
-         ft.receipt_document_id,
-         u.email AS created_by_email
-       FROM financial_transactions ft
-       LEFT JOIN users u ON u.id = ft.created_by
-       WHERE ft.tenant_id = $1
-         AND ft.payment_status = 'PENDING_APPROVAL'
-         AND ft.deleted_at IS NULL
-       ORDER BY ft.amount_cents DESC, ft.created_at ASC`,
-      [tenantContext.tenantId]
-    );
-
-    res.json({
-      success: true,
-      data: {
-        transactions: result.rows,
-        total: result.rowCount,
-      },
-    });
-  })
-);
-
-const approveTransactionSchema = z.object({
-  params: z.object({ id: z.string().uuid() }),
-  body: z.object({
-    action: z.enum(['APPROVE', 'REJECT']),
-    rejection_reason: z.string().min(10).optional(),
-    confirmation_password: z.string().optional(),
-    confirmation_otp: z.string().length(6).optional(),
-  }).refine(
-    (d) => !!(d.confirmation_password || d.confirmation_otp),
-    { message: 'Assinatura digital obrigatória: forneça confirmation_password ou confirmation_otp (Spec §6.4)' }
-  ).refine(
-    (d) => d.action !== 'REJECT' || !!d.rejection_reason,
-    { message: 'rejection_reason é obrigatório ao rejeitar (Spec §6.4)', path: ['rejection_reason'] }
-  ),
-});
-
-/**
- * POST /finance/transactions/:id/approve
- * Owner approves or rejects a PENDING_APPROVAL transaction (Spec §6.4)
- */
-router.post(
-  '/transactions/:id/approve',
-  authenticate,
-  requirePermission('finance:approve'),
-  validateRequest(approveTransactionSchema),
-  asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const tenantContext = getTenantContext(req);
-    const { id } = req.params;
-    const userId = req.user!.id;
-    const { action, rejection_reason, confirmation_password, confirmation_otp } = req.body;
-
-    // Verify digital signature (password or OTP) before approving/rejecting
-    if (confirmation_password) {
-      const userRow = await db.query(
-        'SELECT password_hash FROM users WHERE id = $1 AND is_active = true LIMIT 1',
-        [userId]
-      );
-      const { password_hash } = (userRow.rows[0] as { password_hash: string } | undefined) ?? {};
-      if (!password_hash) throw new ValidationError('Utilizador não encontrado.');
-      const { AuthService } = await import('../services/auth.js');
-      const valid = await AuthService.verifyPassword(confirmation_password, password_hash);
-      if (!valid) throw new ValidationError('Senha de confirmação incorreta. Aprovação negada.');
-    } else if (confirmation_otp) {
-      const userRow = await db.query(
-        'SELECT mfa_secret FROM users WHERE id = $1 AND is_active = true LIMIT 1',
-        [userId]
-      );
-      const { mfa_secret } = (userRow.rows[0] as { mfa_secret: string | null } | undefined) ?? {};
-      if (!mfa_secret) throw new ValidationError('MFA não configurado. Use confirmation_password.');
-      const { verifySync } = await import('otplib');
-      if (!verifySync({ token: confirmation_otp, secret: mfa_secret })) {
-        throw new ValidationError('Código OTP inválido ou expirado. Aprovação negada.');
-      }
-    }
-
-    // Fetch the transaction and verify it belongs to this tenant and is in PENDING_APPROVAL
-    const txResult = await db.query<{ id: string; payment_status: string; amount_cents: number; transaction_number: string }>(
-      `SELECT id, payment_status, amount_cents, transaction_number
-       FROM financial_transactions
-       WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`,
-      [id, tenantContext.tenantId]
-    );
-    const tx = txResult.rows[0];
-    if (!tx) throw new NotFoundError('Financial transaction');
-    if (tx.payment_status !== 'PENDING_APPROVAL') {
-      throw new ValidationError(
-        `Transação não está em PENDING_APPROVAL (status atual: ${tx.payment_status}). Não é possível aprovar/rejeitar.`
-      );
-    }
-
-    const newStatus = action === 'APPROVE' ? 'PENDING' : 'REJECTED';
-
-    const updateResult = await db.query<{ id: string; payment_status: string }>(
-      `UPDATE financial_transactions
-       SET payment_status = $1,
-           approved_by = $2,
-           approved_at = NOW(),
-           rejection_reason = $3,
-           updated_at = NOW()
-       WHERE id = $4 AND tenant_id = $5
-       RETURNING id, payment_status`,
-      [newStatus, userId, rejection_reason ?? null, id, tenantContext.tenantId]
-    );
-
-    await AuditService.log({
-      tenantId: tenantContext.tenantId,
-      userId,
-      userEmail: req.user!.email,
-      userRole: tenantContext.role,
-      action: action === 'APPROVE' ? AuditAction.UPDATE : AuditAction.UPDATE,
-      eventType: `finance.transaction.${action.toLowerCase()}`,
-      eventCategory: AuditEventCategory.DATA_MODIFICATION,
-      resourceType: 'financial_transaction',
-      resourceId: id,
-      description: `Owner ${action === 'APPROVE' ? 'aprovou' : 'rejeitou'} transação ${tx.transaction_number} (R$${(tx.amount_cents / 100).toFixed(2)})`,
-      details: { action, rejection_reason: rejection_reason ?? null, new_status: newStatus },
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent') || undefined,
-      requestId: req.headers['x-request-id'] as string | undefined,
-    });
-
-    res.json({
-      success: true,
-      data: {
-        id: updateResult.rows[0].id,
-        payment_status: updateResult.rows[0].payment_status,
-        action,
-        message: action === 'APPROVE'
-          ? 'Transação aprovada. Status movido para PENDING (pronto para pagamento).'
-          : `Transação rejeitada. Motivo: ${rejection_reason}`,
-      },
-    });
   })
 );
 
