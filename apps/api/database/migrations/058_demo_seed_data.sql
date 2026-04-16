@@ -35,12 +35,18 @@ BEGIN
 
 -- ============================================================
 -- AUCTION ASSETS (Leilões)
+-- Columns minimum_bid_cents, appraisal_value_cents, total_debt_cents added by 059
 -- ============================================================
-INSERT INTO auction_assets (id, tenant_id, current_stage, title, asset_reference, risk_score)
-VALUES
-  (v_auction1, v_tenant, 'F2', 'Apartamento 3 quartos – Moema SP', 'LEIL-2024-001', 28),
-  (v_auction2, v_tenant, 'F4', 'Terreno Industrial – Santo André SP', 'LEIL-2024-002', 55),
-  (v_auction3, v_tenant, 'F6', 'Casa Duplex – Alphaville SP', 'LEIL-2024-003', 15)
+INSERT INTO auction_assets (
+  id, tenant_id, current_stage, title, asset_reference,
+  minimum_bid_cents, appraisal_value_cents, total_debt_cents, certidoes_negativas
+) VALUES
+  (v_auction1, v_tenant, 'F2', 'Apartamento 3 quartos – Moema SP', 'LEIL-2024-001',
+   42000000, 50000000, 3000000, true),
+  (v_auction2, v_tenant, 'F4', 'Terreno Industrial – Santo André SP', 'LEIL-2024-002',
+   260000000, 320000000, 45000000, true),
+  (v_auction3, v_tenant, 'F6', 'Casa Duplex – Alphaville SP', 'LEIL-2024-003',
+   180000000, 200000000, 8000000, true)
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================
