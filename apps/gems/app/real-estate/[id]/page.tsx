@@ -39,6 +39,14 @@ export default function RealEstateAssetDetailPage({ params }: { params: { id: st
   const [transitionError, setTransitionError] = useState('');
   const [transitionSuccess, setTransitionSuccess] = useState('');
 
+  // Trava de Venda / Legal Hold state
+  const [travaLoading, setTravaLoading] = useState(false);
+  const [travaMsg, setTravaMsg] = useState('');
+  const [holdLoading, setHoldLoading] = useState(false);
+  const [holdMsg, setHoldMsg] = useState('');
+  const [travaReason, setTravaReason] = useState('');
+  const [holdReason, setHoldReason] = useState('');
+
   // Cost form state
   const [costForm, setCostForm] = useState({
     regularization_cost: '',
@@ -186,6 +194,44 @@ export default function RealEstateAssetDetailPage({ params }: { params: { id: st
       setVacancyError(err?.response?.data?.message || 'Falha ao atualizar vacancia.');
     } finally {
       setVacancyLoading(false);
+    }
+  };
+
+  const handleTrava = async (activate: boolean) => {
+    if (activate && travaReason.length < 10) {
+      setTravaMsg('Informe o motivo (mín. 10 caracteres).');
+      return;
+    }
+    setTravaLoading(true);
+    setTravaMsg('');
+    try {
+      await api.patch(`/assets/${id}/trava-venda`, { active: activate, reason: travaReason || 'Removida pelo gestor.' });
+      setTravaMsg(activate ? 'Trava de Venda ativada.' : 'Trava de Venda removida.');
+      setTravaReason('');
+      queryClient.invalidateQueries(['real-estate-asset', id]);
+    } catch (err: any) {
+      setTravaMsg(err?.response?.data?.message || 'Falha ao atualizar Trava de Venda.');
+    } finally {
+      setTravaLoading(false);
+    }
+  };
+
+  const handleLegalHold = async (activate: boolean) => {
+    if (activate && holdReason.length < 10) {
+      setHoldMsg('Informe o motivo (mín. 10 caracteres).');
+      return;
+    }
+    setHoldLoading(true);
+    setHoldMsg('');
+    try {
+      await api.patch(`/assets/${id}/legal-hold`, { active: activate, reason: holdReason || 'Removido pelo gestor.' });
+      setHoldMsg(activate ? 'Legal Hold ativado.' : 'Legal Hold removido.');
+      setHoldReason('');
+      queryClient.invalidateQueries(['real-estate-asset', id]);
+    } catch (err: any) {
+      setHoldMsg(err?.response?.data?.message || 'Falha ao atualizar Legal Hold.');
+    } finally {
+      setHoldLoading(false);
     }
   };
 
@@ -350,6 +396,78 @@ export default function RealEstateAssetDetailPage({ params }: { params: { id: st
             <dd className="font-semibold">{breakdown.formatted.total_real_cost ?? '—'}</dd>
           </dl>
         )}
+      </section>
+
+      {/* Trava de Venda & Legal Hold */}
+      <section className="rounded-lg border border-gray-200 bg-white p-6">
+        <h3 className="text-sm font-medium text-gray-500 mb-4">Restrições Legais</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+
+          {/* Trava de Venda */}
+          <div className={`rounded-lg border p-4 ${(a as any).trava_venda ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-gray-50'}`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-semibold text-gray-800">Trava de Venda</span>
+              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${(a as any).trava_venda ? 'bg-amber-200 text-amber-800' : 'bg-gray-200 text-gray-600'}`}>
+                {(a as any).trava_venda ? 'ATIVA' : 'INATIVA'}
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">
+              {(a as any).trava_venda
+                ? `Motivo: ${(a as any).trava_venda_reason ?? '—'}`
+                : 'Impede transações de venda enquanto ativa.'}
+            </p>
+            {!(a as any).trava_venda && (
+              <input
+                type="text"
+                value={travaReason}
+                onChange={e => setTravaReason(e.target.value)}
+                placeholder="Motivo da trava (mín. 10 caracteres)"
+                className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs mb-2 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
+            )}
+            <button
+              onClick={() => handleTrava(!(a as any).trava_venda)}
+              disabled={travaLoading}
+              className={`w-full rounded px-3 py-1.5 text-xs font-medium disabled:opacity-50 ${(a as any).trava_venda ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-amber-600 text-white hover:bg-amber-700'}`}
+            >
+              {travaLoading ? 'Aguarde...' : (a as any).trava_venda ? 'Remover Trava' : 'Ativar Trava de Venda'}
+            </button>
+            {travaMsg && <p className={`mt-1.5 text-xs ${travaMsg.includes('Falha') ? 'text-red-600' : 'text-green-700'}`}>{travaMsg}</p>}
+          </div>
+
+          {/* Legal Hold */}
+          <div className={`rounded-lg border p-4 ${(a as any).legal_hold ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'}`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-semibold text-gray-800">Legal Hold</span>
+              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${(a as any).legal_hold ? 'bg-red-200 text-red-800' : 'bg-gray-200 text-gray-600'}`}>
+                {(a as any).legal_hold ? 'ATIVO' : 'INATIVO'}
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">
+              {(a as any).legal_hold
+                ? `Motivo: ${(a as any).legal_hold_reason ?? '—'}`
+                : 'Bloqueia qualquer movimentação do ativo por ordem judicial ou compliance.'}
+            </p>
+            {!(a as any).legal_hold && (
+              <input
+                type="text"
+                value={holdReason}
+                onChange={e => setHoldReason(e.target.value)}
+                placeholder="Motivo do hold (mín. 10 caracteres)"
+                className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs mb-2 focus:outline-none focus:ring-2 focus:ring-red-400"
+              />
+            )}
+            <button
+              onClick={() => handleLegalHold(!(a as any).legal_hold)}
+              disabled={holdLoading}
+              className={`w-full rounded px-3 py-1.5 text-xs font-medium disabled:opacity-50 ${(a as any).legal_hold ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-red-600 text-white hover:bg-red-700'}`}
+            >
+              {holdLoading ? 'Aguarde...' : (a as any).legal_hold ? 'Remover Legal Hold' : 'Ativar Legal Hold'}
+            </button>
+            {holdMsg && <p className={`mt-1.5 text-xs ${holdMsg.includes('Falha') ? 'text-red-600' : 'text-green-700'}`}>{holdMsg}</p>}
+          </div>
+
+        </div>
       </section>
 
       {/* Change Status */}

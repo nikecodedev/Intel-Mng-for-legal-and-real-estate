@@ -23,6 +23,7 @@ import auditIntegrityRouter from './audit-integrity.js';
 import legalCasesRouter from './legal-cases.js';
 import adminRouter from './admin.js';
 import healthRouter from './health.js';
+import partnerOfficesRouter from './partner-offices.js';
 import { config } from '../config/index.js';
 
 const router = Router();
@@ -103,6 +104,9 @@ router.use('/legal-cases', legalCasesRouter);
 
 // Admin (override events, internal audit)
 router.use('/admin', adminRouter);
+
+// Partner Offices (Escritórios Parceiros)
+router.use('/partner-offices', partnerOfficesRouter);
 
 // Future: Add more route modules here
 // router.use('/users', userRouter);

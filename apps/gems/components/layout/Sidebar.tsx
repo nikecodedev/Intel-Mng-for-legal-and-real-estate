@@ -20,6 +20,7 @@ const navItems: NavItem[] = [
   { href: '/real-estate', label: 'Imóveis', icon: <RealEstateIcon />, section: 'main', roles: ['OWNER', 'ADMIN', 'GESTOR_IMOBILIARIO'] },
   { href: '/finance', label: 'Financeiro', icon: <FinanceIcon />, section: 'main', roles: ['OWNER', 'ADMIN', 'FINANCEIRO'] },
   { href: '/crm', label: 'CRM', icon: <CRMIcon />, section: 'main' },
+  { href: '/escritorios', label: 'Escritórios', icon: <EscritoriosIcon />, section: 'main', roles: ['OWNER', 'ADMIN', 'ADVOGADO', 'ADVOGADO_SENIOR'] },
   { href: '/knowledge', label: 'Conhecimento', icon: <KnowledgeIcon />, section: 'tools' },
   { href: '/workflow', label: 'Fluxos', icon: <WorkflowIcon />, section: 'tools' },
   { href: '/compliance', label: 'Conformidade', icon: <ComplianceIcon />, section: 'tools' },
@@ -261,6 +262,14 @@ function SuperAdminIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M8 1l2 4h4l-3 3 1 4-4-2-4 2 1-4-3-3h4l2-4z" />
+    </svg>
+  );
+}
+
+function EscritoriosIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="5" width="14" height="10" rx="1" /><path d="M5 5V3a3 3 0 016 0v2" /><path d="M5 10h6" /><path d="M5 12.5h4" />
     </svg>
   );
 }
