@@ -106,10 +106,10 @@ router.get(
 
     res.json({
       success: true,
-      cases: result.rows,
-      total,
-      limit,
-      offset,
+      data: {
+        cases: result.rows,
+        pagination: { total, limit, offset },
+      },
     });
   })
 );
