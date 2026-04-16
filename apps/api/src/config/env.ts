@@ -78,14 +78,14 @@ const DEV_JWT_SECRET = 'dev-jwt-secret-min-32-chars-for-local-only-do-not-use-in
 function validateEnv(): EnvConfig {
   try {
     const result = envSchema.parse(process.env) as EnvConfig;
-    
+
     // Development defaults when not set (so API starts without full .env)
     if (!isProduction) {
       const r = result as Record<string, unknown>;
       if (!r.DATABASE_URL) r.DATABASE_URL = DEV_DATABASE_URL;
       if (!r.JWT_SECRET) r.JWT_SECRET = DEV_JWT_SECRET;
     }
-    
+
     // Additional production checks
     if (isProduction) {
       if (result.CORS_ORIGIN === '*') {
@@ -98,7 +98,35 @@ function validateEnv(): EnvConfig {
         throw new Error('REDIS_PASSWORD is required in production when Redis is enabled');
       }
     }
-    
+
+    // ── Startup warnings for missing optional-but-important vars ──────────
+    // Emitted after validation so we always get a running server, just informed
+    const warn = (msg: string) => console.warn(`[ENV WARNING] ${msg}`);
+
+    if (!process.env.GEMINI_API_KEY) {
+      warn('GEMINI_API_KEY not set — AI features (document extraction, petition generation, semantic search) will be disabled.');
+    }
+    if (!process.env.DATABASE_URL && !isProduction) {
+      warn('DATABASE_URL not set — using dev default. Set DATABASE_URL for a real database connection.');
+    }
+    if (!process.env.JWT_SECRET && !isProduction) {
+      warn('JWT_SECRET not set — using dev default. NEVER use the dev secret in production.');
+    }
+    if (!process.env.ANTIFRAUDE_API_URL) {
+      warn('ANTIFRAUDE_API_URL not set — CRM fraud checks will use local heuristic fallback (score always BAIXO).');
+    }
+    if (!process.env.SENTRY_DSN) {
+      warn('SENTRY_DSN not set — error tracking will log locally only. Set SENTRY_DSN to ship errors to Sentry.');
+    }
+    if (process.env.SMS_PROVIDER && process.env.SMS_PROVIDER !== 'stub') {
+      if (process.env.SMS_PROVIDER === 'twilio' && (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_FROM_NUMBER)) {
+        warn('SMS_PROVIDER=twilio but TWILIO_ACCOUNT_SID / TWILIO_FROM_NUMBER missing — will fall back to stub.');
+      }
+      if (process.env.SMS_PROVIDER === 'aws_sns' && (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY)) {
+        warn('SMS_PROVIDER=aws_sns but AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY missing — will fall back to stub.');
+      }
+    }
+
     return result as EnvConfig;
   } catch (error) {
     if (error instanceof z.ZodError) {

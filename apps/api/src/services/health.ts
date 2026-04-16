@@ -1,6 +1,7 @@
 import { db } from '../models/database.js';
 import { redisClient } from './redis.js';
 import { logger } from '../utils/logger.js';
+import * as fs from 'fs';
 
 /**
  * Health check result interface
@@ -127,16 +128,40 @@ export class HealthCheckService {
   }
 
   /**
-   * Check disk space (if applicable)
+   * Check disk space using statfs (Node.js 18+).
+   * Falls back to "unknown" on environments that don't support it (e.g. Windows CI).
    */
   static checkDisk(): HealthCheckResult {
-    // In Kubernetes, disk space is typically managed by the cluster
-    // This is a placeholder for custom disk checks
-    return {
-      name: 'disk',
-      status: 'healthy',
-      message: 'Disk check not implemented (managed by Kubernetes)',
-    };
+    try {
+      const stats = fs.statfsSync(process.cwd());
+      const totalBytes = stats.blocks * stats.bsize;
+      const freeBytes = stats.bfree * stats.bsize;
+      const usedBytes = totalBytes - freeBytes;
+      const usagePercent = totalBytes > 0 ? Math.round((usedBytes / totalBytes) * 100) : 0;
+      const freeMB = Math.round(freeBytes / 1024 / 1024);
+      const totalMB = Math.round(totalBytes / 1024 / 1024);
+
+      const status: 'healthy' | 'degraded' | 'unhealthy' =
+        usagePercent >= 95 ? 'unhealthy' : usagePercent >= 85 ? 'degraded' : 'healthy';
+
+      return {
+        name: 'disk',
+        status,
+        message: `Disk: ${freeMB}MB free of ${totalMB}MB (${usagePercent}% used)`,
+        details: {
+          free_mb: freeMB,
+          total_mb: totalMB,
+          usage_percent: usagePercent,
+        },
+      };
+    } catch {
+      // statfsSync not available on this platform (Windows dev, some container setups)
+      return {
+        name: 'disk',
+        status: 'healthy',
+        message: 'Disk check unavailable on this platform',
+      };
+    }
   }
 
   /**

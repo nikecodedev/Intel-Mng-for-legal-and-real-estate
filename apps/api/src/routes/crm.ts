@@ -189,6 +189,10 @@ router.post(
     res.status(201).json({
       success: true,
       kyc_data: kycData,
+      antifraude,
+      ...(antifraude.source === 'heuristic_fallback' && {
+        warning: 'Serviço antifraude externo indisponível — score calculado por heurística local. Configure ANTIFRAUDE_API_URL para verificação real.',
+      }),
     });
   })
 );

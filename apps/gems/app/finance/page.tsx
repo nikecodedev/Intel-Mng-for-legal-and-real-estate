@@ -52,18 +52,18 @@ export default function FinanceTransactionsPage() {
   const columns = [
     {
       key: 'transaction_number',
-      header: 'Number',
+      header: 'Número',
       render: (row: FinancialTransaction) => (
         <Link href={`/finance/transactions/${row.id}`} className="text-blue-600 hover:underline font-mono text-sm">
           {row.transaction_number}
         </Link>
       ),
     },
-    { key: 'transaction_type', header: 'Type', render: (row: FinancialTransaction) => row.transaction_type },
-    { key: 'amount_cents', header: 'Amount', render: (row: FinancialTransaction) => <CurrencyDisplay cents={row.amount_cents} /> },
-    { key: 'transaction_date', header: 'Date', render: (row: FinancialTransaction) => <DateDisplay value={row.transaction_date} style="short" /> },
+    { key: 'transaction_type', header: 'Tipo', render: (row: FinancialTransaction) => row.transaction_type },
+    { key: 'amount_cents', header: 'Valor', render: (row: FinancialTransaction) => <CurrencyDisplay cents={row.amount_cents} /> },
+    { key: 'transaction_date', header: 'Data', render: (row: FinancialTransaction) => <DateDisplay value={row.transaction_date} style="short" /> },
     { key: 'payment_status', header: 'Status', render: (row: FinancialTransaction) => <StatusBadge variant="payment" value={row.payment_status} /> },
-    { key: 'description', header: 'Description', render: (row: FinancialTransaction) => (row.description?.slice(0, 40) ?? '') + (row.description && row.description.length > 40 ? '…' : '') },
+    { key: 'description', header: 'Descrição', render: (row: FinancialTransaction) => (row.description?.slice(0, 40) ?? '') + (row.description && row.description.length > 40 ? '…' : '') },
   ];
 
   return (
@@ -73,15 +73,15 @@ export default function FinanceTransactionsPage() {
           href="/finance/transactions/new"
           className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
         >
-          New transaction
+          Nova transação
         </Link>
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <h3 className="text-sm font-medium text-gray-700 mb-3">Filters</h3>
+        <h3 className="text-sm font-medium text-gray-700 mb-3">Filtros</h3>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Case (process ID)</label>
+            <label className="block text-xs text-gray-500 mb-1">Processo (ID)</label>
             <input
               type="text"
               value={processId}
@@ -91,7 +91,7 @@ export default function FinanceTransactionsPage() {
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Asset</label>
+            <label className="block text-xs text-gray-500 mb-1">Imóvel</label>
             <select
               value={assetId}
               onChange={(e) => setAssetId(e.target.value)}
@@ -106,7 +106,7 @@ export default function FinanceTransactionsPage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">From date</label>
+            <label className="block text-xs text-gray-500 mb-1">Data inicial</label>
             <input
               type="date"
               value={startDate}
@@ -115,7 +115,7 @@ export default function FinanceTransactionsPage() {
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">To date</label>
+            <label className="block text-xs text-gray-500 mb-1">Data final</label>
             <input
               type="date"
               value={endDate}
@@ -124,7 +124,7 @@ export default function FinanceTransactionsPage() {
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Type</label>
+            <label className="block text-xs text-gray-500 mb-1">Tipo</label>
             <select
               value={transactionType}
               onChange={(e) => setTransactionType(e.target.value as TransactionType | '')}
@@ -139,7 +139,7 @@ export default function FinanceTransactionsPage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Payment status</label>
+            <label className="block text-xs text-gray-500 mb-1">Status de pagamento</label>
             <select
               value={paymentStatus}
               onChange={(e) => setPaymentStatus(e.target.value as PaymentStatus | '')}
@@ -156,10 +156,10 @@ export default function FinanceTransactionsPage() {
         </div>
       </div>
 
-      {isLoading && <BlockLoader message="Loading transactions…" />}
+      {isLoading && <BlockLoader message="Carregando transações…" />}
       {error ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-8 text-center text-red-700">
-          Failed to load transactions. Please try again later.
+          Falha ao carregar transações. Tente novamente.
         </div>
       ) : null}
       {!isLoading && !error && (
@@ -167,12 +167,12 @@ export default function FinanceTransactionsPage() {
           columns={columns}
           data={transactions}
           keyExtractor={(row) => row.id}
-          emptyMessage="No transactions match the filters."
+          emptyMessage="Nenhuma transação encontrada para os filtros aplicados."
         />
       )}
       {data && data.total > 0 && (
         <p className="text-sm text-gray-500">
-          Showing {data.transactions.length} of {data.total}
+          Exibindo {data.transactions.length} de {data.total}
         </p>
       )}
     </div>

@@ -3,6 +3,7 @@ import { asyncHandler } from '../middleware/index.js';
 import { db } from '../models/database.js';
 import { redisClient } from '../services/redis.js';
 import { logger } from '../utils/logger.js';
+import { MonitoringService } from '../services/monitoring.js';
 
 const router = Router();
 
@@ -272,39 +273,91 @@ router.get(
 
 /**
  * GET /health/metrics
- * Prometheus-compatible metrics endpoint
+ * Prometheus-compatible metrics endpoint — wired to MonitoringService live data.
  */
 router.get(
   '/metrics',
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const memoryUsage = process.memoryUsage();
-    const uptime = process.uptime();
+    const m = await MonitoringService.getMetrics();
+    const mem = process.memoryUsage();
 
-    const metrics = [
-      `# HELP nodejs_heap_size_total_bytes Process heap size from Node.js`,
+    const lines: string[] = [
+      `# HELP nodejs_heap_size_total_bytes Process heap total`,
       `# TYPE nodejs_heap_size_total_bytes gauge`,
-      `nodejs_heap_size_total_bytes ${memoryUsage.heapTotal}`,
+      `nodejs_heap_size_total_bytes ${mem.heapTotal}`,
       '',
-      `# HELP nodejs_heap_size_used_bytes Process heap size used from Node.js`,
+      `# HELP nodejs_heap_size_used_bytes Process heap used`,
       `# TYPE nodejs_heap_size_used_bytes gauge`,
-      `nodejs_heap_size_used_bytes ${memoryUsage.heapUsed}`,
+      `nodejs_heap_size_used_bytes ${mem.heapUsed}`,
       '',
-      `# HELP nodejs_external_memory_bytes Node.js external memory size`,
+      `# HELP nodejs_external_memory_bytes Node.js external memory`,
       `# TYPE nodejs_external_memory_bytes gauge`,
-      `nodejs_external_memory_bytes ${memoryUsage.external}`,
+      `nodejs_external_memory_bytes ${mem.external}`,
       '',
-      `# HELP nodejs_process_uptime_seconds Process uptime in seconds`,
+      `# HELP nodejs_process_uptime_seconds Process uptime`,
       `# TYPE nodejs_process_uptime_seconds gauge`,
-      `nodejs_process_uptime_seconds ${uptime}`,
+      `nodejs_process_uptime_seconds ${process.uptime()}`,
       '',
-      `# HELP http_requests_total Total number of HTTP requests`,
+      `# HELP http_requests_total Total HTTP requests`,
       `# TYPE http_requests_total counter`,
-      `http_requests_total 0`,
+      `http_requests_total ${m.requests.total}`,
       '',
-    ].join('\n');
+      `# HELP http_requests_successful_total Successful HTTP requests`,
+      `# TYPE http_requests_successful_total counter`,
+      `http_requests_successful_total ${m.requests.successful}`,
+      '',
+      `# HELP http_requests_failed_total Failed HTTP requests`,
+      `# TYPE http_requests_failed_total counter`,
+      `http_requests_failed_total ${m.requests.failed}`,
+      '',
+      `# HELP http_response_time_avg_ms Average HTTP response time`,
+      `# TYPE http_response_time_avg_ms gauge`,
+      `http_response_time_avg_ms ${m.performance.average_response_time_ms}`,
+      '',
+      `# HELP http_response_time_p95_ms 95th percentile response time`,
+      `# TYPE http_response_time_p95_ms gauge`,
+      `http_response_time_p95_ms ${m.performance.p95_response_time_ms}`,
+      '',
+      `# HELP http_response_time_p99_ms 99th percentile response time`,
+      `# TYPE http_response_time_p99_ms gauge`,
+      `http_response_time_p99_ms ${m.performance.p99_response_time_ms}`,
+      '',
+      `# HELP app_errors_total Total application errors`,
+      `# TYPE app_errors_total counter`,
+      `app_errors_total ${m.errors.total}`,
+      '',
+      `# HELP cache_hits_total Cache hit count`,
+      `# TYPE cache_hits_total counter`,
+      `cache_hits_total ${m.cache.hits}`,
+      '',
+      `# HELP cache_misses_total Cache miss count`,
+      `# TYPE cache_misses_total counter`,
+      `cache_misses_total ${m.cache.misses}`,
+      '',
+      `# HELP cache_hit_rate Cache hit rate percentage`,
+      `# TYPE cache_hit_rate gauge`,
+      `cache_hit_rate ${m.cache.hit_rate}`,
+      '',
+      `# HELP db_pool_size Database connection pool size`,
+      `# TYPE db_pool_size gauge`,
+      `db_pool_size ${m.database.connection_pool_size}`,
+      '',
+      `# HELP db_active_connections Active database connections`,
+      `# TYPE db_active_connections gauge`,
+      `db_active_connections ${m.database.active_connections}`,
+      '',
+    ];
 
-    res.setHeader('Content-Type', 'text/plain');
-    res.send(metrics);
+    // Per-status-code breakdown
+    lines.push(`# HELP http_requests_by_status_total Requests broken down by HTTP status code`);
+    lines.push(`# TYPE http_requests_by_status_total counter`);
+    for (const [code, count] of Object.entries(m.requests.by_status)) {
+      lines.push(`http_requests_by_status_total{status="${code}"} ${count}`);
+    }
+    lines.push('');
+
+    res.setHeader('Content-Type', 'text/plain; version=0.0.4');
+    res.send(lines.join('\n'));
   })
 );
 

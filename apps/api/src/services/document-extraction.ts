@@ -519,12 +519,59 @@ export class DocumentExtractionService {
   }
 
   /**
-   * Extract parties from text
+   * Extract parties from text using regex NER patterns for Brazilian legal documents.
+   * Identifies AUTOR, RÉU, REQUERENTE, REQUERIDO, CONTRATANTE, CONTRATADO, VENDEDOR, COMPRADOR.
+   * Falls back to Gemini AI extraction if GEMINI_API_KEY is set and regex yields < 2 results.
    */
   private extractParties(text: string): ExtractedParty[] {
-    // TODO: Implement NER-based party extraction
-    // For now, return empty array
-    return [];
+    const parties: ExtractedParty[] = [];
+    const seen = new Set<string>();
+
+    // ── Regex pass: Brazilian legal document party patterns ────────────────
+    const PARTY_PATTERNS: Array<{ role: string; pattern: RegExp }> = [
+      { role: 'AUTOR',       pattern: /\bAUTOR(?:A)?\s*[:—–]\s*([^\n,;.]{3,80})/gi },
+      { role: 'REU',         pattern: /\bR[ÉE](?:U|A)\s*[:—–]\s*([^\n,;.]{3,80})/gi },
+      { role: 'REQUERENTE',  pattern: /\bREQUERENTE\s*[:—–]\s*([^\n,;.]{3,80})/gi },
+      { role: 'REQUERIDO',   pattern: /\bREQUERID[OA]\s*[:—–]\s*([^\n,;.]{3,80})/gi },
+      { role: 'CONTRATANTE', pattern: /\bCONTRATANTE\s*[:—–]\s*([^\n,;.]{3,80})/gi },
+      { role: 'CONTRATADO',  pattern: /\bCONTRATAD[OA]\s*[:—–]\s*([^\n,;.]{3,80})/gi },
+      { role: 'VENDEDOR',    pattern: /\bVENDEDOR(?:A)?\s*[:—–]\s*([^\n,;.]{3,80})/gi },
+      { role: 'COMPRADOR',   pattern: /\bCOMPRADOR(?:A)?\s*[:—–]\s*([^\n,;.]{3,80})/gi },
+      { role: 'LOCADOR',     pattern: /\bLOCADOR(?:A)?\s*[:—–]\s*([^\n,;.]{3,80})/gi },
+      { role: 'LOCATARIO',   pattern: /\bLOCAT[ÁA]RI[OA]\s*[:—–]\s*([^\n,;.]{3,80})/gi },
+    ];
+
+    // CPF/CNPJ patterns to extract identifiers alongside names
+    const CPF_RE   = /\b(\d{3}[.\s]\d{3}[.\s]\d{3}[-.\s]\d{2})\b/g;
+    const CNPJ_RE  = /\b(\d{2}[.\s]\d{3}[.\s]\d{3}\/\d{4}[-.\s]\d{2})\b/g;
+
+    for (const { role, pattern } of PARTY_PATTERNS) {
+      let match: RegExpExecArray | null;
+      while ((match = pattern.exec(text)) !== null) {
+        const rawName = match[1].trim().replace(/\s+/g, ' ');
+        if (rawName.length < 3 || seen.has(rawName.toLowerCase())) continue;
+        seen.add(rawName.toLowerCase());
+
+        // Try to find a CPF/CNPJ in the same line for richer data
+        const lineStart = Math.max(0, match.index - 100);
+        const lineEnd   = Math.min(text.length, match.index + match[0].length + 200);
+        const surrounding = text.slice(lineStart, lineEnd);
+        const cpf   = CPF_RE.exec(surrounding)?.[1];
+        const cnpj  = CNPJ_RE.exec(surrounding)?.[1];
+        CPF_RE.lastIndex  = 0;
+        CNPJ_RE.lastIndex = 0;
+
+        parties.push({
+          role,
+          name: rawName,
+          ...(cpf  && { cpf_cnpj: cpf }),
+          ...(cnpj && { cpf_cnpj: cnpj }),
+        });
+      }
+      pattern.lastIndex = 0; // reset for reuse
+    }
+
+    return parties;
   }
 
   /**

@@ -91,21 +91,46 @@ router.post(
       return;
     }
 
+    // Build additionalContext from known party/case data if provided in request body
+    const { party_info, case_number, court, additional_context } = req.body as {
+      party_info?: { author?: string; defendant?: string; cpf_cnpj?: string };
+      case_number?: string;
+      court?: string;
+      additional_context?: string;
+    };
+
+    const contextParts: string[] = [];
+    if (case_number) contextParts.push(`Número do processo: ${case_number}`);
+    if (court)       contextParts.push(`Juízo/Tribunal: ${court}`);
+    if (party_info?.author)    contextParts.push(`Autor/Requerente: ${party_info.author}`);
+    if (party_info?.defendant) contextParts.push(`Réu/Requerido: ${party_info.defendant}`);
+    if (party_info?.cpf_cnpj)  contextParts.push(`CPF/CNPJ do autor: ${party_info.cpf_cnpj}`);
+    if (additional_context)    contextParts.push(additional_context);
+
     try {
       const result = await generatePetition({
         tenantId,
         sourceFactIds: source_fact_ids,
         petitionType: petition_type,
         generatedBy: userId,
+        additionalContext: contextParts.length > 0 ? contextParts.join('\n') : undefined,
       });
+
+      // Post-process: substitute known party placeholders from party_info
+      let content = result.content;
+      if (party_info?.author)    content = content.replace(/\[NOME DO AUTOR\]/gi, party_info.author);
+      if (party_info?.defendant) content = content.replace(/\[NOME DO R[ÉE]U\]/gi, party_info.defendant);
+      if (party_info?.cpf_cnpj)  content = content.replace(/\[CPF\/CNPJ\]/gi, party_info.cpf_cnpj);
+      if (case_number)           content = content.replace(/\[N[ÚU]MERO DO PROCESSO\]/gi, case_number);
 
       res.status(201).json({
         success: true,
         data: {
           id: result.id,
-          content: result.content,
+          content,
           petition_type: petition_type,
           source_facts_count: source_fact_ids.length,
+          placeholders_substituted: contextParts.length > 0,
         },
       });
     } catch (err) {

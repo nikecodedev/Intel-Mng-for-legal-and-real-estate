@@ -51,7 +51,7 @@ export class KnowledgeSearchService {
     tenantId: string,
     query: string,
     options: SemanticSearchOptions = {}
-  ): Promise<{ results: SearchResult[]; total: number; cached: boolean }> {
+  ): Promise<{ results: SearchResult[]; total: number; cached: boolean; semantic_mode: boolean }> {
     const queryHash = crypto.createHash('sha256').update(query.toLowerCase().trim()).digest('hex');
     const cacheKey = `${tenantId}:${queryHash}`;
 
@@ -64,6 +64,7 @@ export class KnowledgeSearchService {
           results: cached.results,
           total: cached.total_results,
           cached: true,
+          semantic_mode: (cached as any).semantic_mode ?? false,
         };
       }
     }
@@ -78,7 +79,7 @@ export class KnowledgeSearchService {
         if (options.use_cache !== false) {
           await this.cacheResults(cacheKey, query, pgvectorResult.results, pgvectorResult.total, options);
         }
-        return { ...pgvectorResult, cached: false };
+        return { ...pgvectorResult, cached: false, semantic_mode: true };
       } catch (pgvErr: any) {
         // pgvector not installed or no embeddings — fall through to tsvector
         logger.warn('pgvector search failed — falling back to tsvector', { error: pgvErr?.message });
@@ -215,6 +216,7 @@ export class KnowledgeSearchService {
       results,
       total,
       cached: false,
+      semantic_mode: false,
     };
   }
 

@@ -127,6 +127,52 @@ class TwilioSmsProvider implements ISmsProvider {
 }
 
 // ============================================
+// AWS SNS provider (production alternative to Twilio)
+// ============================================
+
+class AwsSnsSmsProvider implements ISmsProvider {
+  private readonly region: string;
+  private readonly accessKeyId: string;
+  private readonly secretAccessKey: string;
+  private readonly senderId: string;
+
+  constructor(region: string, accessKeyId: string, secretAccessKey: string, senderId: string) {
+    this.region = region;
+    this.accessKeyId = accessKeyId;
+    this.secretAccessKey = secretAccessKey;
+    this.senderId = senderId;
+  }
+
+  async sendOtp(to: string, otp: string): Promise<boolean> {
+    try {
+      // AWS SDK v3 — dynamically imported so the package is optional at runtime
+      const { SNSClient, PublishCommand } = await import('@aws-sdk/client-sns');
+      const client = new SNSClient({
+        region: this.region,
+        credentials: {
+          accessKeyId: this.accessKeyId,
+          secretAccessKey: this.secretAccessKey,
+        },
+      });
+
+      await client.send(new PublishCommand({
+        PhoneNumber: to,
+        Message: `Seu código MFA: ${otp}. Válido por 10 minutos. Não compartilhe.`,
+        MessageAttributes: {
+          'AWS.SNS.SMS.SMSType': { DataType: 'String', StringValue: 'Transactional' },
+          'AWS.SNS.SMS.SenderID': { DataType: 'String', StringValue: this.senderId },
+        },
+      }));
+
+      return true;
+    } catch (err) {
+      logger.error('[SMS AwsSnsProvider] Failed to send OTP', { to, error: err });
+      return false;
+    }
+  }
+}
+
+// ============================================
 // Factory — resolves provider from env
 // ============================================
 
@@ -142,6 +188,18 @@ function resolveSmsProvider(): ISmsProvider {
       return new StubSmsProvider();
     }
     return new TwilioSmsProvider(sid, token, from);
+  }
+
+  if (provider === 'aws_sns') {
+    const region   = process.env.AWS_REGION || 'us-east-1';
+    const keyId    = process.env.AWS_ACCESS_KEY_ID;
+    const secret   = process.env.AWS_SECRET_ACCESS_KEY;
+    const senderId = process.env.AWS_SNS_SENDER_ID || 'GEMS';
+    if (!keyId || !secret) {
+      logger.warn('[SmsProvider] SMS_PROVIDER=aws_sns but AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY missing — falling back to stub');
+      return new StubSmsProvider();
+    }
+    return new AwsSnsSmsProvider(region, keyId, secret, senderId);
   }
 
   return new StubSmsProvider();

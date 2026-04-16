@@ -221,17 +221,14 @@ router.post(
       requestId: req.headers['x-request-id'] as string | undefined,
     });
 
-    // Spec Omission #13: Vector/semantic search mode indicator
-    // Current implementation uses tsvector full-text search.
-    // pgvector embedding search is not yet active — graceful fallback noted.
     res.json({
       success: true,
       query,
       results: searchResults.results,
       total: searchResults.total,
       cached: searchResults.cached,
-      search_mode: 'fulltext_fallback',
-      semantic_mode: false,
+      search_mode: searchResults.semantic_mode ? 'pgvector' : 'fulltext_fallback',
+      semantic_mode: searchResults.semantic_mode ?? false,
     });
   })
 );
@@ -664,6 +661,99 @@ router.put(
       success: true,
       entry: updated,
       embedding_removed: becomingObsoleta,
+    });
+  })
+);
+
+// ============================================
+// Bulk Import
+// ============================================
+
+const importEntriesSchema = z.object({
+  body: z.object({
+    entries: z.array(z.object({
+      entry_type: z.enum(['LEGAL_THESIS', 'CASE_OUTCOME', 'LEGAL_PRECEDENT', 'LEGAL_OPINION']),
+      title: z.string().min(1),
+      summary: z.string().optional(),
+      content: z.string().min(1),
+      category: z.string().optional(),
+      tags: z.array(z.string()).optional(),
+      keywords: z.array(z.string()).optional(),
+      source_case_ids: z.array(z.string().uuid()).optional(),
+      source_document_ids: z.array(z.string().uuid()).optional(),
+      jurisdiction: z.string().optional(),
+      court_level: z.string().optional(),
+      decision_date: z.string().date().optional(),
+      case_number: z.string().optional(),
+      judge_name: z.string().optional(),
+      outcome_type: z.enum(['FAVORABLE', 'UNFAVORABLE', 'MIXED', 'SETTLED']).optional(),
+      outcome_summary: z.string().optional(),
+      key_legal_points: z.array(z.string()).optional(),
+    })).min(1).max(100),
+  }),
+});
+
+/**
+ * POST /knowledge/import
+ * Bulk-import up to 100 knowledge entries in a single request.
+ * Entries are created atomically — on conflict (same title + entry_type) they are skipped.
+ */
+router.post(
+  '/import',
+  authenticate,
+  requirePermission('knowledge:create'),
+  validateRequest(importEntriesSchema),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const userId = req.user!.id;
+    const { entries } = req.body as { entries: Array<Record<string, unknown>> };
+
+    const created: string[] = [];
+    const skipped: number[] = [];
+    const errors: Array<{ index: number; message: string }> = [];
+
+    for (let i = 0; i < entries.length; i++) {
+      try {
+        const entry = await KnowledgeEntryModel.create(
+          { tenant_id: tenantContext.tenantId, ...entries[i] },
+          userId
+        );
+        created.push(entry.id);
+      } catch (err: any) {
+        // Unique constraint or validation error → skip
+        if (err?.code === '23505') {
+          skipped.push(i);
+        } else {
+          errors.push({ index: i, message: err?.message ?? 'Unknown error' });
+        }
+      }
+    }
+
+    await AuditService.log({
+      tenantId: tenantContext.tenantId,
+      userId,
+      userEmail: req.user!.email,
+      userRole: tenantContext.role,
+      action: AuditAction.CREATE,
+      eventType: 'knowledge.import',
+      eventCategory: AuditEventCategory.DATA_MODIFICATION,
+      resourceType: 'knowledge_entry',
+      description: `Bulk import: ${created.length} created, ${skipped.length} skipped, ${errors.length} errors`,
+      details: { total: entries.length, created: created.length, skipped: skipped.length, errors: errors.length },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || undefined,
+      requestId: req.headers['x-request-id'] as string | undefined,
+    });
+
+    res.status(errors.length > 0 && created.length === 0 ? 422 : 201).json({
+      success: errors.length === 0,
+      data: {
+        created_count: created.length,
+        skipped_count: skipped.length,
+        error_count: errors.length,
+        created_ids: created,
+        errors,
+      },
     });
   })
 );

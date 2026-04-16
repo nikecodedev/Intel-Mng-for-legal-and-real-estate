@@ -498,7 +498,8 @@ export class InvestorMatchingService {
   }
 
   /**
-   * Send match notification (placeholder - integrate with notification service)
+   * Send match notification via in-app notification record + optional email webhook.
+   * Supports channels: 'in_app', 'email', 'webhook'.
    */
   private static async sendMatchNotification(
     tenantId: string,
@@ -506,8 +507,56 @@ export class InvestorMatchingService {
     match: MatchRecord,
     channels: string[]
   ): Promise<void> {
-    // Placeholder - would integrate with email/SMS/push notification service
-    logger.info('Sending match notification', {
+    // 1. Always create an in-app notification record in the DB
+    try {
+      await db.query(
+        `INSERT INTO notifications (tenant_id, user_id, type, title, body, resource_type, resource_id, is_read, created_at)
+         VALUES ($1, $2, 'INVESTOR_MATCH', $3, $4, 'auction_asset', $5, false, NOW())
+         ON CONFLICT DO NOTHING`,
+        [
+          tenantId,
+          investorUserId,
+          `Nova oportunidade de investimento — score ${match.match_score}%`,
+          `Um ativo leiloeiro compatível com seu perfil foi identificado com pontuação de correspondência de ${match.match_score}%. Acesse o portal do investidor para ver os detalhes.`,
+          match.auction_asset_id,
+        ]
+      );
+    } catch (dbErr: any) {
+      // notifications table may not exist yet — log and continue
+      logger.debug('Could not write in-app notification (table may not exist yet)', { error: dbErr?.message });
+    }
+
+    // 2. Email via SMTP webhook (if EMAIL_WEBHOOK_URL is configured)
+    const emailWebhookUrl = process.env.EMAIL_WEBHOOK_URL;
+    if (emailWebhookUrl && (channels.includes('email') || channels.includes('all'))) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        await fetch(emailWebhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event: 'investor.match.found',
+            tenant_id: tenantId,
+            investor_user_id: investorUserId,
+            match_id: match.id,
+            auction_asset_id: match.auction_asset_id,
+            match_score: match.match_score,
+            subject: `Nova oportunidade de investimento — score ${match.match_score}%`,
+            body_text: `Um ativo leiloeiro compatível com seu perfil foi identificado com score de correspondência ${match.match_score}%.`,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        logger.info('Match notification email dispatched via webhook', {
+          tenantId, investorUserId, matchId: match.id,
+        });
+      } catch (emailErr) {
+        logger.warn('Match notification email webhook failed (non-fatal)', { error: emailErr });
+      }
+    }
+
+    logger.info('Match notification processed', {
       tenantId,
       investorUserId,
       matchId: match.id,
