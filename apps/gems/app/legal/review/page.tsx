@@ -57,6 +57,29 @@ export default function LegalReviewPage() {
     { onSuccess: () => { queryClient.invalidateQueries('generated-documents'); } }
   );
 
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  async function handleDownload(docId: string) {
+    setDownloadingId(docId);
+    try {
+      const res = await api.post(`/generated-documents/${docId}/download`, {}, { responseType: 'blob' });
+      const contentType = res.headers?.['content-type'] ?? 'application/pdf';
+      const ext = contentType.includes('pdf') ? 'pdf' : contentType.includes('word') ? 'docx' : 'bin';
+      const url = URL.createObjectURL(new Blob([res.data], { type: contentType }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `documento_${docId.slice(0, 8)}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('Falha ao descarregar o documento.');
+    } finally {
+      setDownloadingId(null);
+    }
+  }
+
   const rejectMutation = useMutation(
     async ({ id, reason }: { id: string; reason: string }) => {
       const res = await api.post(`/generated-documents/${id}/reject`, { reason });
@@ -118,6 +141,9 @@ export default function LegalReviewPage() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Reviewed By
                 </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Download
+                </th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
@@ -150,6 +176,19 @@ export default function LegalReviewPage() {
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-500">
                     {doc.reviewer_name ? doc.reviewer_name : doc.reviewed_by ? doc.reviewed_by : '-'}
+                  </td>
+                  <td className="px-4 py-3">
+                    {doc.review_status === 'APPROVED' ? (
+                      <button
+                        onClick={() => handleDownload(doc.id)}
+                        disabled={downloadingId === doc.id}
+                        className="rounded border border-blue-300 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+                      >
+                        {downloadingId === doc.id ? 'A descarregar...' : '↓ PDF/DOCX'}
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right">
                     {doc.review_status === 'PENDING' ? (

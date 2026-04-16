@@ -26,7 +26,7 @@ interface DocumentTemplate {
   created_at: string;
 }
 
-type Tab = 'entries' | 'templates' | 'search';
+type Tab = 'entries' | 'templates' | 'search' | 'import';
 
 const ENTRY_TYPES = ['LEGAL_THESIS', 'CASE_OUTCOME', 'LEGAL_PRECEDENT', 'LEGAL_OPINION'];
 
@@ -132,10 +132,45 @@ export default function KnowledgePage() {
     }
   }
 
+  // Import state
+  const [importJson, setImportJson] = useState('');
+  const [importLoading, setImportLoading] = useState(false);
+  const [importResult, setImportResult] = useState<{ imported?: number; errors?: any[] } | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  async function handleImport(e: React.FormEvent) {
+    e.preventDefault();
+    setImportLoading(true);
+    setImportResult(null);
+    setImportError(null);
+    try {
+      let parsed: unknown;
+      try { parsed = JSON.parse(importJson); } catch { throw new Error('JSON inválido. Verifique o formato.'); }
+      const entries = Array.isArray(parsed) ? parsed : [parsed];
+      const { data } = await api.post('/knowledge/import', { entries });
+      setImportResult(data?.result ?? data ?? { imported: entries.length });
+      setImportJson('');
+    } catch (err: any) {
+      setImportError(err?.response?.data?.message || err?.message || 'Falha ao importar.');
+    } finally {
+      setImportLoading(false);
+    }
+  }
+
+  function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setImportJson(String(ev.target?.result ?? ''));
+    reader.readAsText(file);
+    e.target.value = '';
+  }
+
   const tabs: { key: Tab; label: string }[] = [
     { key: 'entries', label: 'Biblioteca' },
     { key: 'templates', label: 'Modelos' },
     { key: 'search', label: 'Pesquisar' },
+    { key: 'import', label: 'Importar' },
   ];
 
   return (
@@ -384,6 +419,60 @@ export default function KnowledgePage() {
           {!searching && searchResults.length === 0 && searchQuery && (
             <p className="text-sm text-gray-500">Nenhum resultado encontrado.</p>
           )}
+        </div>
+      )}
+
+      {/* Import Tab */}
+      {tab === 'import' && (
+        <div className="space-y-6 max-w-2xl">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900 mb-1">Importar em Massa</h2>
+            <p className="text-sm text-gray-500">Cole JSON ou carregue um ficheiro. Cada entrada deve ter: <code className="text-xs bg-gray-100 px-1 rounded">entry_type</code>, <code className="text-xs bg-gray-100 px-1 rounded">title</code>, <code className="text-xs bg-gray-100 px-1 rounded">content</code>.</p>
+          </div>
+
+          {importResult && (
+            <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+              <p className="text-sm font-medium text-green-800">
+                ✓ {importResult.imported ?? '?'} entrada(s) importada(s) com sucesso.
+              </p>
+              {importResult.errors && importResult.errors.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {importResult.errors.map((e: any, i: number) => (
+                    <li key={i} className="text-xs text-red-700">{JSON.stringify(e)}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          {importError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{importError}</div>
+          )}
+
+          <form onSubmit={handleImport} className="space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-gray-700">JSON (array ou objeto único)</label>
+                <label className="cursor-pointer rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50">
+                  Carregar ficheiro .json
+                  <input type="file" accept=".json,application/json" className="hidden" onChange={handleImportFile} />
+                </label>
+              </div>
+              <textarea
+                value={importJson}
+                onChange={(e) => setImportJson(e.target.value)}
+                rows={12}
+                placeholder={`[\n  {\n    "entry_type": "LEGAL_THESIS",\n    "title": "Título da entrada",\n    "content": "Conteúdo jurídico...",\n    "category": "Direito Civil",\n    "tags": ["contrato", "responsabilidade"]\n  }\n]`}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={importLoading || !importJson.trim()}
+              className="rounded bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {importLoading ? 'Importando...' : 'Importar'}
+            </button>
+          </form>
         </div>
       )}
     </div>

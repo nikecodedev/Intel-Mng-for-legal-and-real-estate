@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from 'react-query';
 import Link from 'next/link';
 import { StatusBadge, BlockLoader } from '@/components/ui';
 import { formatBytes } from '@/lib/utils';
+import { api } from '@/lib/api';
 import {
   fetchSuperAdminDashboard,
   suspendTenant,
@@ -13,16 +14,42 @@ import {
   type TenantListItem,
 } from '@/lib/super-admin-api';
 
+const MAINTENANCE_ACTIONS = [
+  { action: 'clear_cache',        label: 'Limpar Cache Redis',        color: 'text-blue-700 border-blue-300 hover:bg-blue-50',   desc: 'Remove entradas de cache expiradas' },
+  { action: 'reprocess_queue',    label: 'Reprocessar Fila',          color: 'text-amber-700 border-amber-300 hover:bg-amber-50', desc: 'Reenfileira jobs falhados' },
+  { action: 'verify_integrity',   label: 'Verificar Integridade',     color: 'text-purple-700 border-purple-300 hover:bg-purple-50', desc: 'Valida hash chain do audit log' },
+  { action: 'run_backups',        label: 'Executar Backup',           color: 'text-green-700 border-green-300 hover:bg-green-50', desc: 'Força backup imediato da BD' },
+];
+
 export default function SuperAdminTenantsPage() {
   const queryClient = useQueryClient();
   const [suspendId, setSuspendId] = useState<string | null>(null);
   const [suspendReason, setSuspendReason] = useState('');
+  const [maintenanceResult, setMaintenanceResult] = useState<Record<string, string>>({});
+  const [maintenanceLoading, setMaintenanceLoading] = useState<string | null>(null);
 
   const { data: dashboard, isLoading, error } = useQuery(
     'super-admin-dashboard',
     fetchSuperAdminDashboard,
     { staleTime: 30 * 1000 }
   );
+
+  const backupQuery = useQuery('super-admin-backup', async () => {
+    const res = await api.get('/super-admin/backup-status').catch(() => ({ data: null }));
+    return res.data?.backup ?? res.data ?? null;
+  }, { staleTime: 60 * 1000, retry: false });
+
+  async function runMaintenance(action: string) {
+    setMaintenanceLoading(action);
+    try {
+      const res = await api.post(`/super-admin/maintenance/${action}`, {});
+      setMaintenanceResult(prev => ({ ...prev, [action]: res.data?.message ?? 'Concluído.' }));
+    } catch (err: any) {
+      setMaintenanceResult(prev => ({ ...prev, [action]: err?.response?.data?.message ?? 'Erro ao executar.' }));
+    } finally {
+      setMaintenanceLoading(null);
+    }
+  }
 
   const suspendMutation = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason: string }) => suspendTenant(id, reason),
@@ -124,6 +151,66 @@ export default function SuperAdminTenantsPage() {
           No tenants.
         </div>
       )}
+
+      {/* Backup Status */}
+      <div className="rounded-lg border border-gray-200 bg-white p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-gray-800">Estado dos Backups</h2>
+          <button onClick={() => backupQuery.refetch()} className="text-xs text-blue-600 hover:underline">Atualizar</button>
+        </div>
+        {backupQuery.isLoading ? (
+          <p className="text-sm text-gray-400">Carregando...</p>
+        ) : !backupQuery.data ? (
+          <p className="text-sm text-gray-400">Sem informação de backup disponível.</p>
+        ) : (
+          <dl className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+            {backupQuery.data.last_backup_at && (
+              <><dt className="text-gray-500">Último backup</dt><dd className="font-medium">{new Date(backupQuery.data.last_backup_at).toLocaleString('pt-BR')}</dd></>
+            )}
+            {backupQuery.data.status && (
+              <><dt className="text-gray-500">Estado</dt><dd>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${backupQuery.data.status === 'OK' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                  {backupQuery.data.status}
+                </span>
+              </dd></>
+            )}
+            {backupQuery.data.size_bytes != null && (
+              <><dt className="text-gray-500">Tamanho</dt><dd className="font-medium">{formatBytes(backupQuery.data.size_bytes)}</dd></>
+            )}
+            {backupQuery.data.next_backup_at && (
+              <><dt className="text-gray-500">Próximo backup</dt><dd className="font-medium">{new Date(backupQuery.data.next_backup_at).toLocaleString('pt-BR')}</dd></>
+            )}
+          </dl>
+        )}
+      </div>
+
+      {/* Maintenance Panel */}
+      <div className="rounded-lg border border-gray-200 bg-white p-5">
+        <h2 className="text-sm font-semibold text-gray-800 mb-1">Manutenção do Sistema</h2>
+        <p className="text-xs text-gray-400 mb-4">Operações administrativas sobre cache, filas e integridade.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {MAINTENANCE_ACTIONS.map(({ action, label, color, desc }) => (
+            <div key={action} className="rounded-lg border border-gray-100 p-4 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-gray-900">{label}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
+                {maintenanceResult[action] && (
+                  <p className={`text-xs mt-1 ${maintenanceResult[action].toLowerCase().includes('erro') ? 'text-red-600' : 'text-green-600'}`}>
+                    {maintenanceResult[action]}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => runMaintenance(action)}
+                disabled={maintenanceLoading === action}
+                className={`shrink-0 rounded border px-3 py-1.5 text-xs font-medium ${color} disabled:opacity-50`}
+              >
+                {maintenanceLoading === action ? 'A executar...' : 'Executar'}
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {suspendId && (
         <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/30 p-4">

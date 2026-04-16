@@ -119,6 +119,12 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
     async () => { const r = await api.get(`/documents/${id}/extraction`); return r.data?.data ?? r.data; },
     { staleTime: 60 * 1000, enabled: !!id, retry: false }
   );
+  const [showLineage, setShowLineage] = useState(false);
+  const lineageQuery = useQuery(
+    ['legal-document-lineage', id],
+    async () => { const r = await api.get(`/documents/${id}/lineage`); return r.data?.lineage ?? r.data?.data ?? []; },
+    { staleTime: 60 * 1000, enabled: showLineage && !!id, retry: false }
+  );
 
   // Edit metadata state
   const [editing, setEditing] = useState(false);
@@ -634,6 +640,65 @@ export default function LegalDocumentDetailPage({ params }: { params: { id: stri
             {flagLoading ? 'Criando...' : 'Criar Flag'}
           </button>
         </div>
+      </section>
+
+      {/* Lineage — fact origin traceability */}
+      <section className="rounded-lg border border-gray-200 bg-white p-6">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h3 className="text-sm font-medium text-gray-700">Linhagem de Factos</h3>
+            <p className="text-xs text-gray-400 mt-0.5">Rastreabilidade da origem de cada facto extraído (jump-back).</p>
+          </div>
+          <button
+            onClick={() => setShowLineage(v => !v)}
+            className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+          >
+            {showLineage ? 'Ocultar' : 'Ver Linhagem'}
+          </button>
+        </div>
+        {showLineage && (
+          lineageQuery.isLoading ? (
+            <p className="text-sm text-gray-400">Carregando linhagem...</p>
+          ) : lineageQuery.isError ? (
+            <p className="text-sm text-red-600">Não foi possível carregar a linhagem.</p>
+          ) : !lineageQuery.data || (Array.isArray(lineageQuery.data) && lineageQuery.data.length === 0) ? (
+            <p className="text-sm text-gray-400">Nenhuma linhagem registada para este documento.</p>
+          ) : (
+            <div className="space-y-3 mt-2">
+              {(Array.isArray(lineageQuery.data) ? lineageQuery.data : [lineageQuery.data]).map((node: any, i: number) => (
+                <div key={node.fact_id ?? i} className="rounded-lg border border-gray-100 bg-gray-50 p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                        {node.fact_type ?? 'Facto'} {node.fact_id ? `· ${String(node.fact_id).slice(0, 8)}…` : ''}
+                      </p>
+                      <p className="text-sm text-gray-900">
+                        {typeof node.fact_value === 'object' ? JSON.stringify(node.fact_value) : String(node.fact_value ?? '—')}
+                      </p>
+                    </div>
+                    <div className="text-right text-xs text-gray-400 shrink-0">
+                      {node.page_number != null && <p>Pág. {node.page_number}</p>}
+                      {node.confidence_score != null && <p>{Math.round(Number(node.confidence_score) * 100)}% confiança</p>}
+                    </div>
+                  </div>
+                  {node.bounding_box && (
+                    <p className="text-xs text-gray-400 mt-2">
+                      Posição: x={node.bounding_box.x?.toFixed(3)} y={node.bounding_box.y?.toFixed(3)} w={node.bounding_box.width?.toFixed(3)} h={node.bounding_box.height?.toFixed(3)}
+                    </p>
+                  )}
+                  {node.source_document_id && node.source_document_id !== id && (
+                    <p className="text-xs text-blue-600 mt-1">
+                      Origem: documento <span className="font-mono">{String(node.source_document_id).slice(0, 8)}…</span>
+                    </p>
+                  )}
+                  {node.extraction_method && (
+                    <span className="inline-block mt-2 rounded-full bg-indigo-50 px-2 py-0.5 text-xs text-indigo-700">{node.extraction_method}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )
+        )}
       </section>
 
       {/* OCR Extractions */}
