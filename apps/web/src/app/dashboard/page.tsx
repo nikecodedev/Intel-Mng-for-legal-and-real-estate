@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { apiFetch, getToken } from '@/lib/auth';
 
 interface MatchRecord {
   id: string;
@@ -10,55 +11,52 @@ interface MatchRecord {
   created_at: string;
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
-
-async function apiFetch<T>(path: string, token: string): Promise<T> {
-  const res = await fetch(`${API}${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: 'no-store',
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json() as Promise<T>;
-}
-
 export default function InvestorDashboard() {
-  const [token, setToken] = useState<string | null>(null);
+  const [hasToken, setHasToken] = useState<boolean | null>(null);
   const [matches, setMatches] = useState<MatchRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   useEffect(() => {
-    const t = sessionStorage.getItem('investor_token');
-    setToken(t);
-    if (!t) { setLoading(false); return; }
+    const token = getToken();
+    setHasToken(!!token);
+    if (!token) { setLoading(false); return; }
 
-    apiFetch<{ data: { matches: MatchRecord[] } }>('/investor/matches', t)
-      .then((d) => setMatches(d.data?.matches ?? []))
-      .catch((e) => setError(e.message))
+    apiFetch<{ data: { matches: MatchRecord[] } }>('/investor/matches')
+      .then((result) => {
+        if (!result.ok) {
+          if (result.expired) { setSessionExpired(true); return; }
+          setError(`Erro ${result.status}`);
+          return;
+        }
+        setMatches(result.data?.data?.matches ?? []);
+      })
+      .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
   }, []);
 
-  if (!token) {
+  if (hasToken === false || sessionExpired) {
     return (
       <div style={styles.centered}>
-        <p style={{ color: '#64748b' }}>Sessão expirada. <a href="/" style={{ color: '#3b82f6' }}>Voltar ao início</a></p>
+        <p style={{ color: '#64748b' }}>
+          Sessão expirada. <a href="/" style={{ color: '#3b82f6' }}>Voltar ao início</a>
+        </p>
       </div>
     );
   }
 
   return (
     <div style={styles.page}>
-      {/* Header */}
       <header style={styles.header}>
         <span style={styles.logo}>G</span>
         <span style={{ fontWeight: 700, fontSize: 18, color: '#1e293b' }}>GEMS</span>
         <nav style={{ marginLeft: 'auto', display: 'flex', gap: 20 }}>
-          <a href="/dashboard" style={styles.navLink}>Painel</a>
+          <a href="/dashboard" style={{ ...styles.navLink, color: '#3b82f6' }}>Painel</a>
           <a href="/documents" style={styles.navLink}>Documentos</a>
         </nav>
       </header>
 
-      {/* Content */}
       <main style={styles.main}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Seu Portfólio</h1>
         <p style={{ color: '#64748b', fontSize: 14, marginBottom: 24 }}>
@@ -66,7 +64,7 @@ export default function InvestorDashboard() {
         </p>
 
         {loading && <p style={{ color: '#94a3b8' }}>Carregando oportunidades…</p>}
-        {error  && <div style={styles.errorBox}>{error}</div>}
+        {error   && <div style={styles.errorBox}>{error}</div>}
 
         {!loading && !error && matches.length === 0 && (
           <div style={styles.emptyBox}>

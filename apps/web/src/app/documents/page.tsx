@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { apiFetch, getToken } from '@/lib/auth';
 
 interface Document {
   id: string;
@@ -10,8 +11,6 @@ interface Document {
   created_at: string;
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
-
 const CPO_COLORS: Record<string, { bg: string; text: string }> = {
   VERDE:    { bg: '#dcfce7', text: '#166534' },
   AMARELO:  { bg: '#fef9c3', text: '#854d0e' },
@@ -19,27 +18,31 @@ const CPO_COLORS: Record<string, { bg: string; text: string }> = {
 };
 
 export default function DocumentsPage() {
-  const [token, setToken] = useState<string | null>(null);
+  const [hasToken, setHasToken] = useState<boolean | null>(null);
   const [docs, setDocs] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   useEffect(() => {
-    const t = sessionStorage.getItem('investor_token');
-    setToken(t);
-    if (!t) { setLoading(false); return; }
+    const token = getToken();
+    setHasToken(!!token);
+    if (!token) { setLoading(false); return; }
 
-    fetch(`${API}/documents?limit=50`, {
-      headers: { Authorization: `Bearer ${t}` },
-      cache: 'no-store',
-    })
-      .then((r) => r.ok ? r.json() : Promise.reject(`HTTP ${r.status}`))
-      .then((d) => setDocs(d.data?.documents ?? []))
+    apiFetch<{ data: { documents: Document[] } }>('/documents?limit=50')
+      .then((result) => {
+        if (!result.ok) {
+          if (result.expired) { setSessionExpired(true); return; }
+          setError(`Erro ${result.status}`);
+          return;
+        }
+        setDocs(result.data?.data?.documents ?? []);
+      })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
   }, []);
 
-  if (!token) {
+  if (hasToken === false || sessionExpired) {
     return (
       <div style={styles.centered}>
         <p style={{ color: '#64748b' }}>Sessão expirada. <a href="/" style={{ color: '#3b82f6' }}>Voltar ao início</a></p>

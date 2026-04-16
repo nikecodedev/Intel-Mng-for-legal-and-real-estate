@@ -1,8 +1,6 @@
 import { Router } from 'express';
 import { tenantMiddleware } from '../middleware/index.js';
 import authRouter from './auth.js';
-import rbacExamplesRouter from './rbac-examples.js';
-import processLockRouter from './process-lock-example.js';
 import documentsRouter from './documents.js';
 import factsRouter from './facts.js';
 import generatedDocumentsRouter from './generated-documents.js';
@@ -41,12 +39,6 @@ router.use('/health', healthRouter);
 
 // Authentication routes
 router.use('/auth', authRouter);
-
-// RBAC example routes (for demonstration)
-router.use('/examples', rbacExamplesRouter);
-
-// Process locking example routes
-router.use('/processes', processLockRouter);
 
 // Document management routes (Legal Engine)
 router.use('/documents', documentsRouter);
@@ -127,8 +119,6 @@ router.get('/', (req, res) => {
     endpoints: {
       health: '/api/v1/health',
       auth: '/api/v1/auth',
-      examples: '/api/v1/examples',
-      processes: '/api/v1/processes',
       documents: '/api/v1/documents',
       sanitation_queue: '/api/v1/documents/sanitation-queue',
       facts: '/api/v1/facts',

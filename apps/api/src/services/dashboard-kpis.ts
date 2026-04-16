@@ -294,8 +294,25 @@ export class DashboardKPIService {
       return cached.kpi_value as unknown as ROIKPI;
     }
 
-    // Get all assets with ROI using model (no raw SQL)
-    const assets = await AuctionAssetModel.listByTenant(tenantId, { limit: KPI_FETCH_LIMIT });
+    // Single JOIN query instead of per-asset N+1 lookups
+    const roiRows = await db.query<{
+      asset_id: string;
+      asset_reference: string | null;
+      acquisition_price_cents: number;
+      expected_resale_value_cents: number;
+      roi_percentage: number;
+    }>(
+      `SELECT a.id AS asset_id, a.asset_reference,
+              COALESCE(r.acquisition_price_cents, 0)      AS acquisition_price_cents,
+              COALESCE(r.expected_resale_value_cents, 0)  AS expected_resale_value_cents,
+              COALESCE(r.roi_percentage, 0)               AS roi_percentage
+       FROM auction_assets a
+       INNER JOIN auction_asset_roi r ON r.auction_asset_id = a.id AND r.tenant_id = a.tenant_id
+       WHERE a.tenant_id = $1 AND a.deleted_at IS NULL
+       ORDER BY r.roi_percentage DESC
+       LIMIT ${KPI_FETCH_LIMIT}`,
+      [tenantId]
+    );
 
     let totalInvested = 0;
     let totalExpectedReturn = 0;
@@ -307,23 +324,15 @@ export class DashboardKPIService {
       expected_return_cents: number;
     }> = [];
 
-    for (const asset of assets) {
-      const roi = await AuctionAssetROIModel.findByAssetId(asset.id, tenantId);
-      if (!roi) continue;
-
-      const invested = roi.acquisition_price_cents || 0;
-      const expectedReturn = roi.expected_resale_value_cents || 0;
-      const roiPercentage = roi.roi_percentage || 0;
-
-      totalInvested += invested;
-      totalExpectedReturn += expectedReturn;
-
+    for (const row of roiRows.rows) {
+      totalInvested += row.acquisition_price_cents;
+      totalExpectedReturn += row.expected_resale_value_cents;
       assetsByROI.push({
-        asset_id: asset.id,
-        asset_code: asset.asset_reference || asset.id,
-        roi_percentage: roiPercentage,
-        invested_cents: invested,
-        expected_return_cents: expectedReturn,
+        asset_id: row.asset_id,
+        asset_code: row.asset_reference || row.asset_id,
+        roi_percentage: Number(row.roi_percentage),
+        invested_cents: row.acquisition_price_cents,
+        expected_return_cents: row.expected_resale_value_cents,
       });
     }
 
