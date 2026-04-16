@@ -45,7 +45,9 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  IF v_matricula IN ('EM_REGULARIZACAO', 'COM_ONUS') THEN
+  -- EM_ANALISE = matrícula under regularization (spec comment says EM_REGULARIZACAO but migration 038 uses EM_ANALISE)
+  -- COM_ONUS   = has encumbrances/liens
+  IF v_matricula IN ('EM_ANALISE', 'COM_ONUS') THEN
     RAISE EXCEPTION 'TRAVA_VENDA: matrícula em status % — listagem bloqueada (Spec §5.5)', v_matricula
       USING ERRCODE = 'P0001';
   END IF;
