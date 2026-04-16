@@ -59,17 +59,17 @@ INSERT INTO real_estate_assets (
 ) VALUES
   (v_re1, v_tenant, 'PROP-2024-001',
    'Rua das Flores, 123 – Moema, São Paulo – SP',
-   'RESIDENTIAL', 98.50, 'REGULARIZATION',
+   'RESIDENTIAL', 98.50, 'REGULARIZACAO',
    45000000, '2024-03-15', v_auction1, false),
 
   (v_re2, v_tenant, 'PROP-2024-002',
    'Av. Industrial, 450 – Santo André – SP',
-   'COMMERCIAL', 320.00, 'RENOVATION',
+   'COMMERCIAL', 320.00, 'REFORMA',
    280000000, '2024-06-01', v_auction2, true),
 
   (v_re3, v_tenant, 'PROP-2024-003',
    'Rua das Palmeiras, 88 – Alphaville, Barueri – SP',
-   'RESIDENTIAL', 210.00, 'READY',
+   'RESIDENTIAL', 210.00, 'PRONTO',
    195000000, '2024-01-20', v_auction3, false)
 ON CONFLICT (id) DO NOTHING;
 
