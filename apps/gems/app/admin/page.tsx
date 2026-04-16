@@ -2,7 +2,6 @@
 
 import { useQuery } from 'react-query';
 import Link from 'next/link';
-import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { api } from '@/lib/api';
 
 const NAV_CARDS = [
@@ -45,8 +44,7 @@ export default function AdminPage() {
   ];
 
   return (
-    <DashboardLayout title="Administração">
-      <div className="space-y-8">
+    <div className="space-y-8">
 
         {/* Header */}
         <div>
@@ -136,7 +134,6 @@ export default function AdminPage() {
           </div>
         )}
 
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }
