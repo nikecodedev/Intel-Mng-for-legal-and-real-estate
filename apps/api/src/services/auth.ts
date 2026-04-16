@@ -49,7 +49,7 @@ export class AuthService {
    */
   static generateAccessToken(
     user: User,
-    opts?: { tenantId: string; role: 'OWNER' | 'REVISOR' | 'OPERATIONAL' },
+    opts?: { tenantId: string; role: string },
     expiresInOverride?: string
   ): string {
     const payload: JWTPayload = {

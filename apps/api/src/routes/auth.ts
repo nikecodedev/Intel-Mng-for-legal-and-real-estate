@@ -20,7 +20,10 @@ const SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000001';
  * Generate token options from user's tenant_id
  * For login/register, user.tenant_id comes from DB
  */
-async function tenantOptsFromUser(user: User): Promise<{ tenantId: string; role: 'OWNER' | 'REVISOR' | 'OPERATIONAL' }> {
+const ALL_ROLES = ['OWNER', 'ADMIN', 'REVISOR', 'OPERATIONAL', 'ADVOGADO', 'ADVOGADO_SENIOR', 'ANALISTA_LEILOES', 'GESTOR_IMOBILIARIO', 'FINANCEIRO', 'INVESTIDOR', 'AUDITOR', 'super_admin'] as const;
+type AnyRole = typeof ALL_ROLES[number];
+
+async function tenantOptsFromUser(user: User): Promise<{ tenantId: string; role: AnyRole }> {
   // Look up the user's actual role from the database
   try {
     const result = await db.query(
@@ -28,8 +31,7 @@ async function tenantOptsFromUser(user: User): Promise<{ tenantId: string; role:
       [user.id]
     );
     const roleName = (result.rows[0] as { name?: string } | undefined)?.name;
-    const validRoles = ['OWNER', 'REVISOR', 'OPERATIONAL'] as const;
-    const role = validRoles.includes(roleName as any) ? (roleName as 'OWNER' | 'REVISOR' | 'OPERATIONAL') : 'OPERATIONAL';
+    const role = ALL_ROLES.includes(roleName as any) ? (roleName as AnyRole) : 'OPERATIONAL';
     return { tenantId: user.tenant_id, role };
   } catch {
     return { tenantId: user.tenant_id, role: 'OPERATIONAL' };
@@ -134,7 +136,8 @@ router.post(
 
       // Generate tokens using user's tenant_id from DB (not from headers/request)
       // Access token always short-lived (15m). remember_me extends refresh token only.
-      const accessToken = AuthService.generateAccessToken(user, await tenantOptsFromUser(user));
+      const tenantOpts = await tenantOptsFromUser(user);
+      const accessToken = AuthService.generateAccessToken(user, tenantOpts);
       let refreshToken: string | null = null;
       if (user.tenant_id) {
         try {
@@ -178,6 +181,7 @@ router.post(
             first_name: user.first_name,
             last_name: user.last_name,
             tenant_id: user.tenant_id,
+            role: tenantOpts.role,
           },
           tokens: {
             access_token: accessToken,
