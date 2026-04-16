@@ -263,11 +263,25 @@ router.post(
       throw new NotFoundError('Real estate asset');
     }
 
+    // Spec #7: Hard block — legal_hold blocks ALL transitions; trava_venda blocks sale transitions
+    const flagsRow = await db.query<{ legal_hold: boolean; trava_venda: boolean }>(
+      `SELECT COALESCE(legal_hold, false) AS legal_hold, COALESCE(trava_venda, false) AS trava_venda
+       FROM real_estate_assets WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+      [id, tenantContext.tenantId]
+    );
+    if (flagsRow.rows[0]?.legal_hold) {
+      throw new ValidationError('Legal Hold ativo: toda movimentação de estado deste ativo está bloqueada.');
+    }
+
     // Ref: Spec §5.5 — Trava de Venda Legal: bloqueia transição READY/SOLD/RENTED se EM_REGULARIZACAO ou matrícula não limpa
     //   (a) status atual = REGULARIZATION  OU
     //   (b) matricula_status != 'LIMPA' (matrícula com pendências no cartório)
     const targetState = req.body.to_state as AssetState;
     const isSaleTransition = targetState === 'PRONTO' || targetState === 'VENDIDO' || targetState === 'ALUGADO';
+
+    if (isSaleTransition && flagsRow.rows[0]?.trava_venda) {
+      throw new ValidationError('Trava de Venda ativa: imóvel não pode ser vendido ou alugado até a trava ser removida.');
+    }
 
     if (isSaleTransition && currentAsset.current_state === 'REGULARIZACAO') {
       throw new ValidationError(

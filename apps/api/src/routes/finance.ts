@@ -47,10 +47,10 @@ const createTransactionSchema = z.object({
       message: 'Transaction must be linked to at least one of: process_id, real_estate_asset_id, or client_id',
     }
   ).refine(
-    (data) => !(data.amount_cents > 50000) || !!data.receipt_document_id,
+    (data) => !(data.amount_cents > 500000) || !!data.receipt_document_id,
     {
-      // Spec Parcial #9: comprovante obrigatório para TODOS os tipos acima de R$500 (não apenas EXPENSE)
-      message: 'Comprovante obrigatório para lançamentos acima de R$500 (todos os tipos).',
+      // Spec #2: comprovante obrigatório para TODOS os tipos acima de R$5.000 (não apenas EXPENSE)
+      message: 'Comprovante obrigatório para lançamentos acima de R$5.000 (todos os tipos).',
       path: ['receipt_document_id'],
     }
   ),

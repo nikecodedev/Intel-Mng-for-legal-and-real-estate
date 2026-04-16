@@ -405,12 +405,15 @@ router.post(
     const asset = await AuctionAssetModel.findById(id, tenantId);
     if (!asset) throw new NotFoundError('Auction asset');
 
-    // Spec Divergence #3: Hard Gate — risk score >= 50 OR certidoes_negativas === false blocks bidding
-    const blocked = isRiskHigh(asset.risk_score) || asset.certidoes_negativas === false;
+    // Spec #6: Hard Gate — risk_score >= 50 OR certidoes_negativas === false OR mpga_risk_score >= 70 blocks bidding
+    const mpgaBlocked = asset.mpga_risk_score !== null && asset.mpga_risk_score !== undefined && asset.mpga_risk_score >= 70;
+    const blocked = isRiskHigh(asset.risk_score) || asset.certidoes_negativas === false || mpgaBlocked;
     if (blocked) {
       const reason = asset.certidoes_negativas === false
         ? 'Lance bloqueado: certidões negativas pendentes ou irregulares (Hard Gate).'
-        : 'Lance bloqueado: risco elevado na due diligence (Hard Gate).';
+        : mpgaBlocked
+          ? `Lance bloqueado: MPGA risk score ${asset.mpga_risk_score} ≥ 70 (Hard Gate).`
+          : 'Lance bloqueado: risco elevado na due diligence (Hard Gate).';
       res.status(422).json({ success: false, error: reason });
       return;
     }
