@@ -35,8 +35,13 @@ export const authenticate = asyncHandler(
 
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
-    // Verify token
+    // Verify token signature + expiry
     const payload: JWTPayload = AuthService.verifyToken(token);
+
+    // Check access token blacklist (Redis jti revocation — set on logout)
+    if (payload.jti && await AuthService.isAccessTokenBlacklisted(payload.jti)) {
+      throw new AuthenticationError('Token has been revoked');
+    }
 
     // Get user from database (auth method doesn't require tenantId)
     const user = await UserModel.findByIdForAuth(payload.userId);

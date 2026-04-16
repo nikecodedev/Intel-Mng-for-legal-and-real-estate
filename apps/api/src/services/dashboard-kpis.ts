@@ -6,6 +6,11 @@ import { RealEstateAssetModel } from '../models/real-estate-asset.js';
 import { DashboardKPICacheModel, KPIType, PeriodType } from '../models/dashboard.js';
 import { logger } from '../utils/logger.js';
 
+/** Maximum records fetched per KPI calculation. Prevents unbounded memory growth.
+ *  For tenants exceeding this threshold, KPIs reflect a sampled view.
+ *  TODO: replace in-process aggregation with SQL GROUP BY queries for large tenants. */
+const KPI_FETCH_LIMIT = 2000;
+
 export interface CashFlowKPI {
   total_inflow_cents: number;
   total_outflow_cents: number;
@@ -98,7 +103,7 @@ export class DashboardKPIService {
 
     // Get transactions for period using model (no raw SQL)
     const { transactions } = await FinancialTransactionModel.list(tenantId, {
-      limit: 10000,
+      limit: KPI_FETCH_LIMIT,
     });
     
     // Filter by date range
@@ -201,7 +206,7 @@ export class DashboardKPIService {
         `SELECT id, title, process_number, due_date
          FROM processes
          WHERE tenant_id = $1 AND deleted_at IS NULL AND due_date IS NOT NULL
-         LIMIT 10000`,
+         LIMIT ${KPI_FETCH_LIMIT}`,
         [tenantId]
       );
       processes = processesResult.rows;
@@ -290,7 +295,7 @@ export class DashboardKPIService {
     }
 
     // Get all assets with ROI using model (no raw SQL)
-    const assets = await AuctionAssetModel.listByTenant(tenantId, { limit: 10000 });
+    const assets = await AuctionAssetModel.listByTenant(tenantId, { limit: KPI_FETCH_LIMIT });
 
     let totalInvested = 0;
     let totalExpectedReturn = 0;
@@ -365,7 +370,7 @@ export class DashboardKPIService {
     }
 
     // Get all assets using model (no raw SQL)
-    const assets = await AuctionAssetModel.listByTenant(tenantId, { limit: 10000 });
+    const assets = await AuctionAssetModel.listByTenant(tenantId, { limit: KPI_FETCH_LIMIT });
 
     let highRiskCount = 0;
     let mediumRiskCount = 0;

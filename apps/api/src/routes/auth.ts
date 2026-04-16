@@ -408,8 +408,14 @@ router.post(
     const userId = req.user?.id;
     const userEmail = req.user?.email ?? '';
 
-    // Revoke refresh token
+    // Revoke refresh token (DB-level)
     await AuthService.revokeRefreshToken(refresh_token, userId);
+
+    // Blacklist the current access token jti in Redis so it can't be reused
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      await AuthService.blacklistAccessToken(authHeader.substring(7));
+    }
 
     // Audit: logout (mandatory for compliance)
     if (tenantId) {

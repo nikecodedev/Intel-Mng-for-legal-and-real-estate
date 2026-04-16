@@ -173,6 +173,52 @@ services:
         max-file: "3"
 
   # ============================================
+  # Investor Portal (Next.js)
+  # ============================================
+  web:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.web
+    container_name: platform-web-prod
+    image: platform/web:v1.0.0
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    ports:
+      - "${WEB_PORT:-3002}:3002"
+    networks:
+      - platform-network
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3002/', (r) => {process.exit(r.statusCode < 500 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================
   # Python Intelligence Service
   # ============================================
   intelligence:

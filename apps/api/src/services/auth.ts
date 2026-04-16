@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import { randomUUID } from 'crypto';
 import bcrypt from 'bcryptjs';
 import { config } from '../config/index.js';
 import { UserModel, User } from '../models/user.js';
@@ -6,6 +7,7 @@ export type { User };
 import { AuthenticationError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import { db } from '../models/database.js';
+import { redisClient } from './redis.js';
 
 /**
  * JWT payload interface (Fonte 5 - Motor Payton)
@@ -20,6 +22,8 @@ export interface JWTPayload {
   uid?: string;
   /** Role: OWNER | REVISOR | OPERATIONAL */
   role?: 'OWNER' | 'REVISOR' | 'OPERATIONAL';
+  /** JWT ID — used for access token blacklisting on logout */
+  jti?: string;
   iat?: number;
   exp?: number;
 }
@@ -58,6 +62,7 @@ export class AuthService {
       tid: opts?.tenantId,
       uid: user.id,
       role: opts?.role ?? 'OPERATIONAL',
+      jti: randomUUID(),
     };
 
     return jwt.sign(payload, config.jwt.secret, {
@@ -65,6 +70,46 @@ export class AuthService {
       issuer: 'platform-api',
       audience: 'platform-client',
     } as jwt.SignOptions);
+  }
+
+  /**
+   * Blacklist an access token's jti in Redis so it cannot be reused after logout.
+   * TTL is set to the token's remaining lifetime so Redis auto-cleans it.
+   */
+  static async blacklistAccessToken(token: string): Promise<void> {
+    if (!redisClient.isAvailable()) return; // graceful degradation when Redis is off
+
+    let payload: JWTPayload | null = null;
+    try {
+      payload = jwt.decode(token) as JWTPayload | null;
+    } catch {
+      return;
+    }
+    if (!payload?.jti || !payload?.exp) return;
+
+    const ttl = payload.exp - Math.floor(Date.now() / 1000);
+    if (ttl <= 0) return; // already expired — nothing to blacklist
+
+    try {
+      const client = redisClient.getClient();
+      await client.set(`blacklist:jti:${payload.jti}`, '1', 'EX', ttl);
+    } catch (err) {
+      logger.warn('Failed to blacklist access token jti', { jti: payload.jti, error: err });
+    }
+  }
+
+  /**
+   * Check if a jti has been blacklisted (returns true = token is revoked).
+   */
+  static async isAccessTokenBlacklisted(jti: string): Promise<boolean> {
+    if (!redisClient.isAvailable()) return false; // can't check — allow (graceful degradation)
+    try {
+      const client = redisClient.getClient();
+      const result = await client.get(`blacklist:jti:${jti}`);
+      return result !== null;
+    } catch {
+      return false;
+    }
   }
 
   /**
