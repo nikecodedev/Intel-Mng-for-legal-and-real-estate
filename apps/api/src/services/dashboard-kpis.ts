@@ -97,20 +97,29 @@ export class DashboardKPIService {
       return cached.kpi_value as unknown as CashFlowKPI;
     }
 
-    // Calculate cash flow using models (no raw SQL exposure)
     const periodStart = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const periodEnd = endDate || new Date().toISOString().split('T')[0];
 
-    // Get transactions for period using model (no raw SQL)
-    const { transactions } = await FinancialTransactionModel.list(tenantId, {
-      limit: KPI_FETCH_LIMIT,
-    });
-    
-    // Filter by date range
-    const filteredTransactions = transactions.filter(txn => {
-      const txnDate = new Date(txn.transaction_date).toISOString().split('T')[0];
-      return txnDate >= periodStart && txnDate <= periodEnd;
-    });
+    // Single SQL aggregation — date filtering in DB, no in-process truncation
+    type AggRow = {
+      transaction_type: string;
+      transaction_category: string | null;
+      payment_status: string;
+      total_cents: string;
+    };
+    const aggResult = await db.query<AggRow>(
+      `SELECT transaction_type,
+              COALESCE(transaction_category, 'other') AS transaction_category,
+              payment_status,
+              SUM(amount_cents)::bigint AS total_cents
+       FROM financial_transactions
+       WHERE tenant_id = $1
+         AND deleted_at IS NULL
+         AND transaction_date::date >= $2::date
+         AND transaction_date::date <= $3::date
+       GROUP BY transaction_type, transaction_category, payment_status`,
+      [tenantId, periodStart, periodEnd]
+    );
 
     let totalInflow = 0;
     let totalOutflow = 0;
@@ -119,23 +128,17 @@ export class DashboardKPIService {
     const byType: Record<string, number> = {};
     const byCategory: Record<string, number> = {};
 
-    for (const txn of filteredTransactions) {
-      const amount = txn.amount_cents;
-      const type = txn.transaction_type;
-      const category = txn.transaction_category || 'other';
+    for (const row of aggResult.rows) {
+      const amount = Number(row.total_cents);
+      const type = row.transaction_type;
+      const category = row.transaction_category ?? 'other';
 
       if (type === 'INCOME' || type === 'RECEIVABLE') {
-        if (txn.payment_status === 'PAID') {
-          totalInflow += amount;
-        } else {
-          pendingReceivables += amount;
-        }
+        if (row.payment_status === 'PAID') totalInflow += amount;
+        else pendingReceivables += amount;
       } else if (type === 'EXPENSE' || type === 'PAYABLE') {
-        if (txn.payment_status === 'PAID') {
-          totalOutflow += amount;
-        } else {
-          pendingPayables += amount;
-        }
+        if (row.payment_status === 'PAID') totalOutflow += amount;
+        else pendingPayables += amount;
       }
 
       byType[type] = (byType[type] || 0) + amount;

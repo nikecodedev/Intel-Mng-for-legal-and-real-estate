@@ -33,6 +33,7 @@ export function saveTokens(accessToken: string, refreshToken?: string): void {
 
 /**
  * Attempt to refresh the access token using the stored refresh token.
+ * Handles refresh token rotation — the server may return a new refresh token.
  * Returns the new access token, or null if refresh fails.
  */
 export async function refreshAccessToken(): Promise<string | null> {
@@ -40,11 +41,15 @@ export async function refreshAccessToken(): Promise<string | null> {
   if (!refreshToken) return null;
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+
     const res = await fetch(`${API}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: refreshToken }),
-    });
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeout));
 
     if (!res.ok) {
       clearSession();
@@ -52,32 +57,41 @@ export async function refreshAccessToken(): Promise<string | null> {
     }
 
     const data = await res.json();
-    const newAccessToken: string | undefined = data?.data?.tokens?.access_token ?? data?.tokens?.access_token;
+    const newAccessToken: string | undefined = data?.data?.access_token ?? data?.data?.tokens?.access_token;
+    // Store rotated refresh token if server returned one
+    const newRefreshToken: string | undefined = data?.data?.refresh_token;
+
     if (!newAccessToken) {
       clearSession();
       return null;
     }
 
-    saveTokens(newAccessToken);
+    saveTokens(newAccessToken, newRefreshToken);
     return newAccessToken;
   } catch {
     return null;
   }
 }
 
+/** Default request timeout in milliseconds. */
+const FETCH_TIMEOUT_MS = 15_000;
+
 /**
- * Authenticated fetch with automatic token refresh on 401.
+ * Authenticated fetch with automatic token refresh on 401 and a 15s timeout.
  * Returns null if the session is expired and refresh failed.
  */
 export async function apiFetch<T = unknown>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  timeoutMs = FETCH_TIMEOUT_MS
 ): Promise<{ data: T; ok: true } | { data: null; ok: false; status: number; expired: boolean }> {
   let token = getToken();
   if (!token) return { data: null, ok: false, status: 401, expired: true };
 
-  const doFetch = (t: string) =>
-    fetch(`${API}${path}`, {
+  const doFetch = (t: string) => {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), timeoutMs);
+    return fetch(`${API}${path}`, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
@@ -85,15 +99,27 @@ export async function apiFetch<T = unknown>(
         ...(options.headers ?? {}),
       },
       cache: 'no-store',
-    });
+      signal: controller.signal,
+    }).finally(() => clearTimeout(tid));
+  };
 
-  let res = await doFetch(token);
+  let res: Response;
+  try {
+    res = await doFetch(token);
+  } catch {
+    // Timeout or network error
+    return { data: null, ok: false, status: 0, expired: false };
+  }
 
-  // On 401, try to refresh once
+  // On 401, try to refresh once then retry
   if (res.status === 401) {
     const newToken = await refreshAccessToken();
     if (!newToken) return { data: null, ok: false, status: 401, expired: true };
-    res = await doFetch(newToken);
+    try {
+      res = await doFetch(newToken);
+    } catch {
+      return { data: null, ok: false, status: 0, expired: false };
+    }
   }
 
   if (!res.ok) {

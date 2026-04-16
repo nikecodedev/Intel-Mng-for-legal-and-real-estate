@@ -377,18 +377,33 @@ router.post(
       throw new AuthenticationError('Invalid or expired refresh token');
     }
 
-    // Generate new access token using user's tenant_id from DB
-    const accessToken = AuthService.generateAccessToken(user, await tenantOptsFromUser(user));
+    const tenantOpts = await tenantOptsFromUser(user);
 
-    logger.info('Token refreshed', { 
-      userId: user.id,
-      tenantId: user.tenant_id 
-    });
+    // Generate new access token
+    const accessToken = AuthService.generateAccessToken(user, tenantOpts);
+
+    // Rotate refresh token: revoke old, issue new (prevents refresh token reuse)
+    await AuthService.revokeRefreshToken(refresh_token, user.id);
+    let newRefreshToken: string | undefined;
+    try {
+      newRefreshToken = await AuthService.generateRefreshToken(
+        user.id,
+        user.tenant_id,
+        req.get('user-agent'),
+        req.ip ?? req.socket?.remoteAddress
+      );
+    } catch {
+      // Non-fatal: proceed with access token only if refresh token storage fails
+      logger.warn('Refresh token rotation failed — access token issued without new refresh token', { userId: user.id });
+    }
+
+    logger.info('Token refreshed', { userId: user.id, tenantId: user.tenant_id });
 
     res.json({
       success: true,
       data: {
         access_token: accessToken,
+        ...(newRefreshToken ? { refresh_token: newRefreshToken } : {}),
       },
     });
   })
