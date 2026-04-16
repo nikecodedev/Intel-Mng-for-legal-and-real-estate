@@ -48,9 +48,10 @@ async function runAutoWipe(): Promise<void> {
 }
 
 // Run once shortly after startup (30s delay to let DB initialize), then every hour
-setTimeout(() => {
+let autoWipeInterval: ReturnType<typeof setInterval> | null = null;
+const autoWipeStartup = setTimeout(() => {
   runAutoWipe();
-  setInterval(runAutoWipe, AUTO_WIPE_INTERVAL_MS);
+  autoWipeInterval = setInterval(runAutoWipe, AUTO_WIPE_INTERVAL_MS);
 }, 30_000);
 
 /**
@@ -116,7 +117,22 @@ async function scanKycExpiryAlerts(): Promise<void> {
 }
 
 // Start KYC scanner: 60s after boot, then every 6 hours
-setTimeout(() => {
+let kycScanInterval: ReturnType<typeof setInterval> | null = null;
+const kycScanStartup = setTimeout(() => {
   scanKycExpiryAlerts();
-  setInterval(scanKycExpiryAlerts, KYC_SCAN_INTERVAL_MS);
+  kycScanInterval = setInterval(scanKycExpiryAlerts, KYC_SCAN_INTERVAL_MS);
 }, 60_000);
+
+// Clear background timers on shutdown so Node exits cleanly
+process.once('SIGTERM', () => {
+  clearTimeout(autoWipeStartup);
+  clearTimeout(kycScanStartup);
+  if (autoWipeInterval) clearInterval(autoWipeInterval);
+  if (kycScanInterval) clearInterval(kycScanInterval);
+});
+process.once('SIGINT', () => {
+  clearTimeout(autoWipeStartup);
+  clearTimeout(kycScanStartup);
+  if (autoWipeInterval) clearInterval(autoWipeInterval);
+  if (kycScanInterval) clearInterval(kycScanInterval);
+});

@@ -1,14 +1,11 @@
 import { db } from '../models/database.js';
-import { FinancialTransactionModel } from '../models/financial-transaction.js';
 import { AuctionAssetROIModel } from '../models/auction-asset-roi.js';
 import { AuctionAssetModel } from '../models/auction-asset.js';
 import { RealEstateAssetModel } from '../models/real-estate-asset.js';
 import { DashboardKPICacheModel, KPIType, PeriodType } from '../models/dashboard.js';
 import { logger } from '../utils/logger.js';
 
-/** Maximum records fetched per KPI calculation. Prevents unbounded memory growth.
- *  For tenants exceeding this threshold, KPIs reflect a sampled view.
- *  TODO: replace in-process aggregation with SQL GROUP BY queries for large tenants. */
+/** Maximum rows for KPI queries that still use in-process aggregation (deadlines, risk). */
 const KPI_FETCH_LIMIT = 2000;
 
 export interface CashFlowKPI {
