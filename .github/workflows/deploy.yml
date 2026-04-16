@@ -1,0 +1,66 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H 164.92.71.218 >> ~/.ssh/known_hosts
+
+      - name: Deploy to VPS
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@164.92.71.218 bash << 'ENDSSH'
+            set -e
+            echo "=== Pulling latest code ==="
+            cd /var/gems
+            git pull origin main
+
+            echo "=== Running migrations ==="
+            cd /var/gems/apps/api
+            export $(grep -v '^#' .env | xargs) 2>/dev/null || true
+
+            run_migration() {
+              local file="$1"
+              if [ -f "$file" ]; then
+                echo "Running $file..."
+                psql "$DATABASE_URL" -f "$file" && echo "OK: $file" || echo "SKIP (already applied): $file"
+              fi
+            }
+
+            run_migration database/migrations/053_finance_owner_approval.sql
+            run_migration database/migrations/054_mpga_db_trigger.sql
+            run_migration database/migrations/055_legal_hold_trava_venda.sql
+            run_migration database/migrations/056_qg4_status_gate.sql
+            run_migration database/migrations/057_projeto_id_required.sql
+
+            echo "=== Building API ==="
+            npm ci --prefer-offline 2>/dev/null || npm install
+            npm run build
+
+            echo "=== Restarting API ==="
+            pm2 restart api || pm2 start dist/index.js --name api
+
+            echo "=== Building & deploying frontend ==="
+            cd /var/gems/apps/gems
+            npm ci --prefer-offline 2>/dev/null || npm install
+            npm run build
+
+            pm2 restart gems || pm2 start node_modules/.bin/next --name gems -- start -p 3001
+
+            pm2 save
+            echo "=== Deploy complete ==="
+          ENDSSH
