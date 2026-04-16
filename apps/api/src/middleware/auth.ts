@@ -56,39 +56,51 @@ export const authenticate = asyncHandler(
       user,
     };
 
-    // Spec Divergence #1: MFA server-side enforcement for OWNER/ADMIN roles
-    // Graceful: only enforces if mfa_enabled column exists (migration 036)
-    try {
-      const mfaResult = await db.query(
-        `SELECT mfa_enabled, mfa_verified_at FROM users WHERE id = $1 LIMIT 1`,
-        [user.id]
-      );
-      const mfaRow = mfaResult.rows[0] as { mfa_enabled?: boolean; mfa_verified_at?: string | null } | undefined;
+    // Spec §2.2 / §1.3 — MFA hard enforcement for OWNER/ADMIN roles
+    // Ref: Constituição Art. 2, migration 036_mfa_totp.sql
+    const roleResult = await db.query<{ name: string }>(
+      `SELECT r.name FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = $1 LIMIT 1`,
+      [user.id]
+    );
+    const roleName = roleResult.rows[0]?.name ?? '';
+    const mfaRequiredRoles = ['OWNER', 'ADMIN'];
 
-      if (mfaRow?.mfa_enabled === true) {
-        // Check if role is OWNER or ADMIN — these require active MFA session
-        const roleResult = await db.query(
-          `SELECT r.name FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = $1 LIMIT 1`,
+    if (mfaRequiredRoles.includes(roleName)) {
+      try {
+        const mfaResult = await db.query<{ mfa_enabled: boolean; mfa_verified_at: string | null }>(
+          `SELECT mfa_enabled, mfa_verified_at FROM users WHERE id = $1 LIMIT 1`,
           [user.id]
         );
-        const roleName = (roleResult.rows[0] as { name?: string } | undefined)?.name;
-        const mfaRequiredRoles = ['OWNER', 'ADMIN'];
+        const mfaRow = mfaResult.rows[0];
 
-        if (roleName && mfaRequiredRoles.includes(roleName)) {
-          const verifiedAt = mfaRow.mfa_verified_at ? new Date(mfaRow.mfa_verified_at) : null;
-          const eightHoursAgo = new Date(Date.now() - 8 * 60 * 60 * 1000);
-
-          if (!verifiedAt || verifiedAt < eightHoursAgo) {
-            res.status(403).json({
-              error: 'MFA_REQUIRED',
-              message: 'Autenticação MFA obrigatória para este perfil.',
-            });
-            return;
-          }
+        if (!mfaRow || !mfaRow.mfa_enabled) {
+          // MFA not configured — block OWNER/ADMIN until MFA is set up
+          res.status(403).json({
+            error: 'MFA_SETUP_REQUIRED',
+            message: 'Perfil OWNER/ADMIN exige configuração de MFA (§2.2). Acesse /auth/mfa/setup.',
+          });
+          return;
         }
+
+        const verifiedAt = mfaRow.mfa_verified_at ? new Date(mfaRow.mfa_verified_at) : null;
+        const eightHoursAgo = new Date(Date.now() - 8 * 60 * 60 * 1000);
+
+        if (!verifiedAt || verifiedAt < eightHoursAgo) {
+          res.status(403).json({
+            error: 'MFA_REQUIRED',
+            message: 'Sessão MFA expirada ou ausente. Reautentique com TOTP (§2.2).',
+          });
+          return;
+        }
+      } catch (mfaErr: unknown) {
+        // Only skip if column truly doesn't exist (migration not applied) — re-throw other errors
+        const msg = mfaErr instanceof Error ? mfaErr.message : String(mfaErr);
+        if (!msg.includes('column') && !msg.includes('does not exist')) {
+          throw mfaErr;
+        }
+        // Migration 036 not yet applied — log and continue (dev/staging fallback only)
+        console.warn('[auth] MFA columns missing — migration 036 not applied. MFA enforcement skipped.');
       }
-    } catch {
-      // Silently ignore — mfa columns may not exist yet (migration 036 not applied)
     }
 
     next();

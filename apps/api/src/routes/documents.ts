@@ -2,7 +2,8 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
 import * as path from 'path';
-import { randomUUID } from 'crypto';
+import { randomUUID, createHmac } from 'crypto';
+import { config } from '../config/index.js';
 import * as fs from 'fs';
 import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware/index.js';
 import { extendedTimeout } from '../middleware/timeout.js';
@@ -359,8 +360,80 @@ router.get(
           user_id: userId,
           ip_address: ip,
           timestamp: new Date().toISOString(),
+          tenant_id: tenantId,  // Spec §2.5 / Divergência #14 — tenant_id na marca d'água
         },
         fact_context,
+      },
+    });
+  })
+);
+
+// ============================================
+// Presigned viewer token (Spec §9.2 / Divergência #9)
+// ============================================
+
+const VIEWER_TOKEN_TTL_SECONDS = 15 * 60; // 15 minutes
+
+/** Generate a short-lived HMAC-signed viewer token. */
+function generateViewerToken(documentId: string, userId: string, tenantId: string): string {
+  const exp = Math.floor(Date.now() / 1000) + VIEWER_TOKEN_TTL_SECONDS;
+  const payload = Buffer.from(JSON.stringify({ documentId, userId, tenantId, exp })).toString('base64url');
+  const sig = createHmac('sha256', config.jwt.secret).update(payload).digest('base64url');
+  return `${payload}.${sig}`;
+}
+
+/** Verify viewer token. Returns parsed payload or throws. */
+function verifyViewerToken(
+  token: string,
+  expectedDocumentId: string,
+  expectedUserId: string,
+  expectedTenantId: string
+): void {
+  const parts = token.split('.');
+  if (parts.length !== 2) throw new ValidationError('Token de viewer inválido.');
+  const [payload, sig] = parts;
+  const expectedSig = createHmac('sha256', config.jwt.secret).update(payload).digest('base64url');
+  if (sig !== expectedSig) throw new ValidationError('Assinatura do token de viewer inválida.');
+  let parsed: { documentId: string; userId: string; tenantId: string; exp: number };
+  try {
+    parsed = JSON.parse(Buffer.from(payload, 'base64url').toString());
+  } catch {
+    throw new ValidationError('Token de viewer malformado.');
+  }
+  if (Math.floor(Date.now() / 1000) > parsed.exp) {
+    throw new ValidationError('Token de viewer expirado. Solicite um novo em /documents/:id/viewer-token.');
+  }
+  if (parsed.documentId !== expectedDocumentId || parsed.userId !== expectedUserId || parsed.tenantId !== expectedTenantId) {
+    throw new ValidationError('Token de viewer não corresponde ao documento/utilizador/tenant.');
+  }
+}
+
+/**
+ * POST /documents/:id/viewer-token
+ * Issues a short-lived HMAC-signed token (15 min TTL) for the viewer-asset endpoint (Spec §9.2).
+ */
+router.post(
+  '/:id/viewer-token',
+  authenticate,
+  requirePermission('documents:read'),
+  validateRequest(documentIdParamSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { tenantId, userId } = getTenantContext(req);
+    const { id } = req.params;
+
+    const document = await DocumentModel.findById(id, tenantId);
+    if (!document) throw new NotFoundError('Document');
+
+    const token = generateViewerToken(id, userId, tenantId);
+    const expiresAt = new Date(Date.now() + VIEWER_TOKEN_TTL_SECONDS * 1000).toISOString();
+
+    res.json({
+      success: true,
+      data: {
+        viewer_token: token,
+        expires_at: expiresAt,
+        expires_in_seconds: VIEWER_TOKEN_TTL_SECONDS,
+        usage: `GET /documents/${id}/viewer-asset?viewer=true  +  header X-Viewer-Token: <token>`,
       },
     });
   })
@@ -386,7 +459,7 @@ router.get(
 /**
  * GET /documents/:id/viewer-asset
  * Streams document file for embedded viewer only. No direct file URL; access requires auth + tenant + RBAC.
- * DLP: requires ?viewer=true&token=<user-id> — only the secure viewer may fetch the binary.
+ * DLP: requires ?viewer=true and X-Viewer-Token header with a short-lived HMAC token from POST /viewer-token (Spec §9.2).
  * Disable caching; inline disposition. Logs ACCESS. Only serves if storage_path is set and file exists.
  */
 router.get(
@@ -398,14 +471,28 @@ router.get(
     const { tenantId, userId } = getTenantContext(req);
     const { id } = req.params;
 
-    // DLP enforcement: only the secure viewer may fetch the file binary
+    // DLP enforcement + Presigned token TTL (Spec §9.2 / Divergência #9)
     const viewerFlag = req.query.viewer as string | undefined;
     const viewerToken = (req.headers['x-viewer-token'] || req.query.token) as string | undefined;
-    if (viewerFlag !== 'true' || viewerToken !== userId) {
+    if (viewerFlag !== 'true') {
       res.status(403).json({
         success: false,
-        message: 'Direct download is disabled. Use the secure viewer.',
+        message: 'Direct download is disabled. Use the secure viewer with a valid viewer token.',
       });
+      return;
+    }
+    if (!viewerToken) {
+      res.status(403).json({
+        success: false,
+        message: 'Viewer token obrigatório. Solicite via POST /documents/:id/viewer-token (Spec §9.2).',
+      });
+      return;
+    }
+    try {
+      verifyViewerToken(viewerToken, id, userId, tenantId);
+    } catch (tokenErr) {
+      const msg = tokenErr instanceof Error ? tokenErr.message : 'Token inválido.';
+      res.status(403).json({ success: false, message: msg });
       return;
     }
 

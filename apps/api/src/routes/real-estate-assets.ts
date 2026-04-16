@@ -1011,4 +1011,147 @@ router.post(
   })
 );
 
+// ============================================
+// Spec §5.5 — Legal Hold / Trava de Venda (Divergência #7)
+// ============================================
+
+const setLegalHoldSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    active: z.boolean(),
+    reason: z.string().min(10).optional(),
+  }).refine(
+    (d) => !d.active || !!d.reason,
+    { message: 'reason é obrigatório ao ativar legal_hold', path: ['reason'] }
+  ),
+});
+
+const setTravaVendaSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    active: z.boolean(),
+    reason: z.string().min(10).optional(),
+  }).refine(
+    (d) => !d.active || !!d.reason,
+    { message: 'reason é obrigatório ao ativar trava_venda', path: ['reason'] }
+  ),
+});
+
+/**
+ * PATCH /assets/:id/legal-hold
+ * Set or clear legal hold on an asset (OWNER/ADMIN only). Blocks all sales when active (Spec §5.5).
+ */
+router.patch(
+  '/:id/legal-hold',
+  authenticate,
+  requirePermission('assets:update'),
+  validateRequest(setLegalHoldSchema),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const { id } = req.params;
+    const { active, reason } = req.body;
+    const userId = req.user!.id;
+
+    const assetResult = await db.query<{ id: string; asset_code: string }>(
+      `SELECT id, asset_code FROM real_estate_assets WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`,
+      [id, tenantContext.tenantId]
+    );
+    if (assetResult.rows.length === 0) throw new NotFoundError('Real estate asset');
+
+    await db.query(
+      `UPDATE real_estate_assets
+       SET legal_hold = $1,
+           legal_hold_reason = $2,
+           legal_hold_set_by = $3,
+           legal_hold_set_at = CASE WHEN $1 THEN NOW() ELSE legal_hold_set_at END,
+           updated_at = NOW()
+       WHERE id = $4 AND tenant_id = $5`,
+      [active, reason ?? null, userId, id, tenantContext.tenantId]
+    );
+
+    await AuditService.log({
+      tenantId: tenantContext.tenantId,
+      userId,
+      userEmail: req.user!.email,
+      userRole: tenantContext.role,
+      action: AuditAction.UPDATE,
+      eventType: active ? 'asset.legal_hold.set' : 'asset.legal_hold.cleared',
+      eventCategory: AuditEventCategory.COMPLIANCE,
+      resourceType: 'real_estate_asset',
+      resourceId: id,
+      description: `Legal hold ${active ? 'ATIVADO' : 'REMOVIDO'} no imóvel ${assetResult.rows[0].asset_code}${reason ? ': ' + reason : ''}`,
+      details: { active, reason },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || undefined,
+      requestId: req.headers['x-request-id'] as string | undefined,
+    });
+
+    res.json({
+      success: true,
+      asset_id: id,
+      legal_hold: active,
+      message: active ? 'Legal hold ativado. Listagens de venda bloqueadas.' : 'Legal hold removido.',
+    });
+  })
+);
+
+/**
+ * PATCH /assets/:id/trava-venda
+ * Set or clear trava_venda on an asset. Blocks sale listings when active (Spec §5.5).
+ */
+router.patch(
+  '/:id/trava-venda',
+  authenticate,
+  requirePermission('assets:update'),
+  validateRequest(setTravaVendaSchema),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const { id } = req.params;
+    const { active, reason } = req.body;
+    const userId = req.user!.id;
+
+    const assetResult = await db.query<{ id: string; asset_code: string }>(
+      `SELECT id, asset_code FROM real_estate_assets WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`,
+      [id, tenantContext.tenantId]
+    );
+    if (assetResult.rows.length === 0) throw new NotFoundError('Real estate asset');
+
+    await db.query(
+      `UPDATE real_estate_assets
+       SET trava_venda = $1,
+           trava_venda_reason = $2,
+           trava_venda_set_by = $3,
+           trava_venda_set_at = CASE WHEN $1 THEN NOW() ELSE trava_venda_set_at END,
+           updated_at = NOW()
+       WHERE id = $4 AND tenant_id = $5`,
+      [active, reason ?? null, userId, id, tenantContext.tenantId]
+    );
+
+    await AuditService.log({
+      tenantId: tenantContext.tenantId,
+      userId,
+      userEmail: req.user!.email,
+      userRole: tenantContext.role,
+      action: AuditAction.UPDATE,
+      eventType: active ? 'asset.trava_venda.set' : 'asset.trava_venda.cleared',
+      eventCategory: AuditEventCategory.COMPLIANCE,
+      resourceType: 'real_estate_asset',
+      resourceId: id,
+      description: `Trava de venda ${active ? 'ATIVADA' : 'REMOVIDA'} no imóvel ${assetResult.rows[0].asset_code}${reason ? ': ' + reason : ''}`,
+      details: { active, reason },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || undefined,
+      requestId: req.headers['x-request-id'] as string | undefined,
+    });
+
+    res.json({
+      success: true,
+      asset_id: id,
+      trava_venda: active,
+      message: active ? 'Trava de venda ativada. Imóvel não pode ser listado para venda.' : 'Trava de venda removida.',
+    });
+  })
+);
+
 export default router;
+

@@ -263,6 +263,44 @@ router.post(
     const { fact_type, fact_value, document_id, page_number, confidence_score,
             tese_principal, texto_legal, doutrina, jurisprudencia, nexo_causal } = req.body;
 
+    // Spec §4.3 / Divergência #4 — CPO Hard Gate: OCR confidence ≥ 0.95 AND DPI ≥ 300
+    if (document_id) {
+      const docRow = await db.query<{
+        ocr_confidence: number | null;
+        dpi_resolution: number | null;
+        status_cpo: string | null;
+      }>(
+        `SELECT ocr_confidence, dpi_resolution, status_cpo
+         FROM documents
+         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`,
+        [document_id, tenantContext.tenantId]
+      );
+      const doc = docRow.rows[0];
+      if (!doc) throw new ValidationError('Documento não encontrado ou não pertence a este tenant.');
+
+      // Only enforce on documents that have been processed (status_cpo not null)
+      if (doc.status_cpo !== null) {
+        if (doc.status_cpo === 'VERMELHO') {
+          throw new ValidationError(
+            'CPO Hard Gate: documento com status_cpo=VERMELHO não pode ser vinculado ao intake jurídico (Spec §4.3). ' +
+            'Reprocesse o documento ou substitua por versão de qualidade adequada.'
+          );
+        }
+        if (doc.ocr_confidence !== null && doc.ocr_confidence < 0.95) {
+          throw new ValidationError(
+            `CPO Hard Gate: OCR confidence insuficiente (${(doc.ocr_confidence * 100).toFixed(1)}% < 95%). ` +
+            'Reprocesse o documento com versão de maior qualidade (Spec §4.3).'
+          );
+        }
+        if (doc.dpi_resolution !== null && doc.dpi_resolution < 300) {
+          throw new ValidationError(
+            `CPO Hard Gate: resolução DPI insuficiente (${doc.dpi_resolution} DPI < 300 DPI). ` +
+            'Digitalize o documento com resolução mínima de 300 DPI (Spec §4.3).'
+          );
+        }
+      }
+    }
+
     const result = await db.query(
       `INSERT INTO document_facts (tenant_id, document_id, fact_type, fact_value, page_number, confidence_score, legal_case_id, metadata)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -700,4 +738,81 @@ router.post(
   })
 );
 
+// ============================================
+// Spec §5.2 — QG4 Hard Gate: status transition
+// ============================================
+
+const updateCaseStatusSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    status: z.enum(['ABERTO', 'EM_ANALISE', 'EM_JULGAMENTO', 'CONCLUIDO', 'ARQUIVADO', 'SUSPENSO', 'CANCELADO']),
+    notes: z.string().optional(),
+  }),
+});
+
+/**
+ * PATCH /legal-cases/:id/status
+ * Update legal case status. Transitions to EM_JULGAMENTO/CONCLUIDO require QG4 >= 90 (Spec §5.2).
+ */
+router.patch(
+  '/:id/status',
+  authenticate,
+  requirePermission('documents:update'),
+  validateRequest(updateCaseStatusSchema),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const tenantContext = getTenantContext(req);
+    const { id } = req.params;
+    const { status, notes } = req.body;
+    const userId = req.user!.id;
+
+    const caseResult = await db.query<{ id: string; case_number: string; status: string; qg4_score: number | null }>(
+      `SELECT id, case_number, status, qg4_score FROM legal_cases WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+      [id, tenantContext.tenantId]
+    );
+    if (caseResult.rows.length === 0) throw new NotFoundError('Legal case');
+    const legalCase = caseResult.rows[0];
+
+    // Spec §5.2 / Divergência #5 — QG4 Hard Gate (app-level, DB trigger is backstop)
+    const qg4BlockedStates = ['EM_JULGAMENTO', 'CONCLUIDO'];
+    if (qg4BlockedStates.includes(status)) {
+      if (!legalCase.qg4_score || legalCase.qg4_score < 90) {
+        throw new ValidationError(
+          `QG4 Hard Gate: score insuficiente (${legalCase.qg4_score ?? 'não calculado'}/90 mínimo). ` +
+          `Execute POST /legal-cases/${id}/qg4/calculate antes de avançar para ${status}. (Spec §5.2)`
+        );
+      }
+    }
+
+    await db.query(
+      `UPDATE legal_cases SET status = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3`,
+      [status, id, tenantContext.tenantId]
+    );
+
+    await AuditService.log({
+      tenantId: tenantContext.tenantId,
+      userId,
+      userEmail: req.user!.email,
+      userRole: tenantContext.role,
+      action: AuditAction.UPDATE,
+      eventType: 'legal_case.status.update',
+      eventCategory: AuditEventCategory.DATA_MODIFICATION,
+      resourceType: 'legal_case',
+      resourceId: id,
+      description: `Status do caso ${legalCase.case_number} alterado: ${legalCase.status} → ${status}`,
+      details: { old_status: legalCase.status, new_status: status, qg4_score: legalCase.qg4_score, notes },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || undefined,
+      requestId: req.headers['x-request-id'] as string | undefined,
+    });
+
+    res.json({
+      success: true,
+      case_id: id,
+      old_status: legalCase.status,
+      new_status: status,
+    });
+  })
+);
+
 export default router;
+

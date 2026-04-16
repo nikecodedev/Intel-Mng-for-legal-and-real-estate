@@ -140,4 +140,59 @@ router.get(
   })
 );
 
+// ============================================
+// Spec §7.1 / Divergência #11 — Auditor Estratégico (AI Persona + CLEAR + Antiloop)
+// ============================================
+
+const clearAnalysisSchema = z.object({
+  body: z.object({
+    prompt: z.string().min(10).max(2000, 'Prompt máximo de 2000 caracteres'),
+    context: z.string().max(5000, 'Contexto máximo de 5000 caracteres').optional(),
+  }),
+});
+
+/**
+ * POST /intelligence/analyze
+ * AI-powered CLEAR analysis using Auditor Estratégico persona (Spec §7.1).
+ * Advisory only — cannot override hard gates.
+ */
+router.post(
+  '/analyze',
+  authenticate,
+  requirePermission('documents:read'),
+  validateRequest(clearAnalysisSchema),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { prompt, context } = req.body;
+    const { tenantId } = getTenantContext(req);
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      res.status(503).json({
+        success: false,
+        error: 'AI_NOT_CONFIGURED',
+        message: 'GEMINI_API_KEY não configurada. Análise AI indisponível.',
+      });
+      return;
+    }
+
+    const { runClearAnalysis } = await import('../services/intelligence-persona.js');
+    const result = await runClearAnalysis(apiKey, prompt, context);
+
+    res.json({
+      success: true,
+      data: {
+        analysis: result.raw,
+        persona: result.persona,
+        model: result.model_used,
+        antiloop_ok: result.antiloop_ok,
+        char_count: result.char_count,
+        tenant_id: tenantId,
+        advisory_only: true,
+        disclaimer: 'Esta análise é CONSULTIVA. Não substitui decisão humana nem override de gates de qualidade.',
+      },
+    });
+  })
+);
+
 export default router;
+

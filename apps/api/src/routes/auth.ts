@@ -858,4 +858,99 @@ router.get(
   })
 );
 
+// ============================================
+// SMS MFA (Spec §2.2 / Divergência #10)
+// ============================================
+
+const smsMfaSendSchema = z.object({
+  body: z.object({
+    phone_number: z.string().min(8).max(20),
+  }),
+});
+
+const smsMfaVerifySchema = z.object({
+  body: z.object({
+    otp: z.string().length(6).regex(/^\d{6}$/, 'OTP deve ter exactamente 6 dígitos'),
+  }),
+});
+
+/**
+ * POST /auth/mfa/send-sms
+ * Send a 6-digit OTP via SMS to the provided phone number (Spec §2.2).
+ * The user must be authenticated. OTP is valid for 10 minutes.
+ */
+router.post(
+  '/mfa/send-sms',
+  authenticate,
+  validateRequest(smsMfaSendSchema),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const userId = req.user!.id;
+    const { phone_number } = req.body;
+
+    const { generateSmsOtp, smsProvider } = await import('../services/sms-provider.js');
+    const otp = generateSmsOtp(userId);
+    const sent = await smsProvider.sendOtp(phone_number, otp);
+
+    if (!sent) {
+      res.status(503).json({
+        success: false,
+        error: 'SMS_SEND_FAILED',
+        message: 'Falha ao enviar OTP via SMS. Tente novamente ou use o autenticador TOTP.',
+      });
+      return;
+    }
+
+    logger.info('SMS MFA OTP sent', { userId, phone: phone_number.slice(0, 4) + '****' });
+
+    res.json({
+      success: true,
+      message: 'OTP enviado por SMS. Válido por 10 minutos. Use POST /auth/mfa/verify-sms para confirmar.',
+    });
+  })
+);
+
+/**
+ * POST /auth/mfa/verify-sms
+ * Verify a 6-digit SMS OTP and update mfa_verified_at (Spec §2.2).
+ */
+router.post(
+  '/mfa/verify-sms',
+  authenticate,
+  validateRequest(smsMfaVerifySchema),
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const userId = req.user!.id;
+    const { otp } = req.body;
+
+    const { verifySmsOtp } = await import('../services/sms-provider.js');
+
+    let valid: boolean;
+    try {
+      valid = verifySmsOtp(userId, otp);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'OTP inválido.';
+      res.status(400).json({ success: false, error: 'SMS_OTP_ERROR', message: msg });
+      return;
+    }
+
+    if (!valid) {
+      res.status(401).json({ success: false, error: 'SMS_OTP_INVALID', message: 'Código OTP SMS inválido.' });
+      return;
+    }
+
+    // Update mfa_verified_at so the auth middleware's 8-hour window is satisfied
+    await db.query(
+      `UPDATE users SET mfa_verified_at = NOW() WHERE id = $1`,
+      [userId]
+    );
+
+    logger.info('SMS MFA verified', { userId });
+
+    res.json({
+      success: true,
+      message: 'SMS MFA verificado com sucesso. Sessão MFA activa por 8 horas.',
+    });
+  })
+);
+
 export default router;
+

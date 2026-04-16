@@ -8,6 +8,7 @@ type ViewerContext = {
     user_id: string;
     ip_address: string;
     timestamp: string;
+    tenant_id?: string;  // Spec §2.5 — tenant_id obrigatório na marca d'água
   };
   fact_context: {
     page_number: number;
@@ -147,8 +148,15 @@ export function DocumentViewer({
     );
   }
 
+  // Spec §2.5 / Divergência #14: watermark must include tenant_id
   const watermarkText = context
-    ? [context.watermark.user_email, context.watermark.user_id, context.watermark.ip_address, context.watermark.timestamp].filter(Boolean).join(' · ')
+    ? [
+        context.watermark.user_email,
+        context.watermark.user_id,
+        context.watermark.ip_address,
+        context.watermark.timestamp,
+        context.watermark.tenant_id,  // §2.5 — tenant_id obrigatório na marca d'água
+      ].filter(Boolean).join(' · ')
     : '';
 
   return (
@@ -211,7 +219,7 @@ export function DocumentViewer({
                 key={i}
                 style={{
                   fontSize: 14,
-                  color: 'rgba(255,255,255,0.08)',
+                  color: 'rgba(255,255,255,0.15)',  // Spec §2.5: opacity 0.15 (was 0.08)
                   whiteSpace: 'nowrap',
                   fontFamily: 'system-ui, sans-serif',
                 }}
