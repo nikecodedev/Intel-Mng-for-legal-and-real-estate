@@ -82,13 +82,13 @@ INSERT INTO legal_cases (
 ) VALUES
   (v_case1, v_tenant, 'PROC-2024-001',
    'Regularização Escritura – Moema',
-   'João da Silva', 'EM_ANDAMENTO',
+   'João da Silva', 'EM_ANALISE',
    0.87, '2025-03-30',
    'Regularização de escritura de imóvel adquirido em leilão. Pendente ITBI e registro em cartório.'),
 
   (v_case2, v_tenant, 'PROC-2024-002',
    'Ação de Usucapião – Terreno Industrial',
-   'Construtora ABC Ltda', 'AGUARDANDO_DOCUMENTOS',
+   'Construtora ABC Ltda', 'SUSPENSO',
    NULL, '2025-06-15',
    'Processo de usucapião para regularização de posse. Aguarda laudos periciais e documentação complementar.'),
 
