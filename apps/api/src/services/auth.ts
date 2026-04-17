@@ -53,7 +53,7 @@ export class AuthService {
    */
   static generateAccessToken(
     user: User,
-    opts?: { tenantId: string; role: string },
+    opts?: { tenantId: string; role?: string },
     expiresInOverride?: string
   ): string {
     const payload: JWTPayload = {
@@ -61,7 +61,7 @@ export class AuthService {
       email: user.email,
       tid: opts?.tenantId,
       uid: user.id,
-      role: opts?.role ?? 'OPERATIONAL',
+      role: (opts?.role ?? 'OPERATIONAL') as JWTPayload['role'],
       jti: randomUUID(),
     };
 

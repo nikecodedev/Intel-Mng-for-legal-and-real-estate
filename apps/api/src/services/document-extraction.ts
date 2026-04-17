@@ -545,6 +545,12 @@ export class DocumentExtractionService {
     const CPF_RE   = /\b(\d{3}[.\s]\d{3}[.\s]\d{3}[-.\s]\d{2})\b/g;
     const CNPJ_RE  = /\b(\d{2}[.\s]\d{3}[.\s]\d{3}\/\d{4}[-.\s]\d{2})\b/g;
 
+    const roleToType = (r: string): ExtractedParty['type'] => {
+      if (['AUTOR', 'REQUERENTE', 'CONTRATANTE', 'VENDEDOR', 'LOCADOR'].includes(r)) return 'plaintiff';
+      if (['REU', 'REQUERIDO', 'CONTRATADO', 'COMPRADOR', 'LOCATARIO'].includes(r)) return 'defendant';
+      return 'other';
+    };
+
     for (const { role, pattern } of PARTY_PATTERNS) {
       let match: RegExpExecArray | null;
       while ((match = pattern.exec(text)) !== null) {
@@ -562,6 +568,7 @@ export class DocumentExtractionService {
         CNPJ_RE.lastIndex = 0;
 
         parties.push({
+          type: roleToType(role),
           role,
           name: rawName,
           ...(cpf  && { cpf_cnpj: cpf }),

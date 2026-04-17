@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { asyncHandler, authenticate, requirePermission, validateRequest } from '../middleware/index.js';
 import { getTenantContext } from '../utils/tenant-context.js';
 import { NotFoundError } from '../utils/errors.js';
-import { KnowledgeEntryModel, KnowledgeEntryType, OutcomeType } from '../models/knowledge-entry.js';
+import { KnowledgeEntryModel, KnowledgeEntryType, OutcomeType, CreateKnowledgeEntryInput } from '../models/knowledge-entry.js';
 import { DocumentTemplateModel } from '../models/document-template.js';
 import { KnowledgeSearchService } from '../services/knowledge-search.js';
 import { TemplateSuccessTrackingService } from '../services/template-success-tracking.js';
@@ -715,7 +715,7 @@ router.post(
     for (let i = 0; i < entries.length; i++) {
       try {
         const entry = await KnowledgeEntryModel.create(
-          { tenant_id: tenantContext.tenantId, ...entries[i] },
+          { tenant_id: tenantContext.tenantId, ...entries[i] } as CreateKnowledgeEntryInput,
           userId
         );
         created.push(entry.id);

@@ -95,7 +95,8 @@ function validateEnv(): EnvConfig {
         throw new Error('JWT_SECRET must be at least 64 characters in production');
       }
       if (result.REDIS_ENABLED && !result.REDIS_PASSWORD) {
-        throw new Error('REDIS_PASSWORD is required in production when Redis is enabled');
+        console.warn('[ENV WARNING] REDIS_PASSWORD not set in production — Redis disabled. Set REDIS_PASSWORD to enable Redis.');
+        (result as Record<string, unknown>).REDIS_ENABLED = false;
       }
     }
 

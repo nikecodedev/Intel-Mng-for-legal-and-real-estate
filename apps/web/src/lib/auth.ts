@@ -11,6 +11,14 @@
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
 
+if (
+  typeof window !== 'undefined' &&
+  process.env.NODE_ENV === 'production' &&
+  !process.env.NEXT_PUBLIC_API_URL
+) {
+  console.error('[Config] NEXT_PUBLIC_API_URL is not set. API calls will target localhost:3000 — this will fail in production. Set NEXT_PUBLIC_API_URL at build time.');
+}
+
 export function getToken(): string | null {
   if (typeof window === 'undefined') return null;
   return sessionStorage.getItem('investor_token');
