@@ -1,7 +1,5 @@
 import { db } from '../models/database.js';
-import { AuctionAssetROIModel } from '../models/auction-asset-roi.js';
 import { AuctionAssetModel } from '../models/auction-asset.js';
-import { RealEstateAssetModel } from '../models/real-estate-asset.js';
 import { DashboardKPICacheModel, KPIType, PeriodType } from '../models/dashboard.js';
 import { logger } from '../utils/logger.js';
 

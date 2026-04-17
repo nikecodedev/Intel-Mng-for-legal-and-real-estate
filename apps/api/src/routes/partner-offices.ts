@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authenticate } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/validator.js';
-import { getTenantContext } from '../middleware/tenant.js';
+import { getTenantContext } from '../utils/tenant-context.js';
 import { db } from '../models/database.js';
 
 const router = Router();

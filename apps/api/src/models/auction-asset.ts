@@ -33,6 +33,8 @@ export interface AuctionAsset {
   linked_document_ids: string[];
   due_diligence_checklist: DueDiligenceChecklist;
   risk_score: number;
+  /** Dedicated MPGA risk score (0-100). >= 70 blocks bidding. Added in migration 054. */
+  mpga_risk_score: number | null;
   asset_reference: string | null;
   title: string | null;
   certidoes_negativas: boolean;
@@ -92,6 +94,7 @@ function mapRow(row: any): AuctionAsset {
     linked_document_ids: Array.isArray(linked) ? (linked as string[]) : [],
     due_diligence_checklist: parseChecklist(row.due_diligence_checklist),
     risk_score: Number(row.risk_score) || 0,
+    mpga_risk_score: row.mpga_risk_score != null ? Number(row.mpga_risk_score) : null,
     asset_reference: (row.asset_reference as string) ?? null,
     title: (row.title as string) ?? null,
     // Spec Divergence #3: certidoes_negativas — FALSE blocks bidding (Hard Gate)
